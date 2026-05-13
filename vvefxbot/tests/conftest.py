@@ -53,4 +53,9 @@ def config_mock():
     config.max_trades_pair_day = 3
     config.google_creds_path = "dummy.json"
     config.google_sheet_id = "dummy_id"
+    config.mt5_login = "123"
+    config.mt5_password = "pass"
+    config.mt5_server = "server"
+    config.telegram_token = "tok"
+    config.telegram_chat_id = "chat"
     return config

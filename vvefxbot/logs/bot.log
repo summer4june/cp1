@@ -9,3 +9,57 @@
 [2026-05-13 17:06:39,701] [INFO] [GoogleSheetReporter] Successfully connected to Google Sheet.
 [2026-05-13 17:06:39,703] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
 [2026-05-13 17:06:39,733] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345
+[2026-05-13 17:44:36,577] [ERROR] [MT5Connector] MT5 initialization failed: <MagicMock name='mt5.last_error()' id='4500990208'>
+[2026-05-13 17:44:36,583] [WARNING] [MT5Connector] Failed to get candles for EURUSD. Attempting one-time reconnect.
+[2026-05-13 17:44:36,677] [ERROR] [ExecutionEngine] Signal not found in DB: missing_id
+[2026-05-13 17:44:36,680] [WARNING] [ExecutionEngine] [EURUSD] EXECUTION_BLOCKED: spread too high at execution (5.0 > 2.0)
+[2026-05-13 17:44:36,683] [WARNING] [ExecutionEngine] [EURUSD] Bot disabled for today. Blocking execution.
+[2026-05-13 17:44:36,807] [WARNING] [TradeManager] 🛑 Daily loss limit reached (250.00 USD). Bot disabled for today.
+[2026-05-13 17:44:36,819] [INFO] [GoogleSheetReporter] Added header row to Google Sheet.
+[2026-05-13 17:44:36,819] [INFO] [GoogleSheetReporter] Successfully connected to Google Sheet.
+[2026-05-13 17:44:36,821] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
+[2026-05-13 17:44:36,853] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345
+[2026-05-13 17:46:19,643] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4572571232'>
+[2026-05-13 17:46:19,646] [ERROR] [MT5Connector] MT5 initialization failed: <MagicMock name='mt5.last_error()' id='4572573584'>
+[2026-05-13 17:46:19,652] [WARNING] [MT5Connector] Failed to get candles for EURUSD. Attempting one-time reconnect.
+[2026-05-13 17:46:19,654] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4572568208'>
+[2026-05-13 17:46:19,654] [ERROR] [MT5Connector] Could not retrieve candles for EURUSD after retry.
+[2026-05-13 17:46:19,685] [ERROR] [ExecutionEngine] Signal not found in DB: missing_id
+[2026-05-13 17:46:19,689] [WARNING] [ExecutionEngine] [EURUSD] EXECUTION_BLOCKED: spread too high at execution (5.0 > 2.0)
+[2026-05-13 17:46:19,693] [WARNING] [ExecutionEngine] [EURUSD] Bot disabled for today. Blocking execution.
+[2026-05-13 17:46:19,697] [INFO] [TelegramBridge] Signal sent to Telegram: sig_1
+[2026-05-13 17:46:19,708] [WARNING] [TradeManager] 🛑 Daily loss limit reached (250.00 USD). Bot disabled for today.
+[2026-05-13 17:46:19,719] [INFO] [GoogleSheetReporter] Added header row to Google Sheet.
+[2026-05-13 17:46:19,720] [INFO] [GoogleSheetReporter] Successfully connected to Google Sheet.
+[2026-05-13 17:46:19,722] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
+[2026-05-13 17:46:19,749] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345
+[2026-05-13 17:47:11,156] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4739161056'>
+[2026-05-13 17:47:11,159] [ERROR] [MT5Connector] MT5 initialization failed: <MagicMock name='mt5.last_error()' id='4741114112'>
+[2026-05-13 17:47:11,165] [WARNING] [MT5Connector] Failed to get candles for EURUSD. Attempting one-time reconnect.
+[2026-05-13 17:47:11,167] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4741114448'>
+[2026-05-13 17:47:11,167] [ERROR] [MT5Connector] Could not retrieve candles for EURUSD after retry.
+[2026-05-13 17:47:11,280] [ERROR] [ExecutionEngine] Signal not found in DB: missing_id
+[2026-05-13 17:47:11,283] [WARNING] [ExecutionEngine] [EURUSD] EXECUTION_BLOCKED: spread too high at execution (5.0 > 2.0)
+[2026-05-13 17:47:11,287] [WARNING] [ExecutionEngine] [EURUSD] Bot disabled for today. Blocking execution.
+[2026-05-13 17:47:11,291] [INFO] [TelegramBridge] Signal sent to Telegram: sig_1
+[2026-05-13 17:47:11,296] [WARNING] [TelegramBridge] Signal expired on YES press: sig_1
+[2026-05-13 17:47:11,301] [WARNING] [TradeManager] 🛑 Daily loss limit reached (250.00 USD). Bot disabled for today.
+[2026-05-13 17:47:11,313] [INFO] [GoogleSheetReporter] Added header row to Google Sheet.
+[2026-05-13 17:47:11,314] [INFO] [GoogleSheetReporter] Successfully connected to Google Sheet.
+[2026-05-13 17:47:11,316] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
+[2026-05-13 17:47:11,342] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345
+[2026-05-13 17:47:29,913] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4736130352'>
+[2026-05-13 17:47:29,917] [ERROR] [MT5Connector] MT5 initialization failed: <MagicMock name='mt5.last_error()' id='4738067024'>
+[2026-05-13 17:47:29,924] [WARNING] [MT5Connector] Failed to get candles for EURUSD. Attempting one-time reconnect.
+[2026-05-13 17:47:29,927] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4738067360'>
+[2026-05-13 17:47:29,927] [ERROR] [MT5Connector] Could not retrieve candles for EURUSD after retry.
+[2026-05-13 17:47:29,945] [ERROR] [ExecutionEngine] Signal not found in DB: missing_id
+[2026-05-13 17:47:29,948] [WARNING] [ExecutionEngine] [EURUSD] EXECUTION_BLOCKED: spread too high at execution (5.0 > 2.0)
+[2026-05-13 17:47:29,952] [WARNING] [ExecutionEngine] [EURUSD] Bot disabled for today. Blocking execution.
+[2026-05-13 17:47:29,957] [INFO] [TelegramBridge] Signal sent to Telegram: sig_1
+[2026-05-13 17:47:29,961] [WARNING] [TelegramBridge] Signal expired on YES press: sig_1
+[2026-05-13 17:47:29,966] [WARNING] [TradeManager] 🛑 Daily loss limit reached (250.00 USD). Bot disabled for today.
+[2026-05-13 17:47:29,980] [INFO] [GoogleSheetReporter] Added header row to Google Sheet.
+[2026-05-13 17:47:29,980] [INFO] [GoogleSheetReporter] Successfully connected to Google Sheet.
+[2026-05-13 17:47:29,983] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
+[2026-05-13 17:47:30,011] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345

@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 from modules.telegrambridge import TelegramBridge
 
 def test_send_signal(config_mock):
-    with patch("telebot.TeleBot") as bot_mock:
+    with patch("modules.telegrambridge.telebot.TeleBot") as bot_mock:
         bridge = TelegramBridge(config_mock, MagicMock(), MagicMock())
         signal = {
             "signal_id": "sig_1", "pair": "EURUSD", "session": "London",
@@ -17,11 +17,11 @@ def test_send_signal(config_mock):
         assert "sig_1" in bridge._pending
 
 def test_handle_yes_callback_expired(config_mock):
-    with patch("telebot.TeleBot") as bot_mock:
+    with patch("modules.telegrambridge.telebot.TeleBot") as bot_mock:
         bridge = TelegramBridge(config_mock, MagicMock(), MagicMock())
         from datetime import datetime, timezone, timedelta
         bridge._pending["sig_1"] = {
             "timestamp": datetime.now(timezone.utc) - timedelta(minutes=20)
         }
         bridge.handle_yes_callback("sig_1")
-        assert "sig_1" not in bridge._pending # Should be removed
+        assert "sig_1" not in bridge._pending

@@ -17,7 +17,7 @@ def test_execution_spread_too_high(config_mock):
     state_mock.get_signal.return_value = {"pair": "EURUSD", "direction": "BUY", "score": 90}
     
     mt5_mock = MagicMock()
-    mt5_mock.get_current_spread.return_value = 5.0 # Fails 2.0 limit
+    mt5_mock.get_current_spread.return_value = 5.0
     
     engine = ExecutionEngine(config_mock, mt5_mock, MagicMock(), state_mock, MagicMock())
     result = engine.execute_signal("sig_1")
