@@ -10,6 +10,8 @@ def test_config_loads_defaults(monkeypatch, tmp_path):
     monkeypatch.setenv("MT5_SERVER", "server")
     monkeypatch.setenv("TELEGRAM_TOKEN", "tok")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "123")
+    monkeypatch.setenv("GOOGLE_SHEET_ID", "dummy_id")
+    monkeypatch.setenv("GOOGLE_CREDS_PATH", "dummy.json")
     
     config_data = {
         "pairs": ["EURUSD"], "risk_percent": 1.0, "trading_pool_size": 1000.0,
@@ -17,7 +19,7 @@ def test_config_loads_defaults(monkeypatch, tmp_path):
         "correlation_groups": {}, "spread_limits": {}, "score_weights": {},
         "score_threshold_aplus": 85, "effective_rr_min": 2.0, "max_open_trades": 5,
         "max_trades_day": 10, "max_trades_pair_day": 3, "scan_frequency_seconds": 10,
-        "demo_mode": True
+        "demo_mode": True, "max_open_risk_percent": 2.0, "slippage_max_pips": 2.0
     }
     config_file = tmp_path / "config.json"
     config_file.write_text(json.dumps(config_data))
@@ -29,14 +31,14 @@ def test_config_loads_defaults(monkeypatch, tmp_path):
         engine = ConfigEngine()
         config = engine.get_config()
         assert config.pairs == ["EURUSD"]
-        assert config.mt5_login == "123"
+        assert str(config.mt5_login) == "123"
         assert config.demo_mode is True
     finally:
         os.chdir(orig_dir)
 
 def test_config_missing_env_raises(monkeypatch, tmp_path):
     monkeypatch.delenv("MT5_LOGIN", raising=False)
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         ConfigEngine()
 
 def test_config_missing_json_field_raises(monkeypatch, tmp_path):
@@ -45,15 +47,17 @@ def test_config_missing_json_field_raises(monkeypatch, tmp_path):
     monkeypatch.setenv("MT5_SERVER", "server")
     monkeypatch.setenv("TELEGRAM_TOKEN", "tok")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "123")
+    monkeypatch.setenv("GOOGLE_SHEET_ID", "dummy_id")
+    monkeypatch.setenv("GOOGLE_CREDS_PATH", "dummy.json")
     
-    config_data = {"pairs": ["EURUSD"]} # Missing risk_percent
+    config_data = {"pairs": ["EURUSD"]} # Missing other keys
     config_file = tmp_path / "config.json"
     config_file.write_text(json.dumps(config_data))
     
     orig_dir = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with pytest.raises(SystemExit):
+        with pytest.raises(ValueError):
             ConfigEngine()
     finally:
         os.chdir(orig_dir)
