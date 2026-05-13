@@ -1,0 +1,33 @@
+{
+  "pairs": ["EURUSD"],
+  "session_timings": {
+    "Asia": {"start": "02:30", "end": "08:30"},
+    "London": {"start": "12:30", "end": "21:30"},
+    "NewYork": {"start": "17:30", "end": "00:30"}
+  },
+  "killzone_timings": {
+    "Asia": {"start": "05:30", "end": "07:30"},
+    "London": {"start": "11:30", "end": "14:30"},
+    "NewYork": {"start": "16:30", "end": "19:30"},
+    "LondonClose": {"start": "19:30", "end": "21:30"}
+  },
+  "risk_percent": 1.0,
+  "max_trades_day": 10,
+  "max_trades_pair_day": 2,
+  "max_open_trades": 2,
+  "max_open_risk_percent": 6.0,
+  "spread_limits": {
+    "EURUSD": 1.5, "GBPUSD": 2.0, "USDJPY": 2.0,
+    "GBPJPY": 3.0, "EURJPY": 3.0, "USDCAD": 2.5
+  },
+  "effective_rr_min": 2.0,
+  "slippage_max_pips": 2.0,
+  "scan_frequency_seconds": 10,
+  "correlation_groups": {
+    "A": ["EURUSD", "GBPUSD"],
+    "B": ["USDJPY", "EURJPY", "GBPJPY"],
+    "C": ["USDCAD"]
+  },
+  "demo_mode": true,
+  "trading_pool_size": 1000.0
+}
