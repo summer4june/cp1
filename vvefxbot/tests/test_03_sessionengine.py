@@ -35,6 +35,6 @@ def test_get_active_killzone(config_mock):
 
 def test_avoid_window_monday(config_mock):
     engine = SessionEngine(config_mock)
-    # Monday 13:00 IST
-    with freeze_time("2026-05-11 07:30:00", tz_offset=0):
+    # Monday 12:00 IST (06:30 UTC)
+    with freeze_time("2026-05-11 06:30:00", tz_offset=0):
         assert engine.is_avoid_window() is True
