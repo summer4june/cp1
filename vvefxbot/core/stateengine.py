@@ -416,11 +416,12 @@ class StateEngine:
             return False
         
         try:
+            from datetime import timezone
             until = datetime.fromisoformat(cooldown_str)
-            # Make sure we compare aware vs aware or naive vs naive
-            # StateEngine stores UTC/Local as string, usually local if not specified
-            # Let's assume naive or consistent with datetime.now()
-            return datetime.now() < until
+            if until.tzinfo is not None:
+                return datetime.now(timezone.utc) < until
+            else:
+                return datetime.now() < until
         except Exception as e:
             logger.error(f"Error parsing cooldown time: {e}")
             return False
