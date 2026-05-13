@@ -36,9 +36,20 @@ def test_config_loads_defaults(monkeypatch, tmp_path):
     finally:
         os.chdir(orig_dir)
 
-def test_config_missing_env_raises(monkeypatch, tmp_path):
-    monkeypatch.delenv("MT5_LOGIN", raising=False)
-    with pytest.raises(ValueError):
+def test_config_missing_env_raises(monkeypatch):
+    # Let it read the real config.json and .env
+    # But mock os.getenv to return None specifically for MT5_LOGIN
+    import os
+    original_getenv = os.getenv
+    
+    def mock_getenv(key, default=None):
+        if key == "MT5_LOGIN":
+            return None
+        return original_getenv(key, default)
+        
+    monkeypatch.setattr(os, "getenv", mock_getenv)
+    
+    with pytest.raises(ValueError, match="missing or invalid"):
         ConfigEngine()
 
 def test_config_missing_json_field_raises(monkeypatch, tmp_path):
