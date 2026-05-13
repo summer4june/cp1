@@ -1,0 +1,37 @@
+"""Tests for MT5Connector using mocked MT5 calls."""
+import pytest
+import pandas as pd
+from unittest.mock import patch, MagicMock
+from core.mt5connector import MT5Connector
+
+def test_connect_success(config_mock):
+    with patch("core.mt5connector.mt5") as mock_mt5:
+        mock_mt5.initialize.return_value = True
+        mock_mt5.login.return_value = True
+        connector = MT5Connector(config_mock)
+        assert connector.connect() is True
+
+def test_connect_failure(config_mock):
+    with patch("core.mt5connector.mt5") as mock_mt5:
+        mock_mt5.initialize.return_value = False
+        connector = MT5Connector(config_mock)
+        assert connector.connect() is False
+
+def test_get_current_spread(config_mock):
+    with patch("core.mt5connector.mt5") as mock_mt5:
+        mock_sym_info = MagicMock()
+        mock_sym_info.spread = 15
+        mock_mt5.symbol_info.return_value = mock_sym_info
+        
+        connector = MT5Connector(config_mock)
+        # JPY pairs
+        assert connector.get_current_spread("USDJPY") == 1.5
+        # Standard pairs
+        assert connector.get_current_spread("EURUSD") == 1.5
+
+def test_get_candles_empty(config_mock):
+    with patch("core.mt5connector.mt5") as mock_mt5:
+        mock_mt5.copy_rates_from_pos.return_value = None
+        connector = MT5Connector(config_mock)
+        df = connector.get_candles("EURUSD", "M15")
+        assert df.empty is True

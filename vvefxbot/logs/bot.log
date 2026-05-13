@@ -1,0 +1,11 @@
+[2026-05-13 17:06:39,147] [ERROR] [StateEngine] Error parsing cooldown time: can't compare offset-naive and offset-aware datetimes
+[2026-05-13 17:06:39,459] [ERROR] [MT5Connector] MT5 initialization failed: <MagicMock name='mt5.last_error()' id='4573059728'>
+[2026-05-13 17:06:39,470] [WARNING] [MT5Connector] Failed to get candles for EURUSD. Attempting one-time reconnect.
+[2026-05-13 17:06:39,554] [ERROR] [ExecutionEngine] Signal not found in DB: missing_id
+[2026-05-13 17:06:39,557] [WARNING] [ExecutionEngine] [EURUSD] EXECUTION_BLOCKED: spread too high at execution (5.0 > 2.0)
+[2026-05-13 17:06:39,561] [WARNING] [ExecutionEngine] [EURUSD] Bot disabled for today. Blocking execution.
+[2026-05-13 17:06:39,689] [WARNING] [TradeManager] 🛑 Daily loss limit reached (250.00 USD). Bot disabled for today.
+[2026-05-13 17:06:39,701] [INFO] [GoogleSheetReporter] Added header row to Google Sheet.
+[2026-05-13 17:06:39,701] [INFO] [GoogleSheetReporter] Successfully connected to Google Sheet.
+[2026-05-13 17:06:39,703] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
+[2026-05-13 17:06:39,733] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345
