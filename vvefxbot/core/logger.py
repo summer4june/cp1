@@ -25,12 +25,10 @@ def get_logger(module_name: str) -> logging.Logger:
 
         log_format = logging.Formatter('[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s')
 
-        # File Handler (Daily rotation, keep 30 days)
-        file_handler = TimedRotatingFileHandler(
+        # File Handler (Simple file handler to avoid Windows/OneDrive rotation locks)
+        file_handler = logging.FileHandler(
             filename=os.path.join(log_dir, "bot.log"),
-            when="midnight",
-            interval=1,
-            backupCount=30
+            encoding='utf-8'
         )
         file_handler.setFormatter(log_format)
 
