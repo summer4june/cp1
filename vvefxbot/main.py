@@ -179,7 +179,7 @@ def main():
         logger.warning("Google Sheet connection failed — trade logging disabled until reconnect.")
 
     # ── 9. TradeManager ──────────────────────────────────────────────
-    trade_manager = TradeManager(config, mt5_connector, state_engine, None)  # Telegram set below
+    trade_manager = TradeManager(config, mt5_connector, state_engine, None, sheet_reporter)  # Telegram set below
     logger.info("TradeManager initialised.")
 
     # ── 10. ExecutionEngine (pre-wired — Telegram set below) ─────────
@@ -188,7 +188,8 @@ def main():
         mt5connector=mt5_connector,
         risk_engine=risk_engine,
         state_engine=state_engine,
-        telegram_bridge=None  # Set after TelegramBridge initialisation
+        telegram_bridge=None,  # Set after TelegramBridge initialisation
+        reporter=sheet_reporter
     )
     logger.info("ExecutionEngine initialised.")
 

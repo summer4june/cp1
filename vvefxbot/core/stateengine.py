@@ -226,6 +226,23 @@ class StateEngine:
             finally:
                 conn.close()
 
+    def get_trade(self, trade_id: str) -> Optional[Dict[str, Any]]:
+        """Fetches a full trade row from trades_executed by trade_id."""
+        with self.lock:
+            conn = self._get_connection()
+            conn.row_factory = sqlite3.Row
+            try:
+                cursor = conn.execute(
+                    "SELECT * FROM trades_executed WHERE trade_id = ?", (trade_id,)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+            except sqlite3.Error as e:
+                logger.error(f"Error fetching trade {trade_id}: {e}")
+                return None
+            finally:
+                conn.close()
+
     # --- DAILY STATE ---
 
     def _ensure_daily_state(self, date: str) -> None:

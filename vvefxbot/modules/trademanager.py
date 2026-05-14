@@ -10,6 +10,7 @@ from core.configengine import Config
 from core.mt5connector import MT5Connector
 from core.stateengine import StateEngine
 from modules.telegrambridge import TelegramBridge
+from modules.reportgoogle import GoogleSheetReporter
 
 logger = get_logger("TradeManager")
 
@@ -26,6 +27,7 @@ class TradeManager:
         mt5connector: MT5Connector,
         state_engine: StateEngine,
         telegram_bridge: TelegramBridge,
+        reporter: GoogleSheetReporter = None
     ):
         """
         Initializes the TradeManager.
@@ -40,6 +42,7 @@ class TradeManager:
         self.mt5 = mt5connector
         self.state = state_engine
         self.telegram = telegram_bridge
+        self.reporter = reporter
 
     # ------------------------------------------------------------------
     # HELPERS
@@ -227,6 +230,12 @@ class TradeManager:
                     msg = f"✅ TP2 Hit — Trade CLOSED WIN | {pair} | +{profit:.2f} USD"
                     logger.info(msg)
                     self.telegram.send_alert(msg)
+                    
+                    # Update Google Sheet
+                    if self.reporter:
+                        updated_trade = self.state.get_trade(trade_id)
+                        signal = self.state.get_signal(trade.get("signal_id", ""))
+                        self.reporter.log_trade(updated_trade, signal)
                 else:
                     logger.error(f"[{pair}] TP2 close failed: {close_result['error']}")
             elif not ticket_alive:
@@ -287,6 +296,12 @@ class TradeManager:
                         msg = f"✅ TP2 Hit — Trade CLOSED WIN | {pair} | +{profit:.2f} USD"
                         logger.info(msg)
                         self.telegram.send_alert(msg)
+
+                        # Update Google Sheet
+                        if self.reporter:
+                            updated_trade = self.state.get_trade(trade_id)
+                            signal = self.state.get_signal(trade.get("signal_id", ""))
+                            self.reporter.log_trade(updated_trade, signal)
                     else:
                         logger.error(f"[{pair}] Case B TP2 close failed: {close_result['error']}")
             elif not ticket2_alive:
@@ -329,6 +344,12 @@ class TradeManager:
         msg = f"❌ Trade CLOSED {result} | {pair} | {profit_usd:.2f} USD"
         logger.info(msg)
         self.telegram.send_alert(msg)
+
+        # Update Google Sheet
+        if self.reporter:
+            updated_trade = self.state.get_trade(trade_id)
+            signal = self.state.get_signal(trade.get("signal_id", ""))
+            self.reporter.log_trade(updated_trade, signal)
 
         self._handle_loss_guards(today, profit_usd, result, pair)
 

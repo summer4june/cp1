@@ -520,14 +520,14 @@ class ScannerMMXM:
             sl=sl,
             tp1=tp1,
             tp2=tp2,
-            score=score,
+            score=total_score,
             spread=spread_pips,
             session=session,
             fvg_zone=fvg_result
         )
 
         logger.info(
-            f"[{pair}] A+ SIGNAL | {direction} | Score: {score} | "
+            f"[{pair}] A+ SIGNAL | {direction} | Score: {total_score} | "
             f"Entry: {signal['entry_price']} | SL: {signal['sl_price']} | "
             f"TP1: {signal['tp1_price']} | TP2: {signal['tp2_price']} | "
             f"RR: {signal['effective_rr']}"
