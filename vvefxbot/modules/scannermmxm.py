@@ -455,15 +455,20 @@ class ScannerMMXM:
         confluence_count = self._check_h1_confluence(pair, direction)
 
         # SCORING
-        score = self.calculate_score(
-            liquidity=sweep_result["detected"],
-            displacement=mss_result["detected"],
-            fvg=fvg_result["detected"],
-            confluence_count=confluence_count
-        )
+        l_score = 25.0 if sweep_result["detected"] else 0.0
+        d_score = 25.0 if mss_result["detected"] else 0.0
+        f_score = 25.0 if fvg_result["detected"] else 0.0
+        c_score = min(confluence_count, 1) * 25.0
+        score = l_score + d_score + f_score + c_score
+
+        logger.info(f"[{pair}] Liquidity sweep: {l_score}/25")
+        logger.info(f"[{pair}] Displacement: {d_score}/25")
+        logger.info(f"[{pair}] FVG: {f_score}/25")
+        logger.info(f"[{pair}] Confluence: {c_score}/25")
+        logger.info(f"[{pair}] TOTAL SCORE: {score}/100 | Threshold: {self.config.aplus_threshold}")
 
         if score < self.config.aplus_threshold:
-            logger.info(f"[{pair}] Score {score} below A+ threshold ({self.config.aplus_threshold}). Signal rejected.")
+            logger.info(f"[{pair}] Signal rejected: score below threshold.")
             return None
 
         # ENTRY: FVG midpoint if FVG detected, else current M1 close
