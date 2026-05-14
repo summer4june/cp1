@@ -119,6 +119,26 @@ class MT5Connector:
         else:
             return spread_points * symbol_info.point / 0.0001
 
+    def _get_filling_mode(self, symbol: str) -> int:
+        """
+        Detects the best supported filling mode for the given symbol.
+        
+        Priority: SYMBOL_FILLING_FOK -> SYMBOL_FILLING_IOC -> ORDER_FILLING_RETURN
+        """
+        symbol_info = mt5.symbol_info(symbol)
+        if not symbol_info:
+            return mt5.ORDER_FILLING_RETURN
+
+        # Check supported filling flags
+        filling_modes = symbol_info.filling_mode
+        
+        if filling_modes & mt5.SYMBOL_FILLING_FOK:
+            return mt5.ORDER_FILLING_FOK
+        elif filling_modes & mt5.SYMBOL_FILLING_IOC:
+            return mt5.ORDER_FILLING_IOC
+        else:
+            return mt5.ORDER_FILLING_RETURN
+
     def get_account_balance(self) -> float:
         """
         Return current account balance.
@@ -178,7 +198,7 @@ class MT5Connector:
             "magic": 123456,
             "comment": comment,
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": self._get_filling_mode(symbol),
         }
 
         retries = 3
