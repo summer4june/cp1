@@ -9,6 +9,7 @@ from core.mt5connector import MT5Connector
 from core.stateengine import StateEngine
 from modules.riskengine import RiskEngine
 from modules.telegrambridge import TelegramBridge
+from modules.reportgoogle import GoogleSheetReporter
 
 logger = get_logger("ExecutionEngine")
 
@@ -25,6 +26,7 @@ class ExecutionEngine:
         risk_engine: RiskEngine,
         state_engine: StateEngine,
         telegram_bridge: TelegramBridge,
+        reporter: GoogleSheetReporter = None
     ):
         """
         Initializes the ExecutionEngine.
@@ -41,6 +43,7 @@ class ExecutionEngine:
         self.risk = risk_engine
         self.state = state_engine
         self.telegram = telegram_bridge
+        self.reporter = reporter
 
     # ------------------------------------------------------------------
     # CORRELATION HELPER
@@ -183,7 +186,7 @@ class ExecutionEngine:
         now_utc = datetime.now(timezone.utc).isoformat()
         trade_id = str(uuid.uuid4())
 
-        self.state.insert_trade({
+        trade_data = {
             "trade_id": trade_id,
             "signal_id": signal_id,
             "ticket_id": ticket,
@@ -199,7 +202,12 @@ class ExecutionEngine:
             "status": "OPEN",
             "result": None,
             "profit_usd": 0.0,
-        })
+        }
+        self.state.insert_trade(trade_data)
+
+        # Log to Google Sheets if reporter is available
+        if self.reporter:
+            self.reporter.log_trade(trade_data, signal)
 
         # ── STEP 10: Set pair cooldown ────────────────────────────────
         cooldown_until = datetime.now(timezone.utc) + timedelta(minutes=15)
