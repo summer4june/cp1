@@ -396,7 +396,7 @@ class ScannerMMXM:
         """
         Run the full 5-step ICT MMXM detection sequence for a pair.
 
-        Returns a signal dict if score >= 85, otherwise None.
+        Returns a signal dict if score >= self.config.aplus_threshold, otherwise None.
 
         Args:
             pair (str): Trading symbol.
@@ -462,8 +462,8 @@ class ScannerMMXM:
             confluence_count=confluence_count
         )
 
-        if score < 85.0:
-            logger.info(f"[{pair}] Score {score} below A+ threshold (85). Signal rejected.")
+        if score < self.config.aplus_threshold:
+            logger.info(f"[{pair}] Score {score} below A+ threshold ({self.config.aplus_threshold}). Signal rejected.")
             return None
 
         # ENTRY: FVG midpoint if FVG detected, else current M1 close

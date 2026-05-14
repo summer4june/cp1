@@ -21,6 +21,7 @@
     "GBPJPY": 3.0, "EURJPY": 3.0, "USDCAD": 2.5
   },
   "effective_rr_min": 2.0,
+  "aplus_threshold": 85.0,
   "slippage_max_pips": 2.0,
   "scan_frequency_seconds": 10,
   "correlation_groups": {

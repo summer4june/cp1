@@ -18,6 +18,7 @@ class Config:
     max_open_risk_percent: float
     spread_limits: Dict[str, float]
     effective_rr_min: float
+    aplus_threshold: float
     slippage_max_pips: float
     scan_frequency_seconds: int
     correlation_groups: Dict[str, List[str]]
@@ -74,8 +75,8 @@ class ConfigEngine:
             "pairs", "session_timings", "killzone_timings", "risk_percent", 
             "max_trades_day", "max_trades_pair_day", "max_open_trades", 
             "max_open_risk_percent", "spread_limits", "effective_rr_min", 
-            "slippage_max_pips", "scan_frequency_seconds", "correlation_groups", 
-            "demo_mode", "trading_pool_size"
+            "aplus_threshold", "slippage_max_pips", "scan_frequency_seconds", 
+            "correlation_groups", "demo_mode", "trading_pool_size"
         ]
         
         # Required .env keys
@@ -90,7 +91,7 @@ class ConfigEngine:
                 raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
             
             # Simple type validation for some fields
-            if key in ["risk_percent", "max_open_risk_percent", "effective_rr_min", "slippage_max_pips", "trading_pool_size"]:
+            if key in ["risk_percent", "max_open_risk_percent", "effective_rr_min", "aplus_threshold", "slippage_max_pips", "trading_pool_size"]:
                 if not isinstance(json_data[key], (int, float)):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
             elif key in ["max_trades_day", "max_trades_pair_day", "max_open_trades", "scan_frequency_seconds"]:
@@ -132,6 +133,7 @@ class ConfigEngine:
             max_open_risk_percent=float(json_data["max_open_risk_percent"]),
             spread_limits=json_data["spread_limits"],
             effective_rr_min=float(json_data["effective_rr_min"]),
+            aplus_threshold=float(json_data["aplus_threshold"]),
             slippage_max_pips=float(json_data["slippage_max_pips"]),
             scan_frequency_seconds=int(json_data["scan_frequency_seconds"]),
             correlation_groups=json_data["correlation_groups"],
