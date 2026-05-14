@@ -13,8 +13,10 @@ RETCODE_DONE = getattr(mt5, 'TRADE_RETCODE_DONE', 10009)
 RETCODE_PLACED = getattr(mt5, 'TRADE_RETCODE_PLACED', 10008)
 RETCODE_BUSY = getattr(mt5, 'TRADE_RETCODE_BUSY', 10004)
 RETCODE_REQUOTE = getattr(mt5, 'TRADE_RETCODE_REQUOTE', 10006)
-RETCODE_TOO_MANY_REQUESTS = getattr(mt5, 'TRADE_RETCODE_TOO_MANY_REQUESTS', 10018)
-RETCODE_CONNECTION = getattr(mt5, 'TRADE_RETCODE_CONNECTION', 10002)
+RETCODE_TOO_MANY_REQUESTS = getattr(mt5, 'TRADE_RETCODE_TOO_MANY_REQUESTS', 10024)
+RETCODE_LOCKED = getattr(mt5, 'TRADE_RETCODE_LOCKED', 10028)
+RETCODE_CONNECTION = getattr(mt5, 'TRADE_RETCODE_CONNECTION', 10031)
+RETCODE_MARKET_CLOSED = getattr(mt5, 'TRADE_RETCODE_MARKET_CLOSED', 10018)
 
 # Filling Mode Flags (for symbol_info().filling_mode)
 SYM_FILLING_FOK = getattr(mt5, 'SYMBOL_FILLING_FOK', 1)
@@ -24,6 +26,22 @@ SYM_FILLING_IOC = getattr(mt5, 'SYMBOL_FILLING_IOC', 2)
 ORD_FILLING_FOK = getattr(mt5, 'ORDER_FILLING_FOK', 0)
 ORD_FILLING_IOC = getattr(mt5, 'ORDER_FILLING_IOC', 1)
 ORD_FILLING_RETURN = getattr(mt5, 'ORDER_FILLING_RETURN', 2)
+
+# Order Types
+ORD_BUY = getattr(mt5, 'ORDER_TYPE_BUY', 0)
+ORD_SELL = getattr(mt5, 'ORDER_TYPE_SELL', 1)
+
+# Trade Actions
+ACTION_DEAL = getattr(mt5, 'TRADE_ACTION_DEAL', 1)
+ACTION_SLTP = getattr(mt5, 'TRADE_ACTION_SLTP', 6)
+
+# Timeframes
+TF_M1 = getattr(mt5, 'TIMEFRAME_M1', 1)
+TF_M15 = getattr(mt5, 'TIMEFRAME_M15', 15)
+TF_H1 = getattr(mt5, 'TIMEFRAME_H1', 16385)
+
+# Other Constants
+TIME_GTC = getattr(mt5, 'ORDER_TIME_GTC', 0)
 
 class MT5Connector:
     """Connector class for MetaTrader 5 terminal interaction."""
@@ -37,9 +55,9 @@ class MT5Connector:
         """
         self.config = config
         self.tf_map = {
-            "M1": mt5.TIMEFRAME_M1,
-            "M15": mt5.TIMEFRAME_M15,
-            "H1": mt5.TIMEFRAME_H1
+            "M1": TF_M1,
+            "M15": TF_M15,
+            "H1": TF_H1
         }
 
     def connect(self) -> bool:
@@ -187,16 +205,18 @@ class MT5Connector:
             dict: {"success": bool, "ticket": int, "error": str}
         """
         if order_type.upper() == "BUY":
-            mt5_type = mt5.ORDER_TYPE_BUY
-            price = mt5.symbol_info_tick(symbol).ask
+            mt5_type = ORD_BUY
+            tick = mt5.symbol_info_tick(symbol)
+            price = tick.ask if tick else 0.0
         elif order_type.upper() == "SELL":
-            mt5_type = mt5.ORDER_TYPE_SELL
-            price = mt5.symbol_info_tick(symbol).bid
+            mt5_type = ORD_SELL
+            tick = mt5.symbol_info_tick(symbol)
+            price = tick.bid if tick else 0.0
         else:
             return {"success": False, "ticket": -1, "error": f"Invalid order type: {order_type}"}
 
         request = {
-            "action": mt5.TRADE_ACTION_DEAL,
+            "action": ACTION_DEAL,
             "symbol": symbol,
             "volume": lot,
             "type": mt5_type,
@@ -206,7 +226,7 @@ class MT5Connector:
             "deviation": 20,
             "magic": 123456,
             "comment": comment,
-            "type_time": mt5.ORDER_TIME_GTC,
+            "type_time": TIME_GTC,
             "type_filling": self._get_filling_mode(symbol),
         }
 
@@ -222,8 +242,8 @@ class MT5Connector:
                 logger.info(f"Order placed: {symbol} {order_type} {lot} @ {result.price}, Ticket: {result.order}")
                 return {"success": True, "ticket": result.order, "error": ""}
             
-            # Retry on busy/requote/too many requests
-            if result.retcode in [RETCODE_REQUOTE, RETCODE_BUSY, RETCODE_TOO_MANY_REQUESTS]:
+            # Retry on busy/requote/too many requests/locked
+            if result.retcode in [RETCODE_REQUOTE, RETCODE_BUSY, RETCODE_TOO_MANY_REQUESTS, RETCODE_LOCKED]:
                 logger.warning(f"Order retry {i+1}/{retries} due to retcode: {result.retcode} ({result.comment})")
                 time.sleep(1.0)
                 # Update price for next attempt
@@ -254,11 +274,12 @@ class MT5Connector:
         
         pos = position[0]
         symbol = pos.symbol
-        order_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
-        price = mt5.symbol_info_tick(symbol).bid if pos.type == mt5.ORDER_TYPE_BUY else mt5.symbol_info_tick(symbol).ask
+        order_type = ORD_SELL if pos.type == ORD_BUY else ORD_BUY
+        tick = mt5.symbol_info_tick(symbol)
+        price = tick.bid if tick and pos.type == ORD_BUY else (tick.ask if tick else 0.0)
 
         request = {
-            "action": mt5.TRADE_ACTION_DEAL,
+            "action": ACTION_DEAL,
             "symbol": symbol,
             "volume": lot,
             "type": order_type,
@@ -267,8 +288,8 @@ class MT5Connector:
             "deviation": 20,
             "magic": 123456,
             "comment": "Close Partial",
-            "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_time": TIME_GTC,
+            "type_filling": self._get_filling_mode(symbol),
         }
 
         result = mt5.order_send(request)
@@ -297,7 +318,7 @@ class MT5Connector:
         
         pos = position[0]
         request = {
-            "action": mt5.TRADE_ACTION_SLTP,
+            "action": ACTION_SLTP,
             "symbol": pos.symbol,
             "sl": new_sl,
             "tp": pos.tp,
