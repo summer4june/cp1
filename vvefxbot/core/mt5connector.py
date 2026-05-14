@@ -16,6 +16,15 @@ RETCODE_REQUOTE = getattr(mt5, 'TRADE_RETCODE_REQUOTE', 10006)
 RETCODE_TOO_MANY_REQUESTS = getattr(mt5, 'TRADE_RETCODE_TOO_MANY_REQUESTS', 10018)
 RETCODE_CONNECTION = getattr(mt5, 'TRADE_RETCODE_CONNECTION', 10002)
 
+# Filling Mode Flags (for symbol_info().filling_mode)
+SYM_FILLING_FOK = getattr(mt5, 'SYMBOL_FILLING_FOK', 1)
+SYM_FILLING_IOC = getattr(mt5, 'SYMBOL_FILLING_IOC', 2)
+
+# Order Filling Types (for request["type_filling"])
+ORD_FILLING_FOK = getattr(mt5, 'ORDER_FILLING_FOK', 0)
+ORD_FILLING_IOC = getattr(mt5, 'ORDER_FILLING_IOC', 1)
+ORD_FILLING_RETURN = getattr(mt5, 'ORDER_FILLING_RETURN', 2)
+
 class MT5Connector:
     """Connector class for MetaTrader 5 terminal interaction."""
     
@@ -123,21 +132,21 @@ class MT5Connector:
         """
         Detects the best supported filling mode for the given symbol.
         
-        Priority: SYMBOL_FILLING_FOK -> SYMBOL_FILLING_IOC -> ORDER_FILLING_RETURN
+        Priority: SYM_FILLING_FOK -> SYM_FILLING_IOC -> ORD_FILLING_RETURN
         """
         symbol_info = mt5.symbol_info(symbol)
         if not symbol_info:
-            return mt5.ORDER_FILLING_RETURN
+            return ORD_FILLING_RETURN
 
         # Check supported filling flags
         filling_modes = symbol_info.filling_mode
         
-        if filling_modes & mt5.SYMBOL_FILLING_FOK:
-            return mt5.ORDER_FILLING_FOK
-        elif filling_modes & mt5.SYMBOL_FILLING_IOC:
-            return mt5.ORDER_FILLING_IOC
+        if filling_modes & SYM_FILLING_FOK:
+            return ORD_FILLING_FOK
+        elif filling_modes & SYM_FILLING_IOC:
+            return ORD_FILLING_IOC
         else:
-            return mt5.ORDER_FILLING_RETURN
+            return ORD_FILLING_RETURN
 
     def get_account_balance(self) -> float:
         """
