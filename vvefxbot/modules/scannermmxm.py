@@ -406,6 +406,8 @@ class ScannerMMXM:
         Returns:
             dict | None: Signal dict or None if no valid A+ setup found.
         """
+        logger.info(f"[{pair}] scan() called | session={session} | killzone={killzone}")
+
         # Guard: must be in a killzone
         if not killzone:
             return None
@@ -414,10 +416,14 @@ class ScannerMMXM:
         if self.state.is_pair_on_cooldown(pair):
             logger.info(f"[{pair}] Skipped — pair is on cooldown.")
             return None
+        
+        logger.info(f"[{pair}] Cooldown check passed")
 
         # Fetch candle data
         m15_candles = self.mt5.get_candles(pair, "M15", count=100)
         m1_candles = self.mt5.get_candles(pair, "M1", count=100)
+        
+        logger.info(f"[{pair}] M15 candles: {len(m15_candles)} | M1 candles: {len(m1_candles)}")
 
         if m15_candles.empty or m1_candles.empty:
             logger.warning(f"[{pair}] Candle data unavailable. Skipping scan.")
@@ -429,12 +435,21 @@ class ScannerMMXM:
 
         # STEP 1 — BIAS
         direction = self._get_bias(m15_candles)
+        
+        # Calculate for logging purposes
+        last_20 = m15_candles.iloc[-20:]
+        midpoint = (last_20["high"].max() + last_20["low"].min()) / 2.0
+        current_price = m15_candles.iloc[-1]["close"]
+        logger.info(f"[{pair}] Bias: {direction} | Price: {current_price} | Midpoint: {midpoint}")
+
         if direction is None:
             logger.debug(f"[{pair}] No clear bias. Skipping.")
             return None
 
         # STEP 2 — LIQUIDITY SWEEP (M15)
         sweep_result = self.detect_liquidity_sweep(m15_candles, direction)
+        logger.info(f"[{pair}] Liquidity sweep: {sweep_result['detected']}")
+
         if not sweep_result["detected"]:
             logger.debug(f"[{pair}] No liquidity sweep detected. Skipping.")
             return None
@@ -443,36 +458,33 @@ class ScannerMMXM:
         atr_series = (m1_candles["high"] - m1_candles["low"]).abs().iloc[-14:]
         atr = float(atr_series.mean()) if len(atr_series) == 14 else 0.0
 
-        mss_result = self.detect_mss_displacement(m1_candles, direction, atr)
-        if not mss_result["detected"]:
+        disp_result = self.detect_mss_displacement(m1_candles, direction, atr)
+        logger.info(f"[{pair}] Displacement: {disp_result['detected']}")
+
+        if not disp_result["detected"]:
             logger.debug(f"[{pair}] No MSS/displacement detected. Skipping.")
             return None
 
         # STEP 4 — FVG (M1)
-        fvg_result = self.detect_fvg(m1_candles, direction, mss_result["displacement_candle_index"])
+        fvg_result = self.detect_fvg(m1_candles, direction, disp_result["displacement_candle_index"])
+        logger.info(f"[{pair}] FVG: {fvg_result['detected']}")
 
         # STEP 5 — CONFLUENCE (H1)
         confluence_count = self._check_h1_confluence(pair, direction)
 
         # SCORING
-        l_score = 25.0 if sweep_result["detected"] else 0.0
-        d_score = 25.0 if mss_result["detected"] else 0.0
-        f_score = 25.0 if fvg_result["detected"] else 0.0
-        c_score = min(confluence_count, 1) * 25.0
-        score = l_score + d_score + f_score + c_score
+        liquidity_score = 25.0 if sweep_result["detected"] else 0.0
+        displacement_score = 25.0 if disp_result["detected"] else 0.0
+        fvg_score = 25.0 if fvg_result["detected"] else 0.0
+        confluence_score = min(confluence_count, 1) * 25.0
+        total_score = liquidity_score + displacement_score + fvg_score + confluence_score
 
-        logger.info(f"[{pair}] Score breakdown — "
-                    f"Liquidity: {l_score}/25 | "
-                    f"Displacement: {d_score}/25 | "
-                    f"FVG: {f_score}/25 | "
-                    f"Confluence: {c_score}/25 | "
-                    f"TOTAL: {score}/100 | "
-                    f"Threshold: {self.config.aplus_threshold}")
+        logger.info(f"[{pair}] Score: Liquidity={liquidity_score} | Displacement={displacement_score} | FVG={fvg_score} | Confluence={confluence_score} | TOTAL={total_score} | Threshold={self.config.aplus_threshold}")
 
-        if score >= self.config.aplus_threshold:
-            logger.info(f"[{pair}] | ✅ A+ SIGNAL DETECTED | Score: {score}")
+        if total_score >= self.config.aplus_threshold:
+            logger.info(f"[{pair}] | ✅ A+ SIGNAL | Score: {total_score}")
         else:
-            logger.info(f"[{pair}] | ❌ Score too low | {score} < {self.config.aplus_threshold} | Skipped")
+            logger.info(f"[{pair}] | ❌ Below threshold | {total_score} < {self.config.aplus_threshold}")
             return None
 
         # ENTRY: FVG midpoint if FVG detected, else current M1 close
