@@ -301,7 +301,35 @@ class MT5Connector:
         logger.error(err_msg)
         return {"success": False, "error": err_msg}
 
-    def modify_sl(self, ticket: int, new_sl: float) -> Dict[str, str]:
+    def get_historical_profit(self, ticket: int) -> float:
+        """
+        Retrieve the actual realized profit/loss for a closed ticket from MT5 history.
+        
+        Args:
+            ticket (int): The position/ticket ID.
+            
+        Returns:
+            float: Total profit/loss in account currency. Returns 0.0 if not found.
+        """
+        # Search history for this ticket (from 24h ago to now)
+        from_date = datetime.now() - timedelta(days=1)
+        deals = mt5.history_deals_get(from_date, datetime.now(), group=f"*{ticket}*")
+        
+        if not deals:
+            # Try searching by position ID directly if group filter fails
+            deals = mt5.history_deals_get(position=ticket)
+
+        if not deals:
+            return 0.0
+
+        total_profit = 0.0
+        for deal in deals:
+            # We only care about deals that have a profit value (actual trades)
+            total_profit += (deal.profit + deal.commission + deal.swap)
+            
+        return round(total_profit, 2)
+
+    def modify_sl(self, ticket: int, new_sl: float) -> Dict[str, Any]:
         """
         Modify Stop Loss of an open position.
         

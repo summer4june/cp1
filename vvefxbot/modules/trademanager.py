@@ -319,22 +319,16 @@ class TradeManager:
 
         Determines LOSS vs BREAKEVEN and applies daily guards.
         """
-        # Determine result based on price relative to entry
-        be_moved = int(trade.get("be_moved", 0))
-
-        if be_moved:
+        # Fetch real profit from MT5 history
+        profit_usd = self.mt5.get_historical_profit(ticket)
+        
+        # Determine result based on profit and BE status
+        if profit_usd >= -0.01 and int(trade.get("be_moved", 0)):
             result = "BREAKEVEN"
-            profit_usd = 0.0
         else:
-            # Price went against us → SL hit
-            result = "LOSS"
-            # Approximate profit from lot and pip distance
-            lot = float(trade.get("lot_total", 0.01))
-            pip_size = self._pip_size(pair)
-            if direction == "BUY":
-                profit_usd = (current_price - entry_price) / pip_size * 10 * lot
-            else:
-                profit_usd = (entry_price - current_price) / pip_size * 10 * lot
+            result = "WIN" if profit_usd > 0 else "LOSS"
+
+        event_type = "SL_HIT" if result == "LOSS" else "MANUAL_CLOSE"
 
         event_type = "SL_HIT" if result == "LOSS" else "MANUAL_CLOSE"
 
