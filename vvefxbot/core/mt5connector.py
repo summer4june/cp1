@@ -8,6 +8,14 @@ from .configengine import Config
 
 logger = get_logger("MT5Connector")
 
+# Safe Retcode Mappings with numeric fallbacks for different MT5 versions
+RETCODE_DONE = getattr(mt5, 'TRADE_RETCODE_DONE', 10009)
+RETCODE_PLACED = getattr(mt5, 'TRADE_RETCODE_PLACED', 10008)
+RETCODE_BUSY = getattr(mt5, 'TRADE_RETCODE_BUSY', 10004)
+RETCODE_REQUOTE = getattr(mt5, 'TRADE_RETCODE_REQUOTE', 10006)
+RETCODE_TOO_MANY_REQUESTS = getattr(mt5, 'TRADE_RETCODE_TOO_MANY_REQUESTS', 10018)
+RETCODE_CONNECTION = getattr(mt5, 'TRADE_RETCODE_CONNECTION', 10002)
+
 class MT5Connector:
     """Connector class for MetaTrader 5 terminal interaction."""
     
@@ -181,19 +189,18 @@ class MT5Connector:
                 logger.error(err_msg)
                 return {"success": False, "ticket": -1, "error": err_msg}
 
-            if result.retcode == mt5.TRADE_RETCODE_DONE:
+            if result.retcode in [RETCODE_DONE, RETCODE_PLACED]:
                 logger.info(f"Order placed: {symbol} {order_type} {lot} @ {result.price}, Ticket: {result.order}")
                 return {"success": True, "ticket": result.order, "error": ""}
             
-            # Retry on busy/requote
-            if result.retcode in [mt5.TRADE_RETCODE_REQUOTE, mt5.TRADE_RETCODE_BUSY]:
-                logger.warning(f"Order retry {i+1}/{retries} due to retcode: {result.retcode}")
-                time.sleep(0.5)
+            # Retry on busy/requote/too many requests
+            if result.retcode in [RETCODE_REQUOTE, RETCODE_BUSY, RETCODE_TOO_MANY_REQUESTS]:
+                logger.warning(f"Order retry {i+1}/{retries} due to retcode: {result.retcode} ({result.comment})")
+                time.sleep(1.0)
                 # Update price for next attempt
-                if order_type.upper() == "BUY":
-                    request["price"] = mt5.symbol_info_tick(symbol).ask
-                else:
-                    request["price"] = mt5.symbol_info_tick(symbol).bid
+                tick = mt5.symbol_info_tick(symbol)
+                if tick:
+                    request["price"] = tick.ask if order_type.upper() == "BUY" else tick.bid
                 continue
             else:
                 logger.error(f"Order failed: {result.retcode} - {result.comment}")
@@ -236,7 +243,7 @@ class MT5Connector:
         }
 
         result = mt5.order_send(request)
-        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+        if result and result.retcode == RETCODE_DONE:
             logger.info(f"Partial close successful for ticket {ticket}")
             return {"success": True, "error": ""}
         
@@ -269,7 +276,7 @@ class MT5Connector:
         }
 
         result = mt5.order_send(request)
-        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+        if result and result.retcode == RETCODE_DONE:
             logger.info(f"SL modified for ticket {ticket} to {new_sl}")
             return {"success": True, "error": ""}
         
