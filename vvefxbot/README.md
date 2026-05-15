@@ -1,205 +1,140 @@
-# VvE FxBOT — Production ICT MMXM Trading Bot
+# 🌌 VvE FxBOT: High-Frequency MMXM Trading Engine
 
-VvE FxBOT is a production-grade, semi-automated Forex trading bot built in Python.
-It detects ICT MMXM (Market Maker Buy/Sell Model) setups across configurable pairs and
-sessions, gates every signal through risk and correlation checks, then routes execution
-approval through Telegram before placing orders on MetaTrader 5.
+VvE FxBOT is a production-grade algorithmic trading system designed for MetaTrader 5. It implements the **MMXM (Market Maker Models)** framework, utilizing high-probability ICT concepts like Liquidity Sweeps, Displacement, and Fair Value Gaps (FVG) across multiple timeframes.
 
 ---
 
-## Folder Structure
+## 🏗️ System Architecture
 
+```mermaid
+graph TD
+    subgraph "Core Engines"
+        Main[main.py]
+        Config[ConfigEngine]
+        State[StateEngine - SQLite]
+        MT5[MT5Connector]
+    end
+
+    subgraph "Strategy & Analysis"
+        Scanner[ScannerMMXM]
+        Session[SessionEngine]
+        Corr[CorrelationFilter]
+        Risk[RiskEngine]
+    end
+
+    subgraph "Trade Lifecycle"
+        Bridge[TelegramBridge]
+        Exec[ExecutionEngine]
+        Manager[TradeManager]
+        Sheet[GoogleSheetReporter]
+    end
+
+    Main --> Config
+    Main --> MT5
+    Main --> Scanner
+    Scanner --> Session
+    Scanner --> MT5
+    Scanner --> State
+    
+    Main --> Bridge
+    Bridge -- "Approval" --> Exec
+    Exec --> MT5
+    Exec --> State
+    
+    Main --> Manager
+    Manager --> MT5
+    Manager --> State
+    Manager --> Sheet
+    Manager --> Bridge
 ```
-vvefxbot/
-├── core/
-│   ├── configengine.py      # Config loader & validator (config.json + .env)
-│   ├── logger.py            # Structured logger with daily rotation & .env masking
-│   ├── mt5connector.py      # MetaTrader 5 connection & order management
-│   └── stateengine.py       # SQLite persistence (signals, trades, state)
-├── modules/
-│   ├── sessionengine.py     # IST session & killzone gating
-│   ├── scannermmxm.py       # 5-step ICT MMXM signal detection (M15 + M1)
-│   ├── riskengine.py        # Lot sizing, RR checks, slippage, portfolio exposure
-│   ├── executionengine.py   # 13-step trade execution flow (triggered by Telegram YES)
-│   ├── trademanager.py      # Background TP1/BE/TP2 trade monitor
-│   ├── telegrambridge.py    # Signal delivery & YES/NO approval via Telegram
-│   ├── correlationfilter.py # Group-based correlation trade gating
-│   └── reportgoogle.py      # Google Sheets trade logging
-├── db/                      # SQLite database (fxbot.db created at runtime)
-├── logs/                    # Rotating log files (bot.log)
-├── config.json              # Bot configuration
-├── .env.example             # Environment variable template
-├── requirements.txt         # Python dependencies
-├── main.py                  # System orchestrator entry point
-└── README.md
-```
 
 ---
 
-## Prerequisites
+## 📁 Project Structure & File Roles
 
-- **Python 3.10+** (3.11 recommended)
-- **MetaTrader 5 terminal** installed and logged in (Windows or Linux via Wine)
-- **A Telegram bot** created via [@BotFather](https://t.me/BotFather)
-- **A Google Cloud service account** with Sheets API enabled and a credentials JSON file
-- **A Google Sheet** shared with the service account email
+### ⚡ Root Files
+| File | Role |
+| :--- | :--- |
+| `main.py` | The master entry point. Coordinates all threads (Heartbeat, Scanner, Trade Manager). |
+| `backtest.py` | CLI tool for historical testing. Supports MT5 auto-fetch or manual CSV replay. |
+| `config.json` | Main system parameters: pairs, session timings, risk limits, and thresholds. |
+| `backtest_config.json` | Specific settings for backtesting: date ranges, data source mode, and initial balance. |
+| `db_view.py` | Utility script to print a formatted report of all trades stored in the local SQLite DB. |
+
+### 🛠️ Core Folder (`core/`)
+- `mt5connector.py`: Handles all direct communication with MetaTrader 5 (orders, history, live prices).
+- `stateengine.py`: Manages the SQLite database for trade persistence and daily limits.
+- `configengine.py`: Loads, validates, and provides a structured dataclass for `config.json`.
+- `logger.py`: Centralized logging system with color-coded console output and file rotation.
+
+### 🧩 Modules Folder (`modules/`)
+- `scannermmxm.py`: **The Brain.** Implements M1/M15/H1 logic for ICT MMXM signal detection.
+- `trademanager.py`: Monitors open positions. Handles TP1 partial closes, Breakeven shifts, and TP2 exits.
+- `executionengine.py`: Manages the execution flow from Telegram approval to MT5 order placement.
+- `telegrambridge.py`: Interface for human-in-the-loop approval and real-time status alerts.
+- `riskengine.py`: Calculates lot sizes based on account equity and enforces hard risk-per-trade limits.
+- `sessionengine.py`: Filters trades based on ICT Killzones (London, NY, Asia) and specific avoid windows.
+- `correlationfilter.py`: Prevents over-exposure by blocking highly correlated pair setups (e.g., EURUSD vs GBPUSD).
+- `reportgoogle.py`: Synchronizes all trade data to a professional Google Sheets dashboard.
+
+### 🧪 Backtest Folder (`backtest/`)
+- `engine.py`: Replays historical bars through the live scanner logic to simulate performance.
+- `connector.py`: A virtual MT5 connector that feeds historical data instead of live ticks.
+- `data/`: Storage for manual CSV exports if not using MT5 auto-fetch mode.
+- `results/`: Automated CSV performance reports generated after every backtest run.
 
 ---
 
-## Installation
+## 🚀 Getting Started
 
+### 1. Prerequisites
+- Python 3.10+
+- MetaTrader 5 Terminal (Logged in to a Hedge account)
+- Google Cloud Service Account (for Sheets reporting)
+
+### 2. Installation
 ```bash
-# 1. Clone or unzip the project
+# Clone the repository
+git clone https://github.com/your-repo/vvefxbot.git
 cd vvefxbot
 
-# 2. Create and activate a virtual environment (recommended)
-python -m venv vvefxbot_env
-source vvefxbot_env/bin/activate   # Linux/macOS
-vvefxbot_env\Scripts\activate      # Windows
-
-# 3. Install dependencies
+# Install dependencies
 pip install -r requirements.txt
 ```
 
----
-
-## Environment Setup (.env)
-
-Copy `.env.example` to `.env` and fill in your real values:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-MT5_LOGIN=your_mt5_account_number
-MT5_PASSWORD=your_mt5_password
-MT5_SERVER=your_broker_server_name
-TELEGRAM_TOKEN=your_telegram_bot_token
-TELEGRAM_CHAT_ID=your_telegram_chat_id
-GOOGLE_SHEET_ID=your_google_spreadsheet_id
-GOOGLE_CREDS_PATH=path/to/your/service_account_credentials.json
-```
-
-> ⚠️ Never commit `.env` to version control. It is already in `.gitignore`.
+### 3. Configuration
+1.  Rename `.env.example` to `.env` and add your MT5 credentials and Telegram Bot Token.
+2.  Configure your trading parameters in `config.json`.
 
 ---
 
-## Configuration (config.json)
+## 📈 Backtesting Suite
 
-Key settings to review before running:
+The FxBOT includes a high-fidelity backtester that uses the **exact same code** as the live scanner.
 
-| Key | Default | Description |
-|---|---|---|
-| `pairs` | `["EURUSD"]` | Symbols to trade |
-| `risk_percent` | `1.0` | Risk per trade as % of pool |
-| `trading_pool_size` | `1000.0` | Capital pool used for lot sizing |
-| `demo_mode` | `true` | **Phase 1: always `true`** |
-| `max_trades_day` | `10` | Maximum trades per day |
-| `scan_frequency_seconds` | `10` | How often pairs are scanned |
-| `effective_rr_min` | `2.0` | Minimum effective RR to accept a signal |
+### Automatic MT5 Mode (Recommended)
+1.  Set `"mode": "mt5"` in `backtest_config.json`.
+2.  Ensure MT5 is open.
+3.  Run: `python backtest.py`
 
-> ℹ️ **Phase 1 runs in demo mode.** `demo_mode: true` means no changes to live accounts. Set to `false` only when you are ready for live trading (see Phase 2 note below).
-
----
-
-## How to Run
-
-```bash
-python main.py
-```
+### Manual CSV Mode
+1.  Export M1 data from MT5 History Center.
+2.  Place in `backtest/data/` as `EURUSD_M1.csv`.
+3.  Set `"mode": "csv"` in `backtest_config.json`.
+4.  Run: `python backtest.py`
 
 ---
 
-## Startup Sequence
-
-When `python main.py` is executed, the bot:
-
-1. **Loads and validates** `config.json` and `.env` — raises an error immediately if any required field is missing.
-2. **Opens the SQLite database** (`db/fxbot.db`) and creates all 7 tables if they don't exist.
-3. **Connects to MetaTrader 5** using credentials from `.env`. Logs the account number on success.
-4. **Starts the session engine** to track Asia / London / New York killzones in IST.
-5. **Connects to Google Sheets** for trade reporting (non-fatal if it fails).
-6. **Starts three background daemon threads:**
-   - **Heartbeat** (every 60 s) — logs MT5 connection status and balance; reconnects if needed.
-   - **Session monitor** (every 60 s) — logs active session, killzone, and avoid-window status.
-   - **Trade monitor** (every 5 s) — manages open trades: TP1 → SL to breakeven → TP2 close.
-7. **Starts the Telegram polling listener** — waits for YES/NO button presses from you.
-8. **Enters the main scan loop** — every 10 seconds, all allowed pairs are scanned concurrently for A+ MMXM signals.
+## 🛡️ Risk Management
+- **Static Risk:** Fixed % per trade calculated automatically.
+- **Exposure Guard:** Max 6% total account risk open at any time.
+- **Correlation Filter:** Prevents redundant trades on correlated pairs.
+- **Daily Drawdown:** Auto-disables bot if daily loss limit is reached.
+- **Slippage Protection:** Re-checks price at execution and rejects if slippage exceeds limits.
 
 ---
 
-## Approving / Rejecting Signals via Telegram
-
-When the scanner detects an A+ signal (score ≥ 85), a formatted message is sent to your Telegram chat:
-
-```
-🤖 VvE FxBOT — A+ SIGNAL DETECTED
-
-📊 Pair: EURUSD
-🕐 Session: London
-📈 Direction: BUY
-⚡ Setup: ICT MMXM
-
-Entry: 1.08450
-SL: 1.08200 (25.0 pips)
-TP1: 1.08700 (1R)
-TP2: 1.08950 (2R)
-
-Risk: 1.0%
-Lot: 0.04
-Spread: 1.2 pips
-Eff. RR: 2.04
-Score: 92/100
-
-🕐 2026-05-13 14:30:00 IST
-Signal ID: xxxxxxxx-...
-```
-
-**Buttons:**
-- **✅ YES EXECUTE** → Places the order immediately on MT5 (valid for 15 minutes)
-- **❌ NO SKIP** → Prompts you to select a skip reason:
-  `Spread High | News Window | Weak Displacement | Fake Sweep | Late Entry | Bad Session | Structure Unclear | Manual Reject`
-
-All decisions are logged to the database.
-
----
-
-## Reading Logs
-
-Logs are written to `logs/bot.log` with daily rotation (30 days kept).
-
-```
-[2026-05-13 14:30:01] [INFO] [ScannerMMXM] [EURUSD] A+ SIGNAL | BUY | Score: 92 ...
-[2026-05-13 14:30:02] [INFO] [TelegramBridge] Signal sent to Telegram: xxxxxxxx-...
-[2026-05-13 14:31:00] [INFO] [Main] HEARTBEAT | MT5: connected | Balance: 1000.0
-```
-
-Log format: `[TIMESTAMP] [LEVEL] [MODULE] message`
-
-> 🔒 Credentials from `.env` are **never** written to logs — they are masked automatically.
-
-Tail the live log:
-```bash
-tail -f logs/bot.log
-```
-
----
-
-## Phase 2 Note
-
-> When you are ready for live trading:
-> 1. Set `"demo_mode": false` in `config.json`
-> 2. Update `"trading_pool_size"` to your actual live capital pool
-> 3. Review `"risk_percent"` and `"spread_limits"` for your broker
-> 4. Ensure your MT5 terminal is connected to a **live account**
->
-> Phase 2 will introduce automated session-based pair expansion, advanced trailing management, and enhanced reporting.
-
----
-
-## License
-
-Private. VvE FxBOT is proprietary software. Do not distribute.
+## 📊 Reporting
+All trades are double-logged:
+1.  **Local SQLite:** In `db/fxbot.db` for system recovery and state persistence.
+2.  **Google Sheets:** Real-time updates for remote performance tracking.

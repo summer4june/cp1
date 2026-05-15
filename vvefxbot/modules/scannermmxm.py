@@ -465,9 +465,13 @@ class ScannerMMXM:
             logger.debug(f"[{pair}] No MSS/displacement detected. Skipping.")
             return None
 
-        # STEP 4 — FVG (M1)
+        # STEP 4 — FVG (M1) — REQUIRED for A+ setup
         fvg_result = self.detect_fvg(m1_candles, direction, disp_result["displacement_candle_index"])
         logger.info(f"[{pair}] FVG: {fvg_result['detected']}")
+
+        if not fvg_result["detected"]:
+            logger.debug(f"[{pair}] No FVG detected. A+ requires FVG. Skipping.")
+            return None
 
         # STEP 5 — CONFLUENCE (H1)
         confluence_count = self._check_h1_confluence(pair, direction)

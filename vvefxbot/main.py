@@ -153,7 +153,7 @@ def main():
     logger.info("Config loaded successfully.")
 
     # ── 3. StateEngine ───────────────────────────────────────────────
-    state_engine = StateEngine()
+    state_engine = StateEngine("db/fxbot.db")   # All data lives in db/ folder
     logger.info("StateEngine initialised.")
 
     # ── 4. MT5Connector ──────────────────────────────────────────────
@@ -177,6 +177,11 @@ def main():
     sheet_reporter = GoogleSheetReporter(config)
     if not sheet_reporter.connect():
         logger.warning("Google Sheet connection failed — trade logging disabled until reconnect.")
+    else:
+        # Backfill any closed trades that were missed while bot was offline
+        backfilled = sheet_reporter.sync_all_closed_trades(state_engine)
+        if backfilled:
+            logger.info(f"Backfilled {backfilled} closed trades to Google Sheet on startup.")
 
     # ── 9. TradeManager ──────────────────────────────────────────────
     trade_manager = TradeManager(config, mt5_connector, state_engine, None, sheet_reporter)  # Telegram set below

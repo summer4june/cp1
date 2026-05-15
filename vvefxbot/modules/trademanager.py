@@ -2,7 +2,7 @@ import time
 import threading
 import traceback
 import MetaTrader5 as mt5
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 
 from core.logger import get_logger
@@ -198,18 +198,27 @@ class TradeManager:
         # ── TP1 not yet hit: check if price reached TP1 ─────────────
         if tp1_hit == 0:
             if self._price_reached(current_price, tp1_price, direction):
-                # Move SL to breakeven
-                be_result = self.mt5.modify_sl(ticket, entry_price)
-                if be_result["success"]:
+                # Close half lot at TP1 to lock in partial profit
+                half_lot = max(0.01, round(lot_total / 2, 2))
+                tp1_close = self.mt5.close_partial(ticket, half_lot)
+                if tp1_close["success"]:
+                    partial_profit = self._get_profit_for_ticket(ticket)
+                    # Move SL to breakeven on the remaining half
+                    be_result = self.mt5.modify_sl(ticket, entry_price)
                     self.state.update_trade_tp1_hit(trade_id)
                     self.state.update_trade_be_moved(trade_id)
                     self.state.insert_event(trade_id, "TP1_HIT", current_price)
                     self.state.insert_event(trade_id, "BE_MOVED", entry_price)
-                    msg = f"📊 TP1 Hit + SL moved to BE | {pair} | Ticket: {ticket}"
+                    msg = (
+                        f"📊 TP1 Hit — Closed {half_lot} lot | SL → BE | "
+                        f"{pair} | Ticket: {ticket} | Partial P&L: {partial_profit:.2f} USD"
+                    )
                     logger.info(msg)
                     self.telegram.send_alert(msg)
+                    if not be_result["success"]:
+                        logger.error(f"[{pair}] SL→BE modification failed: {be_result['error']}")
                 else:
-                    logger.error(f"[{pair}] Failed to move SL to BE: {be_result['error']}")
+                    logger.error(f"[{pair}] TP1 partial close failed: {tp1_close['error']}")
             elif not ticket_alive:
                 # Position closed externally before TP1 — likely SL hit
                 self._handle_unexpected_close(
@@ -217,12 +226,13 @@ class TradeManager:
                 )
             return
 
-        # ── TP1 already hit: watch for TP2 ───────────────────────────
+        # ── TP1 already hit: watch for TP2 (close remaining half) ────
         if tp1_hit == 1:
             if self._price_reached(current_price, tp2_price, direction):
-                profit = self._get_profit_for_ticket(ticket)
-                close_result = self.mt5.close_partial(ticket, lot_total)
+                half_lot = max(0.01, round(lot_total / 2, 2))
+                close_result = self.mt5.close_partial(ticket, half_lot)
                 if close_result["success"]:
+                    profit = self.mt5.get_historical_profit(ticket)
                     self.state.update_trade_status(trade_id, "CLOSED", "WIN", profit)
                     self.state.insert_event(trade_id, "TP2_HIT", current_price)
                     self.state.add_daily_profit(today, profit)
@@ -327,8 +337,6 @@ class TradeManager:
             result = "BREAKEVEN"
         else:
             result = "WIN" if profit_usd > 0 else "LOSS"
-
-        event_type = "SL_HIT" if result == "LOSS" else "MANUAL_CLOSE"
 
         event_type = "SL_HIT" if result == "LOSS" else "MANUAL_CLOSE"
 

@@ -1,7 +1,7 @@
 import MetaTrader5 as mt5
 import pandas as pd
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from .logger import get_logger
 from .configengine import Config

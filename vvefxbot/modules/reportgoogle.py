@@ -75,7 +75,12 @@ class GoogleSheetReporter:
 
     def log_trade(self, trade: Dict[str, Any], signal: Dict[str, Any]) -> bool:
         """
-        Append a single trade record to the Google Sheet.
+        Smart insert-or-update trade record in the Google Sheet.
+
+        - If the trade is OPEN: appends a new row.
+        - If the trade is CLOSED: finds the existing row by TradeID in Notes
+          column and updates Result + Profit in place. Falls back to append
+          if the row is not found.
 
         Args:
             trade (dict): Executed trade data.
@@ -86,54 +91,85 @@ class GoogleSheetReporter:
         """
         return self._log_trade_with_retry(trade, signal, retry_count=1)
 
+    def _build_row_data(self, trade: Dict[str, Any], signal: Dict[str, Any]) -> list:
+        """Build the full row data list for a trade."""
+        now_utc = datetime.now(pytz.utc)
+        if "execution_time" in trade and trade["execution_time"]:
+            try:
+                now_utc = datetime.fromisoformat(trade["execution_time"].replace('Z', '+00:00'))
+            except ValueError:
+                pass
+
+        now_ist = now_utc.astimezone(_IST)
+        trade_id = trade.get("trade_id", "")
+        bias_summary = signal.get("bias_summary", "") if signal else ""
+        notes = f"TradeID:{trade_id} | {bias_summary}"
+
+        return [
+            now_ist.strftime("%Y-%m-%d"),
+            now_ist.strftime("%H:%M:%S"),
+            trade.get("pair") or signal.get("pair", "") if signal else trade.get("pair", ""),
+            signal.get("session", "") if signal else "",
+            trade.get("direction") or (signal.get("direction", "") if signal else ""),
+            trade.get("executed_price", 0.0),
+            trade.get("sl", 0.0),
+            trade.get("tp1", 0.0),
+            trade.get("tp2", 0.0),
+            trade.get("lot_total", 0.0),
+            self.config.risk_percent,
+            signal.get("spread_pips", 0.0) if signal else 0.0,
+            signal.get("effective_rr", 0.0) if signal else 0.0,
+            trade.get("result", "") or "",
+            trade.get("profit_usd", 0.0) or 0.0,
+            notes,
+            signal.get("score", 0.0) if signal else 0.0,
+        ]
+
+    def _find_row_by_trade_id(self, trade_id: str) -> int:
+        """
+        Find the 1-indexed row number in the sheet whose Notes cell contains
+        'TradeID:<trade_id>'. Returns -1 if not found.
+        """
+        try:
+            # Notes is the 16th column (index 15, 1-indexed col 16)
+            notes_col = self.sheet.col_values(16)
+            for i, cell_val in enumerate(notes_col):
+                if f"TradeID:{trade_id}" in str(cell_val):
+                    return i + 1  # 1-indexed
+        except Exception as e:
+            logger.warning(f"Could not search Notes column: {e}")
+        return -1
+
     def _log_trade_with_retry(self, trade: Dict[str, Any], signal: Dict[str, Any], retry_count: int) -> bool:
-        """Internal method to append a row with retry logic."""
+        """Internal method with retry logic."""
         if self.sheet is None:
             if not self.connect():
                 return False
 
         try:
-            now_utc = datetime.now(pytz.utc)
-            if "execution_time" in trade and trade["execution_time"]:
-                try:
-                    now_utc = datetime.fromisoformat(trade["execution_time"].replace('Z', '+00:00'))
-                except ValueError:
-                    pass
-            
-            now_ist = now_utc.astimezone(_IST)
-            date_str = now_ist.strftime("%Y-%m-%d")
-            time_str = now_ist.strftime("%H:%M:%S")
-
-            pair = trade.get("pair") or signal.get("pair", "")
-            direction = trade.get("direction") or signal.get("direction", "")
-            
-            # Ensure trade_id is in Notes for sync checks
             trade_id = trade.get("trade_id", "")
-            bias_summary = signal.get("bias_summary", "")
-            notes = f"TradeID:{trade_id} | {bias_summary}"
+            status = trade.get("status", "OPEN")
+            row_data = self._build_row_data(trade, signal)
 
-            row_data = [
-                date_str,
-                time_str,
-                pair,
-                signal.get("session", ""),
-                direction,
-                trade.get("executed_price", 0.0),
-                trade.get("sl", 0.0),
-                trade.get("tp1", 0.0),
-                trade.get("tp2", 0.0),
-                trade.get("lot_total", 0.0),
-                self.config.risk_percent,
-                signal.get("spread_pips", 0.0),
-                signal.get("effective_rr", 0.0),
-                trade.get("result", ""),
-                trade.get("profit_usd", 0.0),
-                notes,
-                signal.get("score", 0.0)
-            ]
+            if status == "CLOSED":
+                # Try to find and update existing row
+                row_num = self._find_row_by_trade_id(trade_id)
+                if row_num > 0:
+                    # Update Result (col 14) and Profit (col 15) in the existing row
+                    self.sheet.update_cell(row_num, 14, trade.get("result", ""))
+                    self.sheet.update_cell(row_num, 15, trade.get("profit_usd", 0.0))
+                    logger.info(f"Trade {trade_id} CLOSED — updated row {row_num} in Google Sheet.")
+                    return True
+                else:
+                    # Row not found (was never opened), append full row
+                    logger.warning(f"Trade {trade_id} row not found in Sheet — appending as new row.")
+                    self.sheet.append_row(row_data)
+                    logger.info(f"Trade {trade_id} appended to Google Sheet (fallback).")
+            else:
+                # OPEN trade — always append new row
+                self.sheet.append_row(row_data)
+                logger.info(f"Trade {trade_id} OPEN — appended new row to Google Sheet.")
 
-            self.sheet.append_row(row_data)
-            logger.info(f"Trade {trade_id} successfully logged to Google Sheet.")
             return True
 
         except Exception as e:
@@ -141,7 +177,6 @@ class GoogleSheetReporter:
             if retry_count > 0:
                 logger.info("Retrying Google Sheet log_trade...")
                 time.sleep(2)
-                # Re-authenticate in case token expired
                 self.connect()
                 return self._log_trade_with_retry(trade, signal, retry_count - 1)
             return False

@@ -1,0 +1,24 @@
+{
+  "_comment": "VvE FxBOT Backtest Configuration",
+
+  "pairs": ["EURUSD", "GBPUSD"],
+
+  "date_from": "2024-01-01",
+  "date_to":   "2024-12-31",
+
+  "initial_balance": 1000.0,
+  "risk_percent":    1.0,
+
+  "data_source": {
+    "_comment_mode": "Set mode to 'mt5' for automatic fetch or 'csv' for manual CSV files",
+    "mode": "mt5",
+
+    "_comment_csv": "Used only when mode = csv. Put CSV files in this folder named like: EURUSD_M1.csv, EURUSD_M15.csv, EURUSD_H1.csv",
+    "csv_dir": "backtest/data"
+  },
+
+  "report": {
+    "save_csv":   true,
+    "output_dir": "backtest/results"
+  }
+}
