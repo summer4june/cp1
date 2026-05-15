@@ -1,5 +1,4 @@
 import uuid
-import pandas as pd
 from datetime import datetime, timezone
 from core.logger import get_logger
 from core.configengine import Config
@@ -28,12 +27,14 @@ class ScannerOTE:
             return False
             
         current_time = candles.iloc[-1]['time']
-        last_time = self.last_bar_time.get(pair)
+        
+        cache_key = (pair, tf)
+        last_time = self.last_bar_time.get(cache_key)
         
         if last_time == current_time:
             return False
             
-        self.last_bar_time[pair] = current_time
+        self.last_bar_time[cache_key] = current_time
         return True
 
     def scan(self, pair: str, session: str, killzone: str) -> dict:
@@ -44,6 +45,18 @@ class ScannerOTE:
         # We assume config.ote_scanner exists since configengine will parse it
         ote_cfg = getattr(self.config, "ote_scanner", {})
         if not ote_cfg.get("enabled", False):
+            return None
+            
+        # 0. Central state protection
+        if self.state.is_pair_on_cooldown(pair):
+            logger.debug(f"[{pair}] OTE scan skipped — pair is on cooldown.")
+            return None
+            
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        daily_state = self.state.get_daily_state(today)
+        max_daily_trades = ote_cfg.get("max_daily_trades", 5)
+        if daily_state.get("total_trades", 0) >= max_daily_trades:
+            logger.debug(f"[{pair}] OTE daily trade cap of {max_daily_trades} reached.")
             return None
 
         tf_trigger = ote_cfg.get("timeframe_trigger", "M5")
@@ -122,20 +135,23 @@ class ScannerOTE:
             return None
             
         logger.debug(f"[{pair}] Range High: {high:.5f}, Low: {low:.5f}, Diff: {range_val:.5f}")
-        # Get current price (using latest close from trigger timeframe)
-        trigger_candles = self.mt5.get_candles(pair, tf_trigger, count=1)
-        if trigger_candles.empty:
+        # Get live MT5 tick for accurate pricing
+        tick = self.mt5.get_tick(pair)
+        if not tick:
+            logger.debug(f"[{pair}] Could not retrieve live tick data.")
             return None
-        current_price = trigger_candles.iloc[-1]['close']
+            
+        # Fib is based on BID price
+        fib_price = tick["bid"]
         
         # 7. Compute fib position
-        fib = (current_price - low) / range_val
+        fib = (fib_price - low) / range_val
         
         # 8. Check if inside OTE zone
         fib_min = ote_cfg.get("fib_min", 0.618)
         fib_max = ote_cfg.get("fib_max", 0.705)
         
-        logger.debug(f"[{pair}] Current Price: {current_price:.5f} | Fib Retracement: {fib:.3f}")
+        logger.debug(f"[{pair}] Live BID Price: {fib_price:.5f} | Fib Retracement: {fib:.3f}")
         
         if not (fib_min <= fib <= fib_max):
             return None
@@ -143,7 +159,10 @@ class ScannerOTE:
         # 9 & 10. Direction
         direction = "BUY" if trend == 1 else "SELL"
         
-        # 11. Build signal with SL/TP points
+        # 11. Build signal with SL/TP points and live entry price
+        # Buy entry = ASK, Sell entry = BID
+        entry_price = tick["ask"] if direction == "BUY" else tick["bid"]
+        
         sl_points = ote_cfg.get("sl_points", 150)
         tp_points = ote_cfg.get("tp_points", 450)
         
@@ -151,15 +170,20 @@ class ScannerOTE:
         sl_pips = sl_points / 10.0
         tp_pips = tp_points / 10.0
         
-        # Convert points to price difference
-        point = 0.001 if "JPY" in pair else 0.00001
+        # Calculate precise differences using symbol point
+        point = self.mt5.get_symbol_point(pair)
         sl_diff = sl_points * point
         tp_diff = tp_points * point
+        tp1_diff = sl_diff # Set TP1 to 1R for standard trade management
         
-        sl_price = current_price - sl_diff if direction == "BUY" else current_price + sl_diff
-        tp_price = current_price + tp_diff if direction == "BUY" else current_price - tp_diff
+        sl_price = entry_price - sl_diff if direction == "BUY" else entry_price + sl_diff
+        tp1_price = entry_price + tp1_diff if direction == "BUY" else entry_price - tp1_diff
+        tp2_price = entry_price + tp_diff if direction == "BUY" else entry_price - tp_diff
         
         spread_pips = self.mt5.get_current_spread(pair)
+        
+        # Spread-aware effective RR
+        effective_rr = (tp_pips - spread_pips) / (sl_pips + spread_pips) if (sl_pips + spread_pips) > 0 else 0
         
         # Build the standard signal dictionary
         signal_id = str(uuid.uuid4())
@@ -175,14 +199,14 @@ class ScannerOTE:
             "timeframe_entry": tf_trigger,
             "direction": direction,
             "bias_summary": f"OTE (Fib: {fib:.3f})",
-            "entry_price": current_price,
+            "entry_price": entry_price,
             "sl_price": sl_price,
-            "tp1_price": tp_price,
-            "tp2_price": tp_price,
+            "tp1_price": tp1_price,
+            "tp2_price": tp2_price,
             "sl_pips": sl_pips,
             "tp_pips": tp_pips,
             "spread_pips": spread_pips,
-            "effective_rr": tp_pips / sl_pips if sl_pips > 0 else 0,
+            "effective_rr": effective_rr,
             "score": score,
             "detected_time": datetime.now(timezone.utc).isoformat(),
             "strategy": "OTE"

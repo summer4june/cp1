@@ -37,6 +37,7 @@ ACTION_SLTP = getattr(mt5, 'TRADE_ACTION_SLTP', 6)
 
 # Timeframes
 TF_M1 = getattr(mt5, 'TIMEFRAME_M1', 1)
+TF_M5 = getattr(mt5, 'TIMEFRAME_M5', 5)
 TF_M15 = getattr(mt5, 'TIMEFRAME_M15', 15)
 TF_H1 = getattr(mt5, 'TIMEFRAME_H1', 16385)
 
@@ -56,6 +57,7 @@ class MT5Connector:
         self.config = config
         self.tf_map = {
             "M1": TF_M1,
+            "M5": TF_M5,
             "M15": TF_M15,
             "H1": TF_H1
         }
@@ -145,6 +147,21 @@ class MT5Connector:
             return spread_points * symbol_info.point / 0.01
         else:
             return spread_points * symbol_info.point / 0.0001
+
+    def get_tick(self, symbol: str) -> Optional[Dict[str, float]]:
+        """Returns the current tick (bid/ask) for a symbol."""
+        tick = mt5.symbol_info_tick(symbol)
+        if tick:
+            return {"bid": tick.bid, "ask": tick.ask}
+        return None
+
+    def get_symbol_point(self, symbol: str) -> float:
+        """Returns the point value for a symbol."""
+        symbol_info = mt5.symbol_info(symbol)
+        if symbol_info:
+            return symbol_info.point
+        # Fallback heuristic if symbol_info fails
+        return 0.001 if "JPY" in symbol.upper() else 0.00001
 
     def _get_filling_mode(self, symbol: str) -> int:
         """
