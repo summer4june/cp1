@@ -72,14 +72,17 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
     
     rates = mt5.copy_rates_range(symbol, tf, dt_from, dt_to)
 
-    if rates is None or len(rates) == 0:
+    if rates is None or len(rates) < 10:
         err = mt5.last_error()
+        count = len(rates) if rates is not None else 0
         raise RuntimeError(
-            f"MT5 returned no data for {symbol} {timeframe}. "
-            f"Error: {err}. \n   Potential Fixes:\n"
-            f"   1. Ensure MT5 is open and logged in.\n"
-            f"   2. Check MT5 -> Tools -> Options -> Charts -> 'Max bars in chart' (Set to 'Unlimited').\n"
-            f"   3. Ensure the symbol {symbol} exists in your broker's Market Watch."
+            f"Insufficient data for {symbol} {timeframe} (Fetched only {count} bars).\n"
+            f"Error: {err}\n\n"
+            f"CRITICAL: MT5 often doesn't have M1 history loaded by default. To fix this:\n"
+            f"1. Open a chart for {symbol} on M1 timeframe.\n"
+            f"2. Press 'Home' on your keyboard repeatedly to scroll back to {dt_from.year}.\n"
+            f"3. Alternatively, go to Tools -> History Center -> {symbol} -> M1 and click 'Download'.\n"
+            f"4. Check MT5 -> Tools -> Options -> Charts -> 'Max bars in chart' is set to 'Unlimited'."
         )
 
     df = pd.DataFrame(rates)
