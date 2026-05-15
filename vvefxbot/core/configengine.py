@@ -8,6 +8,9 @@ from dotenv import load_dotenv
 class Config:
     """Dataclass to hold all configuration settings for the trading bot."""
     # From config.json
+    strategy_mode: str
+    enabled_scanners: Dict[str, bool]
+    ote_scanner: Dict[str, Any]
     pairs: List[str]
     session_timings: Dict[str, Dict[str, str]]
     killzone_timings: Dict[str, Dict[str, str]]
@@ -70,8 +73,17 @@ class ConfigEngine:
             except json.JSONDecodeError:
                 raise ValueError(f"CONFIG ERROR: {self.config_path} is not a valid JSON")
 
+        # Set defaults for new backward-compatible keys
+        if "strategy_mode" not in json_data:
+            json_data["strategy_mode"] = "MMXM"
+        if "enabled_scanners" not in json_data:
+            json_data["enabled_scanners"] = {"mmxm": True, "ote": False}
+        if "ote_scanner" not in json_data:
+            json_data["ote_scanner"] = {"enabled": False}
+
         # Required config.json keys
         json_keys = [
+            "strategy_mode", "enabled_scanners", "ote_scanner",
             "pairs", "session_timings", "killzone_timings", "risk_percent", 
             "max_trades_day", "max_trades_pair_day", "max_open_trades", 
             "max_open_risk_percent", "spread_limits", "effective_rr_min", 
@@ -103,9 +115,36 @@ class ConfigEngine:
             elif key == "pairs":
                 if not isinstance(json_data[key], list):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
-            elif key in ["session_timings", "killzone_timings", "spread_limits", "correlation_groups"]:
+            elif key in ["session_timings", "killzone_timings", "spread_limits", "correlation_groups", "enabled_scanners", "ote_scanner"]:
                 if not isinstance(json_data[key], dict):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
+            elif key == "strategy_mode":
+                if json_data[key] not in ["MMXM", "OTE", "MULTI"]:
+                    raise ValueError(f"CONFIG ERROR: strategy_mode must be MMXM, OTE, or MULTI")
+
+        # Validate OTE specific keys if enabled or if present
+        ote = json_data.get("ote_scanner", {})
+        if ote and ote.get("enabled", False):
+            if ote.get("fib_min", 0) < 0 or ote.get("fib_max", 0) > 1 or ote.get("fib_min", 0) >= ote.get("fib_max", 0):
+                raise ValueError("CONFIG ERROR: OTE fib_min must be < fib_max, >= 0, and <= 1")
+            if ote.get("ema_period", 0) <= 0:
+                raise ValueError("CONFIG ERROR: OTE ema_period must be > 0")
+            if ote.get("range_start_index", -1) < 0:
+                raise ValueError("CONFIG ERROR: OTE range_start_index must be >= 0")
+            if ote.get("range_end_index", 0) <= ote.get("range_start_index", 0):
+                raise ValueError("CONFIG ERROR: OTE range_end_index must be > range_start_index")
+            if ote.get("min_h1_candles", 0) <= 0:
+                raise ValueError("CONFIG ERROR: OTE min_h1_candles must be > 0")
+            if ote.get("fetch_h1_candles", 0) < ote.get("min_h1_candles", 0):
+                raise ValueError("CONFIG ERROR: OTE fetch_h1_candles must be >= min_h1_candles")
+            if ote.get("sl_points", 0) <= 0:
+                raise ValueError("CONFIG ERROR: OTE sl_points must be > 0")
+            if ote.get("tp_points", 0) <= 0:
+                raise ValueError("CONFIG ERROR: OTE tp_points must be > 0")
+            if ote.get("cooldown_minutes", -1) < 0:
+                raise ValueError("CONFIG ERROR: OTE cooldown_minutes must be >= 0")
+            if ote.get("max_daily_trades", 0) <= 0:
+                raise ValueError("CONFIG ERROR: OTE max_daily_trades must be > 0")
 
         # Validate .env keys
         env_values = {}
@@ -123,6 +162,9 @@ class ConfigEngine:
 
         # Construct and return Config dataclass
         return Config(
+            strategy_mode=json_data["strategy_mode"],
+            enabled_scanners=json_data["enabled_scanners"],
+            ote_scanner=json_data["ote_scanner"],
             pairs=json_data["pairs"],
             session_timings=json_data["session_timings"],
             killzone_timings=json_data["killzone_timings"],

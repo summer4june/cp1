@@ -1,0 +1,181 @@
+📊 TERA BACKTEST RESULT ANALYSIS 2023 to 13 may 2026
+Metric	Value	Status
+Total Trades	2,886	✅ High
+Winrate	27.55%	🔴 Low
+Profit Factor	1.13	🟡 Marginal
+Net Profit	$426.93	✅ Positive
+Max DD	67.87%	🔴 High
+
+
+
+
+
+
+
+
+
+
+
+//+------------------------------------------------------------------+
+//|                                              BACKTEST_READY.mq5   |
+//+------------------------------------------------------------------+
+#property copyright "VV Empire"
+#property version   "1.00"
+#property strict
+
+input double   InpLots     = 0.01;
+input int      InpSL       = 150;
+input int      InpTP       = 450;  // 1:3 RR
+
+int      magic = 202411;
+string   sym;
+double   pt;
+datetime lastBar = 0;
+int      total = 0;
+int      wins = 0;
+int      loss = 0;
+
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   sym = _Symbol;
+   pt = SymbolInfoDouble(sym, SYMBOL_POINT);
+   Print("✅ EA LOADED - BACKTEST READY");
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   double wr = (total > 0) ? (wins * 100.0 / total) : 0;
+   Print("Trades: ", total, " | WR: ", DoubleToString(wr,1), "%");
+}
+
+//+------------------------------------------------------------------+
+bool IsNewBar()
+{
+   datetime now = iTime(sym, PERIOD_M5, 0);
+   if(now == lastBar) return false;
+   lastBar = now;
+   return true;
+}
+
+//+------------------------------------------------------------------+
+int GetTrend()
+{
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   if(CopyRates(sym, PERIOD_H1, 0, 100, rates) < 60) return 0;
+   
+   double ema = 0;
+   for(int i=1; i<=50; i++) ema += rates[i].close;
+   ema /= 50;
+   
+   if(rates[1].close > ema) return 1;
+   if(rates[1].close < ema) return -1;
+   return 0;
+}
+
+//+------------------------------------------------------------------+
+int GetSignal()
+{
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   if(CopyRates(sym, PERIOD_H1, 0, 50, rates) < 40) return 0;
+   
+   double high = 0, low = DBL_MAX;
+   for(int i=5; i<45; i++)
+   {
+      if(rates[i].high > high) high = rates[i].high;
+      if(rates[i].low < low) low = rates[i].low;
+   }
+   
+   if(high == 0 || low == 0) return 0;
+   
+   double price = SymbolInfoDouble(sym, SYMBOL_BID);
+   double range = high - low;
+   if(range <= 0) return 0;
+   
+   double fib = (price - low) / range;
+   
+   if(fib < 0.618 || fib > 0.705) return 0;
+   
+   int trend = GetTrend();
+   if(trend == 1) return 1;
+   if(trend == -1) return -1;
+   
+   return 0;
+}
+
+//+------------------------------------------------------------------+
+void ExecuteTrade(int dir)
+{
+   double lot = InpLots;
+   double entry = (dir == 1) ? SymbolInfoDouble(sym, SYMBOL_ASK) : SymbolInfoDouble(sym, SYMBOL_BID);
+   double sl = (dir == 1) ? entry - InpSL * pt : entry + InpSL * pt;
+   double tp = (dir == 1) ? entry + InpTP * pt : entry - InpTP * pt;
+   
+   MqlTradeRequest req = {};
+   MqlTradeResult res = {};
+   
+   req.action = TRADE_ACTION_DEAL;
+   req.symbol = sym;
+   req.volume = lot;
+   req.deviation = 30;
+   req.magic = magic;
+   req.type_filling = ORDER_FILLING_IOC;
+   
+   if(dir == 1) { req.type = ORDER_TYPE_BUY; req.price = entry; req.sl = sl; req.tp = tp; }
+   else { req.type = ORDER_TYPE_SELL; req.price = entry; req.sl = sl; req.tp = tp; }
+   
+   if(OrderSend(req, res))
+   {
+      if(res.retcode == TRADE_RETCODE_DONE)
+      {
+         total++;
+         Print("✅ TRADE #", total, " ", dir==1?"BUY":"SELL");
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+void UpdateStats()
+{
+   static int last = 0;
+   HistorySelect(0, TimeCurrent());
+   int deals = HistoryDealsTotal();
+   
+   if(deals > last)
+   {
+      for(int i = last; i < deals; i++)
+      {
+         ulong ticket = HistoryDealGetTicket(i);
+         double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT);
+         if(profit > 0) wins++;
+         else if(profit < 0) loss++;
+      }
+      last = deals;
+   }
+}
+
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   if(!IsNewBar()) return;
+   
+   static int dayTrades = 0, lastDay = 0;
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   if(dt.day != lastDay) { lastDay = dt.day; dayTrades = 0; }
+   if(dayTrades >= 5) return;
+   
+   UpdateStats();
+   
+   int signal = GetSignal();
+   if(signal != 0)
+   {
+      ExecuteTrade(signal);
+      dayTrades++;
+   }
+}
+//+------------------------------------------------------------------+

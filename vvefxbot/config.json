@@ -1,4 +1,32 @@
 {
+  "strategy_mode": "MULTI",
+  "enabled_scanners": {
+    "mmxm": true,
+    "ote": false
+  },
+  "ote_scanner": {
+    "enabled": false,
+    "timeframe_signal": "H1",
+    "timeframe_trigger": "M5",
+    "fib_min": 0.618,
+    "fib_max": 0.705,
+    "ema_period": 50,
+    "range_start_index": 5,
+    "range_end_index": 44,
+    "min_h1_candles": 60,
+    "fetch_h1_candles": 100,
+    "sl_points": 150,
+    "tp_points": 450,
+    "score": 65.0,
+    "cooldown_minutes": 15,
+    "max_daily_trades": 5,
+    "magic_number": 202411,
+    "allow_buy": true,
+    "allow_sell": true,
+    "use_new_bar_only": true,
+    "entry_price_side": "bid",
+    "execution_mode": "telegram_approval"
+  },
   "pairs": ["EURUSD", "GBPUSD", "USDJPY", "GBPJPY", "EURJPY", "USDCAD"],
   "session_timings": {
     "Asia": {"start": "02:30", "end": "08:30"},

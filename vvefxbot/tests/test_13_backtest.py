@@ -10,6 +10,9 @@ from core.configengine import Config
 @pytest.fixture
 def mock_config():
     return Config(
+        strategy_mode="MMXM",
+        enabled_scanners={"mmxm": True, "ote": False},
+        ote_scanner={"enabled": False},
         pairs=["EURUSD"],
         session_timings={"London": {"start": "00:00", "end": "23:59"}},
         killzone_timings={"London": {"start": "00:00", "end": "23:59"}},

@@ -128,7 +128,7 @@ class TelegramBridge:
             f"📊 Pair: `{signal['pair']}`\n"
             f"🕐 Session: `{signal['session']}`\n"
             f"📈 Direction: `{signal['direction']}`\n"
-            f"⚡ Setup: `ICT MMXM`\n\n"
+            f"⚡ Setup: `{signal.get('strategy', 'ICT MMXM')}`\n\n"
             f"Entry: `{signal['entry_price']}`\n"
             f"SL: `{signal['sl_price']}` (`{signal['sl_pips']}` pips)\n"
             f"TP1: `{signal['tp1_price']}` (1R)\n"

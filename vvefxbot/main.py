@@ -64,7 +64,7 @@ def scan_pair(
     session: str,
     killzone: str,
     session_engine: SessionEngine,
-    scanner: ScannerMMXM,
+    scanners: list,
     risk_engine: RiskEngine,
     correlation_filter: CorrelationFilter,
     state_engine: StateEngine,
@@ -80,7 +80,7 @@ def scan_pair(
         session (str | None): Active session name.
         killzone (str | None): Active killzone name.
         session_engine (SessionEngine): Session gate reference.
-        scanner (ScannerMMXM): Signal detection engine.
+        scanners (list): List of initialized scanner instances.
         risk_engine (RiskEngine): Risk gating engine.
         correlation_filter (CorrelationFilter): Correlation gating engine.
         state_engine (StateEngine): Persistence engine.
@@ -102,40 +102,50 @@ def scan_pair(
             logger.debug(f"[{pair}] Avoid window active, skipping scan.")
             return
 
-        # Run scanner
-        signal = scanner.scan(pair, session, killzone)
-        if signal is None:
-            return
+        # Run scanners sequentially
+        for scanner_name, scanner in scanners:
+            signal = scanner.scan(pair, session, killzone)
+            if signal is None:
+                continue
+                
+            # Dedupe check for MULTI mode or general safety
+            # If we already generated a signal for this pair+direction recently, skip
+            # We use a 15-minute cooldown window by default
+            direction = signal.get("direction", "")
+            if state_engine.has_recent_signal(pair, direction, cooldown_minutes=15):
+                logger.debug(f"[{pair}] {scanner_name} skipped — recent {direction} signal already exists.")
+                continue
 
-        signal_id = signal["signal_id"]
-        spread_pips = signal.get("spread_pips", 0.0)
-        score = signal.get("score", 0.0)
+            signal_id = signal["signal_id"]
+            spread_pips = signal.get("spread_pips", 0.0)
+            score = signal.get("score", 0.0)
 
-        # Pre-send: risk checks
-        open_trades = state_engine.get_open_trades()
-        risk_result = risk_engine.run_all_checks(signal, open_trades)
-        if not risk_result["pass"]:
-            reason = risk_result["failed_check"]
-            logger.info(f"[{pair}] Signal {signal_id} skipped — risk: {reason}")
-            state_engine.insert_skip(signal_id, reason, spread_pips, score)
-            return
+            # Pre-send: risk checks
+            open_trades = state_engine.get_open_trades()
+            risk_result = risk_engine.run_all_checks(signal, open_trades)
+            if not risk_result["pass"]:
+                reason = risk_result["failed_check"]
+                logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — risk: {reason}")
+                state_engine.insert_skip(signal_id, reason, spread_pips, score)
+                continue
 
-        # Pre-send: correlation check
-        direction = signal.get("direction", "")
-        allowed, corr_reason = correlation_filter.can_trade(pair, open_trades, direction)
-        if not allowed:
-            logger.info(f"[{pair}] Signal {signal_id} skipped — correlation: {corr_reason}")
-            state_engine.insert_skip(signal_id, corr_reason, spread_pips, score)
-            return
+            # Pre-send: correlation check
+            allowed, corr_reason = correlation_filter.can_trade(pair, open_trades, direction)
+            if not allowed:
+                logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — correlation: {corr_reason}")
+                state_engine.insert_skip(signal_id, corr_reason, spread_pips, score)
+                continue
 
-        # All checks passed — send signal to Telegram for human approval
-        lot_size = risk_result["lot_size"]
-        state_engine.insert_signal(signal)
-        sent = telegram_bridge.send_signal(signal, lot_size)
-        if sent:
-            logger.info(f"[{pair}] A+ signal {signal_id} sent to Telegram. Awaiting approval.")
-        else:
-            logger.error(f"[{pair}] Failed to send signal {signal_id} to Telegram.")
+            # All checks passed — send signal to Telegram for human approval
+            lot_size = risk_result["lot_size"]
+            state_engine.insert_signal(signal)
+            sent = telegram_bridge.send_signal(signal, lot_size)
+            if sent:
+                logger.info(f"[{pair}] A+ signal {signal_id} ({scanner_name}) sent to Telegram. Awaiting approval.")
+                # We sent a valid signal, stop checking other scanners for this pair this cycle
+                break
+            else:
+                logger.error(f"[{pair}] Failed to send signal {signal_id} to Telegram.")
 
     except Exception as e:
         logger.error(f"[{pair}] Exception during pair scan: {e}\n{traceback.format_exc()}")
@@ -215,9 +225,20 @@ def main():
     trade_manager.start_monitoring()
     logger.info("TradeManager monitoring thread started.")
 
-    # ── 12. ScannerMMXM ─────────────────────────────────────────────
-    scanner = ScannerMMXM(config, mt5_connector, state_engine)
-    logger.info("ScannerMMXM initialised.")
+    # ── 12. Scanners ─────────────────────────────────────────────────
+    scanners = []
+    mode = getattr(config, "strategy_mode", "MMXM")
+    enabled = getattr(config, "enabled_scanners", {"mmxm": True, "ote": False})
+    
+    if mode in ["MMXM", "MULTI"] and enabled.get("mmxm", True):
+        scanners.append(("ScannerMMXM", ScannerMMXM(config, mt5_connector, state_engine)))
+        
+    if mode in ["OTE", "MULTI"] and enabled.get("ote", False):
+        from modules.scannerote import ScannerOTE
+        scanners.append(("ScannerOTE", ScannerOTE(config, mt5_connector, state_engine)))
+        
+    logger.info(f"[Main] Strategy mode: {mode}")
+    logger.info(f"[Main] Enabled scanners: {', '.join([s[0] for s in scanners])}")
 
     # ── 13. Heartbeat thread ─────────────────────────────────────────
     hb_thread = threading.Thread(
@@ -266,7 +287,7 @@ def main():
                     executor.submit(
                         scan_pair,
                         pair, session, killzone,
-                        session_engine, scanner, risk_engine,
+                        session_engine, scanners, risk_engine,
                         correlation_filter, state_engine,
                         telegram_bridge, today,
                     )

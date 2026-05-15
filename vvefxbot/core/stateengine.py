@@ -149,6 +149,24 @@ class StateEngine:
             finally:
                 self._close_connection(conn)
 
+    def has_recent_signal(self, pair: str, direction: str, cooldown_minutes: int) -> bool:
+        """Checks if a signal for the same pair and direction was generated within the cooldown window."""
+        with self.lock:
+            conn = self._get_connection()
+            try:
+                # Calculate the cutoff time
+                cutoff_time = (datetime.now(timezone.utc) - __import__('datetime').timedelta(minutes=cooldown_minutes)).isoformat()
+                cursor = conn.execute(
+                    "SELECT 1 FROM signals_detected WHERE pair = ? AND direction = ? AND detected_time >= ?",
+                    (pair, direction, cutoff_time)
+                )
+                return cursor.fetchone() is not None
+            except sqlite3.Error as e:
+                logger.error(f"Error checking recent signal: {e}")
+                return False
+            finally:
+                self._close_connection(conn)
+
     def get_signal(self, signal_id: str) -> Optional[Dict[str, Any]]:
         """Fetches a full signal row from signals_detected by signal_id."""
         with self.lock:
