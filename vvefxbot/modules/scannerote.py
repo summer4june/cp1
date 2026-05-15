@@ -45,6 +45,7 @@ class ScannerOTE:
         # We assume config.ote_scanner exists since configengine will parse it
         ote_cfg = getattr(self.config, "ote_scanner", {})
         if not ote_cfg.get("enabled", False):
+            logger.debug(f"[{pair}] OTE Scanner is disabled in config.")
             return None
             
         # 0. Central state protection
@@ -64,8 +65,10 @@ class ScannerOTE:
         # 1. Check for new M5 bar
         if ote_cfg.get("use_new_bar_only", True):
             if not self.is_new_bar(pair, tf_trigger):
+                # Don't log this at INFO to avoid spam, but keep DEBUG for deep trace
+                logger.debug(f"[{pair}] Waiting for new {tf_trigger} bar.")
                 return None
-            logger.debug(f"[{pair}] New {tf_trigger} bar detected.")
+            logger.debug(f"[{pair}] New {tf_trigger} bar detected. Proceeding with scan.")
                 
         tf_signal = ote_cfg.get("timeframe_signal", "H1")
         fetch_count = ote_cfg.get("fetch_h1_candles", 100)
@@ -83,6 +86,7 @@ class ScannerOTE:
         # 3. Verify enough candles exist for EMA
         ema_period = ote_cfg.get("ema_period", 50)
         if len(df) < ema_period + 1:
+            logger.debug(f"[{pair}] Not enough {tf_signal} candles for EMA({ema_period}). Have {len(df)}.")
             return None
             
         # 4. Calculate simple average of last `ema_period` closes (from index 1 to ema_period)
@@ -117,6 +121,7 @@ class ScannerOTE:
         end_idx = ote_cfg.get("range_end_index", 44)
         
         if len(df) <= end_idx:
+            logger.debug(f"[{pair}] Not enough candles for range calculation (need {end_idx+1}, have {len(df)}).")
             return None
             
         # Python ranges are start inclusive, end exclusive, but loc is inclusive.
@@ -154,6 +159,7 @@ class ScannerOTE:
         logger.debug(f"[{pair}] Live BID Price: {fib_price:.5f} | Fib Retracement: {fib:.3f}")
         
         if not (fib_min <= fib <= fib_max):
+            logger.debug(f"[{pair}] Rejected: Fib {fib:.3f} is outside the allowed OTE zone [{fib_min} - {fib_max}].")
             return None
             
         # 9 & 10. Direction
