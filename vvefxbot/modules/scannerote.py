@@ -40,6 +40,7 @@ class ScannerOTE:
         """
         Executes the OTE scan logic.
         """
+        logger.debug(f"[{pair}] Starting OTE scan | Session: {session} | KZ: {killzone}")
         # We assume config.ote_scanner exists since configengine will parse it
         ote_cfg = getattr(self.config, "ote_scanner", {})
         if not ote_cfg.get("enabled", False):
@@ -51,6 +52,7 @@ class ScannerOTE:
         if ote_cfg.get("use_new_bar_only", True):
             if not self.is_new_bar(pair, tf_trigger):
                 return None
+            logger.debug(f"[{pair}] New {tf_trigger} bar detected.")
                 
         tf_signal = ote_cfg.get("timeframe_signal", "H1")
         fetch_count = ote_cfg.get("fetch_h1_candles", 100)
@@ -59,6 +61,7 @@ class ScannerOTE:
         # 2. Fetch H1 candles
         candles = self.mt5.get_candles(pair, tf_signal, count=fetch_count)
         if len(candles) < min_candles:
+            logger.debug(f"[{pair}] Insufficient {tf_signal} candles: {len(candles)}/{min_candles}")
             return None
             
         # Reverse to make index 0 the most recent completed bar (equivalent to ArraySetAsSeries)
@@ -83,13 +86,19 @@ class ScannerOTE:
             trend = -1
             
         if trend == 0:
+            logger.debug(f"[{pair}] No trend detected (close == ema).")
             return None
             
         if trend == 1 and not ote_cfg.get("allow_buy", True):
+            logger.debug(f"[{pair}] Uptrend detected but allow_buy is False.")
             return None
         if trend == -1 and not ote_cfg.get("allow_sell", True):
+            logger.debug(f"[{pair}] Downtrend detected but allow_sell is False.")
             return None
             
+        direction_str = "BULLISH" if trend == 1 else "BEARISH"
+        logger.debug(f"[{pair}] Trend: {direction_str} (Close: {close_1:.5f}, EMA({ema_period}): {ema:.5f})")
+        
         # 6. Compute high/low from H1 bars range
         start_idx = ote_cfg.get("range_start_index", 5)
         end_idx = ote_cfg.get("range_end_index", 44)
@@ -104,12 +113,15 @@ class ScannerOTE:
         low = range_slice['low'].min()
         
         if high == 0 or low == 0:
+            logger.debug(f"[{pair}] Invalid range data (high/low = 0).")
             return None
             
         range_val = high - low
         if range_val <= 0:
+            logger.debug(f"[{pair}] Range value <= 0: {range_val}")
             return None
             
+        logger.debug(f"[{pair}] Range High: {high:.5f}, Low: {low:.5f}, Diff: {range_val:.5f}")
         # Get current price (using latest close from trigger timeframe)
         trigger_candles = self.mt5.get_candles(pair, tf_trigger, count=1)
         if trigger_candles.empty:
@@ -122,6 +134,8 @@ class ScannerOTE:
         # 8. Check if inside OTE zone
         fib_min = ote_cfg.get("fib_min", 0.618)
         fib_max = ote_cfg.get("fib_max", 0.705)
+        
+        logger.debug(f"[{pair}] Current Price: {current_price:.5f} | Fib Retracement: {fib:.3f}")
         
         if not (fib_min <= fib <= fib_max):
             return None
