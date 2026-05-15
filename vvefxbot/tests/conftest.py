@@ -1,6 +1,17 @@
 import pytest
 import os
+import sys
 from unittest.mock import MagicMock
+
+# Mock MetaTrader5 module for non-Windows environments
+mock_mt5_module = MagicMock()
+sys.modules["MetaTrader5"] = mock_mt5_module
+
+# Configure common return values to avoid MagicMock leakage into DB
+mock_pos = MagicMock()
+mock_pos.price_open = 1.0
+mock_mt5_module.positions_get.return_value = [mock_pos]
+
 from core.configengine import Config
 
 @pytest.fixture
