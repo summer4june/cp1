@@ -60,14 +60,26 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
     if tf is None:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
 
+    # Ensure symbol is selected in Market Watch
+    if not mt5.symbol_select(symbol, True):
+        raise RuntimeError(f"Symbol {symbol} not found or could not be selected in MT5.")
+
     logger.info(f"Fetching {symbol} {timeframe} from MT5: {date_from.date()} → {date_to.date()}")
-    rates = mt5.copy_rates_range(symbol, tf, date_from, date_to)
+    
+    # MT5 often requires naive datetime objects (no timezone)
+    dt_from = date_from.replace(tzinfo=None) if date_from.tzinfo else date_from
+    dt_to = date_to.replace(tzinfo=None) if date_to.tzinfo else date_to
+    
+    rates = mt5.copy_rates_range(symbol, tf, dt_from, dt_to)
 
     if rates is None or len(rates) == 0:
         err = mt5.last_error()
         raise RuntimeError(
             f"MT5 returned no data for {symbol} {timeframe}. "
-            f"Error: {err}. Ensure MT5 is open and the symbol has history loaded."
+            f"Error: {err}. \n   Potential Fixes:\n"
+            f"   1. Ensure MT5 is open and logged in.\n"
+            f"   2. Check MT5 -> Tools -> Options -> Charts -> 'Max bars in chart' (Set to 'Unlimited').\n"
+            f"   3. Ensure the symbol {symbol} exists in your broker's Market Watch."
         )
 
     df = pd.DataFrame(rates)
