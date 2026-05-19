@@ -1,7 +1,7 @@
 import sqlite3
 import threading
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from core.logger import get_logger
 
@@ -155,7 +155,7 @@ class StateEngine:
             conn = self._get_connection()
             try:
                 # Calculate the cutoff time
-                cutoff_time = (datetime.now(timezone.utc) - __import__('datetime').timedelta(minutes=cooldown_minutes)).isoformat()
+                cutoff_time = (datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)).isoformat()
                 cursor = conn.execute(
                     "SELECT 1 FROM signals_detected WHERE pair = ? AND direction = ? AND detected_time >= ?",
                     (pair, direction, cutoff_time)
