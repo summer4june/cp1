@@ -56,9 +56,15 @@ class StateEngine:
                     bias_summary TEXT, entry_price REAL, sl_price REAL,
                     tp1_price REAL, tp2_price REAL, sl_pips REAL, tp_pips REAL,
                     spread_pips REAL, effective_rr REAL, score REAL,
-                    detected_time TEXT
+                    detected_time TEXT, strategy TEXT
                 )
                 """)
+
+                # Migration: add 'strategy' column to signals_detected if it doesn't exist
+                cursor.execute("PRAGMA table_info(signals_detected)")
+                cols = [info[1] for info in cursor.fetchall()]
+                if cols and "strategy" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN strategy TEXT")
 
                 # 2. trades_executed
                 cursor.execute("""
