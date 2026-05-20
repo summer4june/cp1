@@ -1192,7 +1192,7 @@ HTML_TEMPLATE = """
             
             const consoleDiv = document.getElementById("bot-console");
             if (consoleDiv) {
-                consoleDiv.innerText += "\n\n⚡ [Dashboard] Triggering Manual Live Scan...\n";
+                consoleDiv.innerText += "\\n\\n⚡ [Dashboard] Triggering Manual Live Scan...\\n";
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
             }
             
@@ -1201,7 +1201,7 @@ HTML_TEMPLATE = """
                 const data = await response.json();
                 
                 if (consoleDiv) {
-                    consoleDiv.innerText += "\n=== Live Scan Results ===\n" + (data.logs || []).join("\n") + "\n=========================\n";
+                    consoleDiv.innerText += "\\n=== Live Scan Results ===\\n" + (data.logs || []).join("\\n") + "\\n=========================\\n";
                     consoleDiv.scrollTop = consoleDiv.scrollHeight;
                 }
                 
@@ -1210,7 +1210,7 @@ HTML_TEMPLATE = """
                 safeLoad(loadBotLogs, "Live Terminal Logs");
             } catch (err) {
                 if (consoleDiv) {
-                    consoleDiv.innerText += `\n❌ Live Scan Failed: ${err}\n`;
+                    consoleDiv.innerText += `\\n❌ Live Scan Failed: ${err}\\n`;
                     consoleDiv.scrollTop = consoleDiv.scrollHeight;
                 }
             } finally {
