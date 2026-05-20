@@ -105,7 +105,7 @@ def get_trades():
         
         conn.close()
     except Exception as e:
-        return jsonify({"error": f"Database query failed: {e}"}), 500
+        return jsonify({"executed": [], "skipped": [], "error": f"Database query failed: {e}"})
         
     return jsonify({"executed": executed, "skipped": skipped})
 
@@ -122,7 +122,7 @@ def get_live_trades():
         conn.close()
         return jsonify(live)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify([])
 
 @app.route("/api/scan", methods=["POST"])
 def trigger_scan():
@@ -850,110 +850,130 @@ HTML_TEMPLATE = """
                 </div>
                 <table id="table-reports">
                     <thead>
-                        <tr>
-                            <th>Report Name</th>
-                            <th>File Size</th>
-                            <th>Created / Modified</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Injected by JS -->
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="card" id="report-view-card" style="display: none;">
-                <div class="card-header">
-                    <div class="card-title" id="report-view-title">Viewing Report Content</div>
-                    <button class="btn btn-secondary" onclick="document.getElementById('report-view-card').style.display='none'">Close</button>
-                </div>
-                <pre class="console-log" id="report-view-content" style="height: 500px; color: #FFFFFF; font-family: monospace;"></pre>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- JavaScript logic -->
+        <!-- JavaScript logic -->
     <script>
         let fullConfig = {};
         let backtestTimer = null;
 
+        // Resilient Safe Loader to prevent one API failure from freezing the browser
+        async function safeLoad(fn, label) {
+            try {
+                await fn();
+            } catch (err) {
+                console.error(`[Dashboard Warning] Failed to load ${label}:`, err);
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", () => {
-            loadConfig();
-            loadTrades();
-            loadLiveTrades();
-            loadReports();
+            safeLoad(loadConfig, "Configuration");
+            safeLoad(loadTrades, "Trade Logs");
+            safeLoad(loadLiveTrades, "Live Trades");
+            safeLoad(loadReports, "Reports List");
             
-            // Poll backtest status every 3 seconds
-            setInterval(checkBacktestStatus, 3000);
+            // Poll backtest status every 3 seconds safely
+            setInterval(() => safeLoad(checkBacktestStatus, "Backtest Status"), 3000);
         });
 
         function switchPanel(panelId, element) {
             document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-            document.getElementById(panelId).classList.add("active");
+            const targetPanel = document.getElementById(panelId);
+            if (targetPanel) targetPanel.classList.add("active");
             
             document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
-            element.classList.add("active");
+            if (element) element.classList.add("active");
 
-            // Update title
+            // Update title safely
             const headers = {
                 'home-panel': 'Home Dashboard',
                 'config-panel': 'Configuration Engine',
                 'trades-panel': 'Historical Signal Logs',
                 'backtest-panel': 'Replay Backtester & Manual Scan'
             };
-            document.getElementById("header-title").innerText = headers[panelId];
+            const titleEl = document.getElementById("header-title");
+            if (titleEl) titleEl.innerText = headers[panelId] || "Dashboard";
         }
 
         function switchTradeTab(tabName, element) {
             document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
-            element.classList.add("active");
+            if (element) element.classList.add("active");
+            
+            const execContainer = document.getElementById("executed-trades-container");
+            const skipContainer = document.getElementById("skipped-trades-container");
             
             if (tabName === 'executed') {
-                document.getElementById("executed-trades-container").style.display = "block";
-                document.getElementById("skipped-trades-container").style.display = "none";
+                if (execContainer) execContainer.style.display = "block";
+                if (skipContainer) skipContainer.style.display = "none";
             } else {
-                document.getElementById("executed-trades-container").style.display = "none";
-                document.getElementById("skipped-trades-container").style.display = "block";
+                if (execContainer) execContainer.style.display = "none";
+                if (skipContainer) skipContainer.style.display = "block";
             }
         }
 
         // API: Config
         async function loadConfig() {
-            try {
-                const response = await fetch("/api/config");
-                fullConfig = await response.json();
+            const response = await fetch("/api/config");
+            fullConfig = await response.json();
+            if (fullConfig.error) {
+                console.error("Config loaded with error:", fullConfig.error);
+                return;
+            }
+            
+            const strategyEl = document.getElementById("cfg-strategy_mode");
+            if (strategyEl) strategyEl.value = fullConfig.strategy_mode || "MULTI";
+            
+            const riskEl = document.getElementById("cfg-risk_percent");
+            if (riskEl) riskEl.value = fullConfig.risk_percent !== undefined ? fullConfig.risk_percent : 1.0;
+            
+            const maxTradesEl = document.getElementById("cfg-max_trades_day");
+            if (maxTradesEl) maxTradesEl.value = fullConfig.max_trades_day !== undefined ? fullConfig.max_trades_day : 10;
+            
+            const maxPairEl = document.getElementById("cfg-max_trades_pair_day");
+            if (maxPairEl) maxPairEl.value = fullConfig.max_trades_pair_day !== undefined ? fullConfig.max_trades_pair_day : 2;
+            
+            const maxOpenEl = document.getElementById("cfg-max_open_trades");
+            if (maxOpenEl) maxOpenEl.value = fullConfig.max_open_trades !== undefined ? fullConfig.max_open_trades : 2;
+            
+            const poolEl = document.getElementById("cfg-trading_pool_size");
+            if (poolEl) poolEl.value = fullConfig.trading_pool_size !== undefined ? fullConfig.trading_pool_size : 1000.0;
+            
+            const pairsEl = document.getElementById("cfg-pairs");
+            if (pairsEl && fullConfig.pairs) pairsEl.value = fullConfig.pairs.join(", ");
+            
+            const mmxmCheck = document.getElementById("cfg-scanner-mmxm");
+            if (mmxmCheck && fullConfig.enabled_scanners) mmxmCheck.checked = !!fullConfig.enabled_scanners.mmxm;
+            
+            const oteCheck = document.getElementById("cfg-scanner-ote");
+            if (oteCheck && fullConfig.enabled_scanners) oteCheck.checked = !!fullConfig.enabled_scanners.ote;
+            
+            if (fullConfig.ote_scanner) {
+                const signalTf = document.getElementById("cfg-ote-timeframe_signal");
+                if (signalTf) signalTf.value = fullConfig.ote_scanner.timeframe_signal || "H1";
                 
-                document.getElementById("cfg-strategy_mode").value = fullConfig.strategy_mode;
-                document.getElementById("cfg-risk_percent").value = fullConfig.risk_percent;
-                document.getElementById("cfg-max_trades_day").value = fullConfig.max_trades_day;
-                document.getElementById("cfg-max_trades_pair_day").value = fullConfig.max_trades_pair_day;
-                document.getElementById("cfg-max_open_trades").value = fullConfig.max_open_trades;
-                document.getElementById("cfg-trading_pool_size").value = fullConfig.trading_pool_size;
-                document.getElementById("cfg-pairs").value = fullConfig.pairs.join(", ");
+                const triggerTf = document.getElementById("cfg-ote-timeframe_trigger");
+                if (triggerTf) triggerTf.value = fullConfig.ote_scanner.timeframe_trigger || "M5";
                 
-                document.getElementById("cfg-scanner-mmxm").checked = fullConfig.enabled_scanners.mmxm;
-                document.getElementById("cfg-scanner-ote").checked = fullConfig.enabled_scanners.ote;
+                const fibMin = document.getElementById("cfg-ote-fib_min");
+                if (fibMin) fibMin.value = fullConfig.ote_scanner.fib_min !== undefined ? fullConfig.ote_scanner.fib_min : 0.618;
                 
-                if (fullConfig.ote_scanner) {
-                    document.getElementById("cfg-ote-timeframe_signal").value = fullConfig.ote_scanner.timeframe_signal || "H1";
-                    document.getElementById("cfg-ote-timeframe_trigger").value = fullConfig.ote_scanner.timeframe_trigger || "M5";
-                    document.getElementById("cfg-ote-fib_min").value = fullConfig.ote_scanner.fib_min || 0.618;
-                    document.getElementById("cfg-ote-fib_max").value = fullConfig.ote_scanner.fib_max || 0.705;
-                    document.getElementById("cfg-ote-sl_points").value = fullConfig.ote_scanner.sl_points || 150;
-                    document.getElementById("cfg-ote-tp_points").value = fullConfig.ote_scanner.tp_points || 450;
-                    document.getElementById("cfg-ote-max_daily_trades").value = fullConfig.ote_scanner.max_daily_trades || 5;
-                    document.getElementById("cfg-ote-cooldown_minutes").value = fullConfig.ote_scanner.cooldown_minutes || 15;
-                }
-            } catch (err) {
-                alert("Failed to load config.json: " + err);
+                const fibMax = document.getElementById("cfg-ote-fib_max");
+                if (fibMax) fibMax.value = fullConfig.ote_scanner.fib_max !== undefined ? fullConfig.ote_scanner.fib_max : 0.705;
+                
+                const slPoints = document.getElementById("cfg-ote-sl_points");
+                if (slPoints) slPoints.value = fullConfig.ote_scanner.sl_points !== undefined ? fullConfig.ote_scanner.sl_points : 150;
+                
+                const tpPoints = document.getElementById("cfg-ote-tp_points");
+                if (tpPoints) tpPoints.value = fullConfig.ote_scanner.tp_points !== undefined ? fullConfig.ote_scanner.tp_points : 450;
+                
+                const maxDaily = document.getElementById("cfg-ote-max_daily_trades");
+                if (maxDaily) maxDaily.value = fullConfig.ote_scanner.max_daily_trades !== undefined ? fullConfig.ote_scanner.max_daily_trades : 5;
+                
+                const cooldown = document.getElementById("cfg-ote-cooldown_minutes");
+                if (cooldown) cooldown.value = fullConfig.ote_scanner.cooldown_minutes !== undefined ? fullConfig.ote_scanner.cooldown_minutes : 15;
             }
         }
 
         async function saveConfig() {
             try {
-                // Map values
                 fullConfig.strategy_mode = document.getElementById("cfg-strategy_mode").value;
                 fullConfig.risk_percent = parseFloat(document.getElementById("cfg-risk_percent").value);
                 fullConfig.max_trades_day = parseInt(document.getElementById("cfg-max_trades_day").value);
@@ -961,13 +981,13 @@ HTML_TEMPLATE = """
                 fullConfig.max_open_trades = parseInt(document.getElementById("cfg-max_open_trades").value);
                 fullConfig.trading_pool_size = parseFloat(document.getElementById("cfg-trading_pool_size").value);
                 
+                if (!fullConfig.enabled_scanners) fullConfig.enabled_scanners = {};
                 fullConfig.enabled_scanners.mmxm = document.getElementById("cfg-scanner-mmxm").checked;
                 fullConfig.enabled_scanners.ote = document.getElementById("cfg-scanner-ote").checked;
                 
                 fullConfig.pairs = document.getElementById("cfg-pairs").value.split(",").map(p => p.trim()).filter(p => p);
                 
                 if (!fullConfig.ote_scanner) fullConfig.ote_scanner = {};
-                
                 fullConfig.ote_scanner.timeframe_signal = document.getElementById("cfg-ote-timeframe_signal").value;
                 fullConfig.ote_scanner.timeframe_trigger = document.getElementById("cfg-ote-timeframe_trigger").value;
                 fullConfig.ote_scanner.fib_min = parseFloat(document.getElementById("cfg-ote-fib_min").value);
@@ -996,62 +1016,76 @@ HTML_TEMPLATE = """
 
         // API: Trades
         async function loadTrades() {
-            try {
-                const response = await fetch("/api/trades");
-                const data = await response.json();
-                
-                // Stats updates
-                const totalTrades = (data.executed || []).length;
-                document.getElementById("stat-total-trades").innerText = totalTrades;
-                
-                const winCount = (data.executed || []).filter(t => t.result === 'WIN').length;
-                const closedCount = (data.executed || []).filter(t => t.status === 'CLOSED').length;
-                const winrate = closedCount > 0 ? ((winCount / closedCount) * 100).toFixed(1) : "0.0";
-                document.getElementById("stat-winrate").innerText = winrate + "%";
-                
-                document.getElementById("stat-skipped-trades").innerText = (data.skipped || []).length;
+            const response = await fetch("/api/trades");
+            const data = await response.json();
+            
+            const executedList = data.executed || [];
+            const skippedList = data.skipped || [];
+            
+            // Stats updates
+            const totalTrades = executedList.length;
+            const totalTradesEl = document.getElementById("stat-total-trades");
+            if (totalTradesEl) totalTradesEl.innerText = totalTrades;
+            
+            const winCount = executedList.filter(t => t.result === 'WIN').length;
+            const closedCount = executedList.filter(t => t.status === 'CLOSED').length;
+            const winrate = closedCount > 0 ? ((winCount / closedCount) * 100).toFixed(1) : "0.0";
+            
+            const winrateEl = document.getElementById("stat-winrate");
+            if (winrateEl) winrateEl.innerText = winrate + "%";
+            
+            const skippedTradesEl = document.getElementById("stat-skipped-trades");
+            if (skippedTradesEl) skippedTradesEl.innerText = skippedList.length;
 
-                // Render Executed
-                const execBody = document.querySelector("#table-executed tbody");
+            // Render Executed Trades
+            const execBody = document.querySelector("#table-executed tbody");
+            if (execBody) {
                 execBody.innerHTML = "";
-                if (data.executed && data.executed.length > 0) {
-                    data.executed.forEach(t => {
+                if (executedList.length > 0) {
+                    executedList.forEach(t => {
                         let badgeClass = 'badge-be';
                         if (t.result === 'WIN') badgeClass = 'badge-win';
                         if (t.result === 'LOSS') badgeClass = 'badge-loss';
                         if (t.status === 'OPEN') badgeClass = 'badge-open';
 
+                        const displayId = t.ticket_id || (t.trade_id ? t.trade_id.slice(0, 8) : 'N/A');
+                        const profit = t.profit_usd !== undefined ? t.profit_usd : 0.0;
+                        const directionColor = t.direction === 'BUY' ? 'var(--accent-cyan)' : 'var(--accent-red)';
+                        
                         execBody.innerHTML += `
                             <tr>
-                                <td><code>${t.ticket || t.trade_id.slice(0, 8)}</code></td>
-                                <td><strong>${t.pair}</strong></td>
-                                <td><span style="color: ${t.direction === 'BUY' ? 'var(--accent-cyan)' : 'var(--accent-red)'}; font-weight: 600;">${t.direction}</span></td>
-                                <td>${t.lot_total}</td>
-                                <td>${t.execution_time ? t.execution_time.slice(0, 19).replace('T', ' ') : ''}</td>
-                                <td>${t.sl ? t.sl.toFixed(5) : ''}</td>
-                                <td>${t.tp1 ? t.tp1.toFixed(5) : ''}</td>
-                                <td>${t.tp2 ? t.tp2.toFixed(5) : ''}</td>
-                                <td style="font-weight: bold; color: ${t.profit_usd >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">
-                                    ${t.profit_usd >= 0 ? '+' : ''}${t.profit_usd ? t.profit_usd.toFixed(2) : '0.00'}
+                                <td><code>${displayId}</code></td>
+                                <td><strong>${t.pair || 'N/A'}</strong></td>
+                                <td><span style="color: ${directionColor}; font-weight: 600;">${t.direction || 'N/A'}</span></td>
+                                <td>${t.lot_total !== undefined ? t.lot_total : '0.0'}</td>
+                                <td>${t.execution_time ? t.execution_time.slice(0, 19).replace('T', ' ') : 'N/A'}</td>
+                                <td>${t.sl ? t.sl.toFixed(5) : 'N/A'}</td>
+                                <td>${t.tp1 ? t.tp1.toFixed(5) : 'N/A'}</td>
+                                <td>${t.tp2 ? t.tp2.toFixed(5) : 'N/A'}</td>
+                                <td style="font-weight: bold; color: ${profit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">
+                                    ${profit >= 0 ? '+' : ''}${profit.toFixed(2)}
                                 </td>
-                                <td><span class="badge ${badgeClass}">${t.status === 'OPEN' ? 'OPEN' : t.result}</span></td>
+                                <td><span class="badge ${badgeClass}">${t.status === 'OPEN' ? 'OPEN' : (t.result || 'N/A')}</span></td>
                             </tr>
                         `;
                     });
                 } else {
                     execBody.innerHTML = "<tr><td colspan='10' style='text-align: center; color: var(--text-secondary);'>No trades found in SQLite DB database.</td></tr>";
                 }
+            }
 
-                // Render Skipped
-                const skippedBody = document.querySelector("#table-skipped tbody");
+            // Render Skipped
+            const skippedBody = document.querySelector("#table-skipped tbody");
+            if (skippedBody) {
                 skippedBody.innerHTML = "";
-                if (data.skipped && data.skipped.length > 0) {
-                    data.skipped.forEach(t => {
+                if (skippedList.length > 0) {
+                    skippedList.forEach(t => {
+                        const displayId = t.signal_id ? t.signal_id.slice(0, 8) : 'N/A';
                         skippedBody.innerHTML += `
                             <tr>
-                                <td><code>${t.signal_id.slice(0, 8)}</code></td>
-                                <td><span style="color: #FF5A5F; font-weight: 500;">${t.reason}</span></td>
-                                <td>${t.skip_time ? t.skip_time.slice(0, 19).replace('T', ' ') : ''}</td>
+                                <td><code>${displayId}</code></td>
+                                <td><span style="color: #FF5A5F; font-weight: 500;">${t.reason || 'N/A'}</span></td>
+                                <td>${t.skip_time ? t.skip_time.slice(0, 19).replace('T', ' ') : 'N/A'}</td>
                                 <td>${t.spread ? t.spread.toFixed(1) : '0.0'}</td>
                                 <td>${t.score ? t.score.toFixed(1) : '0.0'}</td>
                             </tr>
@@ -1060,33 +1094,33 @@ HTML_TEMPLATE = """
                 } else {
                     skippedBody.innerHTML = "<tr><td colspan='5' style='text-align: center; color: var(--text-secondary);'>No skipped/denied setups found in database.</td></tr>";
                 }
-
-            } catch (err) {
-                console.error("Trades loader failed", err);
             }
         }
 
         async function loadLiveTrades() {
-            try {
-                const response = await fetch("/api/live_trades");
-                const data = await response.json();
-                
-                document.getElementById("stat-active-trades").innerText = data.length;
+            const response = await fetch("/api/live_trades");
+            const data = await response.json();
+            
+            const liveList = Array.isArray(data) ? data : [];
+            const activeEl = document.getElementById("stat-active-trades");
+            if (activeEl) activeEl.innerText = liveList.length;
 
-                const body = document.querySelector("#table-live-trades tbody");
+            const body = document.querySelector("#table-live-trades tbody");
+            if (body) {
                 body.innerHTML = "";
-                if (data && data.length > 0) {
-                    data.forEach(t => {
+                if (liveList.length > 0) {
+                    liveList.forEach(t => {
+                        const displayId = t.ticket_id || (t.trade_id ? t.trade_id.slice(0, 8) : 'N/A');
                         body.innerHTML += `
                             <tr>
-                                <td><code>${t.ticket || t.trade_id.slice(0, 8)}</code></td>
-                                <td><strong>${t.pair}</strong></td>
-                                <td><span style="color: ${t.direction === 'BUY' ? 'var(--accent-cyan)' : 'var(--accent-red)'}; font-weight: 600;">${t.direction}</span></td>
-                                <td>${t.lot_total}</td>
-                                <td>${t.executed_price ? t.executed_price.toFixed(5) : ''}</td>
-                                <td>${t.sl ? t.sl.toFixed(5) : ''}</td>
-                                <td>${t.tp1 ? t.tp1.toFixed(5) : ''}</td>
-                                <td>${t.tp2 ? t.tp2.toFixed(5) : ''}</td>
+                                <td><code>${displayId}</code></td>
+                                <td><strong>${t.pair || 'N/A'}</strong></td>
+                                <td><span style="color: ${t.direction === 'BUY' ? 'var(--accent-cyan)' : 'var(--accent-red)'}; font-weight: 600;">${t.direction || 'N/A'}</span></td>
+                                <td>${t.lot_total !== undefined ? t.lot_total : '0.0'}</td>
+                                <td>${t.executed_price ? t.executed_price.toFixed(5) : 'N/A'}</td>
+                                <td>${t.sl ? t.sl.toFixed(5) : 'N/A'}</td>
+                                <td>${t.tp1 ? t.tp1.toFixed(5) : 'N/A'}</td>
+                                <td>${t.tp2 ? t.tp2.toFixed(5) : 'N/A'}</td>
                                 <td><span class="badge badge-open">ACTIVE</span></td>
                             </tr>
                         `;
@@ -1094,66 +1128,77 @@ HTML_TEMPLATE = """
                 } else {
                     body.innerHTML = "<tr><td colspan='9' style='text-align: center; color: var(--text-secondary);'>No live trades are currently active in SQLite.</td></tr>";
                 }
-            } catch (err) {
-                console.error("Failed to load active trades", err);
             }
         }
 
         // Live Scan Trigger
         async function triggerScan() {
             const btn = document.querySelector("header button");
-            btn.innerText = "⚡ Scanning...";
-            btn.disabled = true;
+            if (btn) {
+                btn.innerText = "⚡ Scanning...";
+                btn.disabled = true;
+            }
             
             try {
                 const response = await fetch("/api/scan", { method: "POST" });
                 const data = await response.json();
                 
-                alert("Live scan complete!\n" + data.logs.join("\n"));
-                loadLiveTrades();
-                loadTrades();
+                alert("Live scan complete!\n" + (data.logs || []).join("\n"));
+                safeLoad(loadLiveTrades, "Live Trades");
+                safeLoad(loadTrades, "Trade Logs");
             } catch (err) {
                 alert("Scan failed: " + err);
             } finally {
-                btn.innerText = "⚡ Run Live Scan";
-                btn.disabled = false;
+                if (btn) {
+                    btn.innerText = "⚡ Run Live Scan";
+                    btn.disabled = false;
+                }
             }
         }
 
         // API: Backtest subprocess
         async function runBacktest() {
             const btn = document.getElementById("btn-run-backtest");
-            btn.innerText = "⏳ Running Replay...";
-            btn.disabled = true;
+            if (btn) {
+                btn.innerText = "⏳ Running Replay...";
+                btn.disabled = true;
+            }
             
             try {
                 const response = await fetch("/api/backtest/run", { method: "POST" });
                 const result = await response.json();
                 if (result.success) {
-                    document.getElementById("backtest-console").innerText = "🚀 Backtesting thread started...";
-                    checkBacktestStatus();
+                    const consoleEl = document.getElementById("backtest-console");
+                    if (consoleEl) consoleEl.innerText = "🚀 Backtesting thread started...";
+                    safeLoad(checkBacktestStatus, "Backtest Status");
                 } else {
                     alert(result.error);
-                    btn.innerText = "▶ Run Full Backtest";
-                    btn.disabled = false;
+                    if (btn) {
+                        btn.innerText = "▶ Run Full Backtest";
+                        btn.disabled = false;
+                    }
                 }
             } catch (err) {
                 alert("Backtest failed: " + err);
-                btn.innerText = "▶ Run Full Backtest";
-                btn.disabled = false;
+                if (btn) {
+                    btn.innerText = "▶ Run Full Backtest";
+                    btn.disabled = false;
+                }
             }
         }
 
         async function checkBacktestStatus() {
-            try {
-                const response = await fetch("/api/backtest/status");
-                const data = await response.json();
-                
-                const consoleDiv = document.getElementById("backtest-console");
+            const response = await fetch("/api/backtest/status");
+            const data = await response.json();
+            
+            const consoleDiv = document.getElementById("backtest-console");
+            if (consoleDiv) {
                 consoleDiv.innerText = data.output || "Console is idle.";
                 consoleDiv.scrollTop = consoleDiv.scrollHeight; // Auto-scroll to bottom
+            }
 
-                const btn = document.getElementById("btn-run-backtest");
+            const btn = document.getElementById("btn-run-backtest");
+            if (btn) {
                 if (data.status === "running") {
                     btn.innerText = "⏳ Running Replay...";
                     btn.disabled = true;
@@ -1162,29 +1207,29 @@ HTML_TEMPLATE = """
                     btn.disabled = false;
                     
                     if (data.status === "completed" || data.status === "failed") {
-                        loadReports(); // reload reports automatically
+                        safeLoad(loadReports, "Reports List"); // reload reports automatically
                     }
                 }
-            } catch (err) {
-                console.error("Failed to check status", err);
             }
         }
 
         // Reports
         async function loadReports() {
-            try {
-                const response = await fetch("/api/reports");
-                const data = await response.json();
-                
-                const body = document.querySelector("#table-reports tbody");
+            const response = await fetch("/api/reports");
+            const data = await response.json();
+            
+            const reportsList = Array.isArray(data) ? data : [];
+            const body = document.querySelector("#table-reports tbody");
+            if (body) {
                 body.innerHTML = "";
-                if (data && data.length > 0) {
-                    data.forEach(r => {
+                if (reportsList.length > 0) {
+                    reportsList.forEach(r => {
+                        const dateStr = r.modified ? r.modified.slice(0, 19).replace('T', ' ') : 'N/A';
                         body.innerHTML += `
                             <tr>
-                                <td><strong>${r.filename}</strong></td>
-                                <td>${r.size}</td>
-                                <td>${r.modified.slice(0, 19).replace('T', ' ')}</td>
+                                <td><strong>${r.filename || 'N/A'}</strong></td>
+                                <td>${r.size || '0 KB'}</td>
+                                <td>${dateStr}</td>
                                 <td>
                                     <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="viewReport('${r.filename}')">👁️ View</button>
                                 </td>
@@ -1194,8 +1239,6 @@ HTML_TEMPLATE = """
                 } else {
                     body.innerHTML = "<tr><td colspan='4' style='text-align: center; color: var(--text-secondary);'>No generated reports found. Run a backtest first.</td></tr>";
                 }
-            } catch (err) {
-                console.error("Failed to load reports", err);
             }
         }
 
@@ -1204,12 +1247,17 @@ HTML_TEMPLATE = """
                 const response = await fetch(`/api/reports/${filename}`);
                 const content = await response.text();
                 
-                document.getElementById("report-view-title").innerText = `Viewing Report: ${filename}`;
-                document.getElementById("report-view-content").innerText = content;
-                document.getElementById("report-view-card").style.display = "block";
+                const titleEl = document.getElementById("report-view-title");
+                if (titleEl) titleEl.innerText = `Viewing Report: ${filename}`;
                 
-                // Scroll to top of report view
-                document.getElementById("report-view-card").scrollIntoView({ behavior: 'smooth' });
+                const contentEl = document.getElementById("report-view-content");
+                if (contentEl) contentEl.innerText = content;
+                
+                const cardEl = document.getElementById("report-view-card");
+                if (cardEl) {
+                    cardEl.style.display = "block";
+                    cardEl.scrollIntoView({ behavior: 'smooth' });
+                }
             } catch (err) {
                 alert("Failed to load report content: " + err);
             }
@@ -1220,4 +1268,12 @@ HTML_TEMPLATE = """
 """
 
 if __name__ == "__main__":
+    # Auto-initialize database tables if they do not exist
+    try:
+        from core.stateengine import StateEngine
+        StateEngine(DB_PATH)
+        print(f"[Dashboard] SQLite Database auto-initialized successfully at {DB_PATH}")
+    except Exception as db_init_err:
+        print(f"[Dashboard] Warning: Could not auto-initialize DB via StateEngine: {db_init_err}")
+
     app.run(host="127.0.0.1", port=5000, debug=True)
