@@ -132,11 +132,15 @@ def trigger_scan():
         from core.configengine import ConfigEngine
         from core.stateengine import StateEngine
         from core.mt5connector import MT5Connector
+        from core.logger import get_logger
         from modules.sessionengine import SessionEngine
         from modules.riskengine import RiskEngine
         from modules.correlationfilter import CorrelationFilter
         from modules.scannermmxm import ScannerMMXM
         from modules.scannerote import ScannerOTE
+        
+        logger = get_logger("ManualScan")
+        logger.info("⏱️ Manual live pair scan triggered from Dashboard Control Panel")
         
         config = ConfigEngine().get_config()
         state_engine = StateEngine(DB_PATH)
@@ -158,19 +162,25 @@ def trigger_scan():
         scan_logs = []
         scan_logs.append(f"⏱️ Manual scan triggered at {datetime.now(timezone.utc).isoformat()}")
         scan_logs.append(f"🌎 Session: {session if session else 'None'} | Killzone: {killzone if killzone else 'None'}")
+        logger.info(f"🌎 Current Market Session: {session if session else 'None'} | Killzone: {killzone if killzone else 'None'}")
         
         if not mt5_connector.is_connected():
+            logger.info("🔌 Connecting to MetaTrader 5 Terminal...")
             if not mt5_connector.connect():
+                logger.error("❌ Failed to connect to MetaTrader 5 Terminal")
                 return jsonify({"success": False, "logs": ["❌ Failed to connect to MetaTrader5."]}), 200
                 
         signals_found = 0
         for pair in config.pairs:
+            logger.info(f"🔍 Scanning pair: {pair}...")
             scan_logs.append(f"🔍 Scanning pair: {pair}...")
             # Check pair level restrictions
             if not session_engine.is_pair_allowed(pair, session):
+                logger.warning(f"⚠️ Pair {pair} not allowed in current session. Skipping.")
                 scan_logs.append(f"   ⚠️ Pair {pair} not allowed in current session.")
                 continue
             if state_engine.is_pair_on_cooldown(pair):
+                logger.warning(f"⏳ Pair {pair} is on cooldown. Skipping.")
                 scan_logs.append(f"   ⏳ Pair {pair} is on cooldown.")
                 continue
                 
@@ -178,11 +188,16 @@ def trigger_scan():
                 signal = scanner.scan(pair, session or "London", killzone or "London")
                 if signal:
                     signals_found += 1
-                    scan_logs.append(f"   ✅ {name} Signal Found for {pair}! {signal['direction']} @ {signal['entry_price']:.5f}")
+                    msg = f"✅ {name} Signal Found for {pair}! {signal['direction']} @ {signal['entry_price']:.5f}"
+                    logger.info(msg)
+                    scan_logs.append(f"   {msg}")
                     
+        logger.info(f"🏁 Manual scan complete. Found {signals_found} signals.")
         scan_logs.append(f"🏁 Scan complete. Found {signals_found} signals.")
         return jsonify({"success": True, "logs": scan_logs})
     except Exception as e:
+        if 'logger' in locals():
+            logger.error(f"❌ Manual Scan Error: {e}")
         return jsonify({"success": False, "logs": [f"❌ Manual Scan Error: {e}"]}), 500
 
 @app.route("/api/backtest/run", methods=["POST"])
@@ -203,6 +218,20 @@ def get_backtest_status():
         "status": backtest_status,
         "output": "".join(backtest_output)
     })
+
+@app.route("/api/logs", methods=["GET"])
+def get_bot_logs():
+    log_path = os.path.join(BASE_DIR, "logs", "bot.log")
+    if not os.path.exists(log_path):
+        return jsonify({"logs": "Log file not found yet. Start scanning or running the bot to generate logs."})
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+            # Read last 150 lines
+            lines = f.readlines()
+            last_lines = lines[-150:]
+            return jsonify({"logs": "".join(last_lines)})
+    except Exception as e:
+        return jsonify({"logs": f"Error reading log file: {e}"})
 
 @app.route("/api/reports", methods=["GET"])
 def list_reports():
@@ -479,6 +508,12 @@ HTML_TEMPLATE = """
         .badge-open { background: rgba(79, 172, 254, 0.1); color: var(--accent-blue); }
         .badge-be { background: rgba(156, 163, 175, 0.1); color: var(--text-secondary); }
 
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1.0; }
+            100% { opacity: 0.5; }
+        }
+
         /* Configuration Forms */
         .form-grid {
             display: grid;
@@ -678,6 +713,18 @@ HTML_TEMPLATE = """
                     </tbody>
                 </table>
             </div>
+
+            <!-- Live Running Bot logs -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Live System Terminal Logs (logs/bot.log)</div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span class="badge badge-win" style="animation: pulse 1.5s infinite; font-size: 0.7rem; font-weight: bold; border: 1px solid var(--accent-green);">LIVE LOGS</span>
+                        <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="loadBotLogs()">Refresh</button>
+                    </div>
+                </div>
+                <pre class="console-log" id="bot-console" style="height: 350px; background: rgba(0, 0, 0, 0.45); border: 1px solid var(--border-card); color: #00FF66; font-family: monospace; font-size: 0.85rem; padding: 1.2rem; border-radius: 8px; overflow-y: auto; text-align: left; white-space: pre-wrap; word-wrap: break-word;"></pre>
+            </div>
         </div>
 
         <!-- ────────────────────────────────────────── PANEL: CONFIG ────────────────────────────────────────── -->
@@ -869,9 +916,13 @@ HTML_TEMPLATE = """
             safeLoad(loadTrades, "Trade Logs");
             safeLoad(loadLiveTrades, "Live Trades");
             safeLoad(loadReports, "Reports List");
+            safeLoad(loadBotLogs, "Live Terminal Logs");
             
             // Poll backtest status every 3 seconds safely
             setInterval(() => safeLoad(checkBacktestStatus, "Backtest Status"), 3000);
+            
+            // Poll live system terminal logs every 2 seconds safely
+            setInterval(() => safeLoad(loadBotLogs, "Live Terminal Logs"), 2000);
         });
 
         function switchPanel(panelId, element) {
@@ -1139,20 +1190,55 @@ HTML_TEMPLATE = """
                 btn.disabled = true;
             }
             
+            const consoleDiv = document.getElementById("bot-console");
+            if (consoleDiv) {
+                consoleDiv.innerText += "\n\n⚡ [Dashboard] Triggering Manual Live Scan...\n";
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            }
+            
             try {
                 const response = await fetch("/api/scan", { method: "POST" });
                 const data = await response.json();
                 
-                alert("Live scan complete!\\n" + (data.logs || []).join("\\n"));
+                if (consoleDiv) {
+                    consoleDiv.innerText += "\n=== Live Scan Results ===\n" + (data.logs || []).join("\n") + "\n=========================\n";
+                    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+                }
+                
                 safeLoad(loadLiveTrades, "Live Trades");
                 safeLoad(loadTrades, "Trade Logs");
+                safeLoad(loadBotLogs, "Live Terminal Logs");
             } catch (err) {
-                alert("Scan failed: " + err);
+                if (consoleDiv) {
+                    consoleDiv.innerText += `\n❌ Live Scan Failed: ${err}\n`;
+                    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+                }
             } finally {
                 if (btn) {
                     btn.innerText = "⚡ Run Live Scan";
                     btn.disabled = false;
                 }
+            }
+        }
+
+        // Live Bot Logs Fetcher
+        async function loadBotLogs() {
+            try {
+                const response = await fetch("/api/logs");
+                const data = await response.json();
+                
+                const consoleDiv = document.getElementById("bot-console");
+                if (consoleDiv) {
+                    // Check if user is currently scrolled up to prevent snapping back down
+                    const isAtBottom = (consoleDiv.scrollHeight - consoleDiv.clientHeight - consoleDiv.scrollTop) < 50;
+                    consoleDiv.innerText = data.logs || "No logs generated yet. Run a scan or start the bot.";
+                    
+                    if (isAtBottom) {
+                        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load bot logs", err);
             }
         }
 
