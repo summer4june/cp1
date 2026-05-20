@@ -34,6 +34,7 @@ class TelegramBridge:
         config: Config,
         state_engine: StateEngine,
         execution_callback: Callable[[str], None],
+        reporter: Optional[Any] = None,
     ):
         """
         Initializes the TelegramBridge.
@@ -46,6 +47,7 @@ class TelegramBridge:
         self.config = config
         self.state = state_engine
         self.execution_callback = execution_callback
+        self.reporter = reporter
 
         self.bot = telebot.TeleBot(self.config.telegram_token, threaded=False)
         self.chat_id = self.config.telegram_chat_id
@@ -268,6 +270,12 @@ class TelegramBridge:
 
             self.state.insert_skip(signal_id, reason, spread, score)
             logger.info(f"Signal {signal_id} skipped: {reason}")
+
+            # Optionally log denied signal to Denied Google Sheet
+            if pending and self.reporter:
+                signal_dict = pending.get("signal")
+                if signal_dict:
+                    self.reporter.log_denied_trade(signal_dict, reason)
 
             self.bot.send_message(
                 self.chat_id,

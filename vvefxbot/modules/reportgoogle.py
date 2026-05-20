@@ -37,6 +37,7 @@ class GoogleSheetReporter:
         self.config = config
         self.client = None
         self.sheet = None
+        self.denied_sheet = None
 
     def connect(self) -> bool:
         """
@@ -67,6 +68,21 @@ class GoogleSheetReporter:
                 logger.info("Added header row to Google Sheet.")
 
             logger.info("Successfully connected to Google Sheet.")
+            
+            # Connect to Denied sheet optionally
+            denied_sheet_id = getattr(self.config, "google_denied_sheet_id", None)
+            if denied_sheet_id:
+                try:
+                    denied_spreadsheet = self.client.open_by_key(denied_sheet_id)
+                    self.denied_sheet = denied_spreadsheet.sheet1
+                    denied_headers = ["Date", "Time", "Pair", "Strategy", "Direction", "Reason", "Spread", "Signal Score", "Signal ID"]
+                    first_row_denied = self.denied_sheet.row_values(1)
+                    if not first_row_denied or first_row_denied[0] != "Date":
+                        self.denied_sheet.insert_row(denied_headers, 1)
+                        logger.info("Added header row to Denied Google Sheet.")
+                except Exception as e:
+                    logger.error(f"Failed to connect to Denied Google Sheet: {e}")
+
             return True
 
         except Exception as e:
@@ -246,3 +262,37 @@ class GoogleSheetReporter:
         except Exception as e:
             logger.error(f"Error syncing closed trades to Google Sheet: {e}")
             return 0
+
+    def log_denied_trade(self, signal: Dict[str, Any], reason: str) -> bool:
+        """
+        Log a denied/skipped signal to the separate Google Sheet.
+        """
+        if not getattr(self.config, "google_denied_sheet_id", None):
+            return False
+            
+        if self.denied_sheet is None:
+            if not self.connect():
+                return False
+                
+        try:
+            now_utc = datetime.now(pytz.utc)
+            now_ist = now_utc.astimezone(_IST)
+            
+            row_data = [
+                now_ist.strftime("%Y-%m-%d"),
+                now_ist.strftime("%H:%M:%S"),
+                signal.get("pair", ""),
+                signal.get("strategy", ""),
+                signal.get("direction", ""),
+                reason,
+                signal.get("spread_pips", 0.0),
+                signal.get("score", 0.0),
+                signal.get("signal_id", ""),
+            ]
+            
+            self.denied_sheet.append_row(row_data)
+            logger.info(f"Signal {signal.get('signal_id')} (Denied: {reason}) logged to Denied Google Sheet.")
+            return True
+        except Exception as e:
+            logger.error(f"Error logging denied trade to Google Sheet: {e}")
+            return False

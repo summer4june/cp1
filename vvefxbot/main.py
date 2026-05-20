@@ -213,6 +213,7 @@ def main():
         config=config,
         state_engine=state_engine,
         execution_callback=execution_engine.execute_signal,
+        reporter=sheet_reporter,
     )
     # Back-patch telegram reference into engines that need it
     execution_engine.telegram = telegram_bridge

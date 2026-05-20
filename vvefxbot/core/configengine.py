@@ -1,7 +1,7 @@
 import os
 import json
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 
 @dataclass
@@ -36,6 +36,7 @@ class Config:
     telegram_chat_id: str
     google_sheet_id: str
     google_creds_path: str
+    google_denied_sheet_id: Optional[str] = None
 
 class ConfigEngine:
     """Engine to load, validate, and provide access to the bot configuration."""
@@ -187,7 +188,8 @@ class ConfigEngine:
             telegram_token=env_values["telegram_token"],
             telegram_chat_id=env_values["telegram_chat_id"],
             google_sheet_id=env_values["google_sheet_id"],
-            google_creds_path=env_values["google_creds_path"]
+            google_creds_path=env_values["google_creds_path"],
+            google_denied_sheet_id=os.getenv("GOOGLE_DENIED_SHEET_ID")
         )
 
     def get_config(self) -> Config:
