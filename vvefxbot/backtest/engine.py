@@ -13,6 +13,7 @@ import pandas as pd
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
+import pytz
 from core.logger import get_logger
 from core.configengine import Config
 from core.stateengine import StateEngine
@@ -23,6 +24,20 @@ from modules.sessionengine import SessionEngine
 from backtest.connector import BacktestConnector
 
 logger = get_logger("BacktestEngine")
+
+class HistoricalSessionEngine(SessionEngine):
+    """Overrides SessionEngine during backtesting to use the historical bar timestamp."""
+
+    def __init__(self, config: Config, connector: BacktestConnector):
+        super().__init__(config)
+        self.connector = connector
+
+    def get_current_ist_time(self) -> datetime:
+        utc_time = self.connector.current_time()
+        if utc_time.tzinfo is None:
+            utc_time = utc_time.replace(tzinfo=pytz.utc)
+        return utc_time.astimezone(self.tz_ist)
+
 
 # Minimum number of M1 bars needed before scanning starts (warm-up period)
 _WARMUP_BARS = 120
@@ -117,7 +132,7 @@ class BacktestEngine:
         self.scanner = ScannerMMXM(config, connector, self.state)
         self.risk_engine = RiskEngine(config, connector)
         self.corr_filter = CorrelationFilter(config)
-        self.session_engine = SessionEngine(config)
+        self.session_engine = HistoricalSessionEngine(config, connector)
 
         self._open_trades: List[SimulatedTrade] = []
         self._closed_trades: List[SimulatedTrade] = []

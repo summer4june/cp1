@@ -19,6 +19,21 @@ class SessionEngine:
         self.config = config
         self.tz_ist = pytz.timezone("Asia/Kolkata")
 
+        # Pre-parse session and killzone timings to avoid slow strptime calls
+        self._parsed_sessions = {}
+        for session, timings in self.config.session_timings.items():
+            self._parsed_sessions[session] = {
+                "start": datetime.strptime(timings["start"], "%H:%M").time(),
+                "end": datetime.strptime(timings["end"], "%H:%M").time(),
+            }
+
+        self._parsed_killzones = {}
+        for kz, timings in self.config.killzone_timings.items():
+            self._parsed_killzones[kz] = {
+                "start": datetime.strptime(timings["start"], "%H:%M").time(),
+                "end": datetime.strptime(timings["end"], "%H:%M").time(),
+            }
+
     def get_current_ist_time(self) -> datetime:
         """
         Return the current time in IST (Asia/Kolkata).
@@ -48,6 +63,13 @@ class SessionEngine:
         else:  # Midnight crossover
             return current >= start or current < end
 
+    def _is_time_in_range_parsed(self, current: time, start: time, end: time) -> bool:
+        """Helper checking if a time falls in range using pre-parsed time objects."""
+        if start <= end:
+            return start <= current < end
+        else:  # Midnight crossover
+            return current >= start or current < end
+
     def get_active_session(self) -> Optional[str]:
         """
         Return the name of the currently active trading session.
@@ -56,8 +78,8 @@ class SessionEngine:
             str | None: "Asia", "London", "NewYork", or None.
         """
         now_ist = self.get_current_ist_time().time()
-        for session, timings in self.config.session_timings.items():
-            if self._is_time_in_range(now_ist, timings["start"], timings["end"]):
+        for session, timings in self._parsed_sessions.items():
+            if self._is_time_in_range_parsed(now_ist, timings["start"], timings["end"]):
                 return session
         return None
 
@@ -69,8 +91,8 @@ class SessionEngine:
             str | None: "Asia", "London", "NewYork", "LondonClose", or None.
         """
         now_ist = self.get_current_ist_time().time()
-        for kz, timings in self.config.killzone_timings.items():
-            if self._is_time_in_range(now_ist, timings["start"], timings["end"]):
+        for kz, timings in self._parsed_killzones.items():
+            if self._is_time_in_range_parsed(now_ist, timings["start"], timings["end"]):
                 return kz
         return None
 
