@@ -14,7 +14,7 @@ def get_logger(module_name: str) -> logging.Logger:
         logging.Logger: The configured logger instance.
     """
     logger = logging.getLogger(module_name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     # Prevent adding multiple handlers if the logger already exists
     if not logger.handlers:
