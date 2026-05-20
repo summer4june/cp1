@@ -1143,7 +1143,7 @@ HTML_TEMPLATE = """
                 const response = await fetch("/api/scan", { method: "POST" });
                 const data = await response.json();
                 
-                alert("Live scan complete!\n" + (data.logs || []).join("\n"));
+                alert("Live scan complete!\\n" + (data.logs || []).join("\\n"));
                 safeLoad(loadLiveTrades, "Live Trades");
                 safeLoad(loadTrades, "Trade Logs");
             } catch (err) {
