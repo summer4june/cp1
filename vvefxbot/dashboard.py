@@ -4,8 +4,24 @@ import json
 import sqlite3
 import subprocess
 import threading
+import atexit
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request, render_template_string
+
+def cleanup_subprocesses():
+    global bot_process, backtest_process
+    for proc in [bot_process, backtest_process]:
+        if proc is not None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=1)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
+atexit.register(cleanup_subprocesses)
 
 app = Flask(__name__)
 
@@ -19,6 +35,10 @@ BACKTEST_RESULTS_DIR = os.path.join(BASE_DIR, "backtest", "results")
 backtest_process = None
 backtest_output = []
 backtest_status = "idle"  # idle | running | completed | failed
+
+# State for background live bot subprocess
+bot_process = None
+bot_status = "offline"  # offline | online
 
 def run_backtest_thread():
     global backtest_process, backtest_output, backtest_status
@@ -218,6 +238,90 @@ def get_backtest_status():
         "status": backtest_status,
         "output": "".join(backtest_output)
     })
+
+@app.route("/api/bot/start", methods=["POST"])
+def start_bot():
+    global bot_process, bot_status
+    if bot_status == "online":
+        return jsonify({"success": False, "error": "Bot is already running."}), 200
+        
+    try:
+        # Clear existing logs so we start fresh
+        log_path = os.path.join(BASE_DIR, "logs", "bot.log")
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, "w") as f:
+                    f.write(f"=== Bot Dashboard Session Started at {datetime.now().isoformat()} ===\n")
+            except Exception:
+                pass
+
+        # Start python3 main.py as a background subprocess
+        bot_process = subprocess.Popen(
+            [sys.executable, "main.py"],
+            cwd=BASE_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        bot_status = "online"
+        
+        # Spawn daemon thread to continuously read bot's stdout and write it to logs/bot.log
+        def pipe_stdout():
+            global bot_process
+            try:
+                for line in iter(bot_process.stdout.readline, ""):
+                    with open(log_path, "a", encoding="utf-8") as lf:
+                        lf.write(line)
+            except Exception:
+                pass
+                
+        t = threading.Thread(target=pipe_stdout, daemon=True)
+        t.start()
+        
+        return jsonify({"success": True, "message": "Trading Bot launched successfully!"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to start bot: {e}"}), 500
+
+@app.route("/api/bot/stop", methods=["POST"])
+def stop_bot():
+    global bot_process, bot_status
+    if bot_status == "offline" or bot_process is None:
+        return jsonify({"success": False, "error": "Bot is already stopped."}), 200
+        
+    try:
+        # Gracefully terminate
+        bot_process.terminate()
+        try:
+            bot_process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            bot_process.kill()  # Force kill if it hangs
+            
+        bot_process = None
+        bot_status = "offline"
+        
+        # Log the shutdown in bot.log
+        log_path = os.path.join(BASE_DIR, "logs", "bot.log")
+        try:
+            with open(log_path, "a", encoding="utf-8") as lf:
+                lf.write("\n🛑 [Dashboard] Trading Bot shutdown request processed. Status: OFFLINE.\n")
+        except Exception:
+            pass
+            
+        return jsonify({"success": True, "message": "Trading Bot stopped successfully."})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to stop bot: {e}"}), 500
+
+@app.route("/api/bot/status", methods=["GET"])
+def get_bot_status():
+    global bot_process, bot_status
+    # Verify process is actually alive if marked online
+    if bot_status == "online" and bot_process is not None:
+        poll = bot_process.poll()
+        if poll is not None:  # Process exited
+            bot_status = "offline"
+            bot_process = None
+    return jsonify({"status": bot_status})
 
 @app.route("/api/logs", methods=["GET"])
 def get_bot_logs():
@@ -662,8 +766,9 @@ HTML_TEMPLATE = """
                 <h1 id="header-title">Home Dashboard</h1>
                 <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Live terminal connection monitoring and trade management.</p>
             </div>
-            <div>
-                <button class="btn" onclick="triggerScan()"><span style="font-size: 1.1rem;">⚡</span> Run Live Scan</button>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                <button class="btn btn-secondary" onclick="triggerScan()" style="padding: 0.65rem 1.1rem; font-size: 0.85rem;"><span style="font-size: 1rem;">⚡</span> Run One-off Scan</button>
+                <button class="btn" id="btn-toggle-bot" onclick="toggleBot()" style="background: linear-gradient(135deg, var(--accent-green) 0%, #00b09b 100%); min-width: 180px; padding: 0.65rem 1.25rem; font-size: 0.85rem; font-weight: bold; border-radius: 8px; box-shadow: 0 0 15px rgba(0, 255, 135, 0.25);">🚀 Start Trading Bot</button>
             </div>
         </header>
 
@@ -719,7 +824,7 @@ HTML_TEMPLATE = """
                 <div class="card-header">
                     <div class="card-title">Live System Terminal Logs (logs/bot.log)</div>
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <span class="badge badge-win" style="animation: pulse 1.5s infinite; font-size: 0.7rem; font-weight: bold; border: 1px solid var(--accent-green);">LIVE LOGS</span>
+                        <span class="badge badge-be" id="bot-status-badge" style="font-size: 0.7rem; font-weight: bold; border: 1px solid var(--text-secondary);">BOT OFFLINE</span>
                         <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="loadBotLogs()">Refresh</button>
                     </div>
                 </div>
@@ -923,6 +1028,9 @@ HTML_TEMPLATE = """
             
             // Poll live system terminal logs every 2 seconds safely
             setInterval(() => safeLoad(loadBotLogs, "Live Terminal Logs"), 2000);
+
+            // Poll background bot status every 2 seconds safely
+            setInterval(() => safeLoad(checkBotStatus, "Bot Status"), 2000);
         });
 
         function switchPanel(panelId, element) {
@@ -1178,6 +1286,77 @@ HTML_TEMPLATE = """
                     });
                 } else {
                     body.innerHTML = "<tr><td colspan='9' style='text-align: center; color: var(--text-secondary);'>No live trades are currently active in SQLite.</td></tr>";
+                }
+            }
+        let currentBotStatus = "offline";
+
+        // Bot start/stop controller
+        async function toggleBot() {
+            const btn = document.getElementById("btn-toggle-bot");
+            if (!btn) return;
+            
+            btn.disabled = true;
+            const action = currentBotStatus === "online" ? "stop" : "start";
+            btn.innerText = action === "stop" ? "⏳ Stopping..." : "⏳ Starting...";
+            
+            try {
+                const response = await fetch(`/api/bot/${action}`, { method: "POST" });
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentBotStatus = action === "start" ? "online" : "offline";
+                    updateBotUI();
+                } else {
+                    alert("Operation failed: " + result.error);
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                alert("Network error: " + err);
+                btn.disabled = false;
+            }
+        }
+
+        async function checkBotStatus() {
+            try {
+                const response = await fetch("/api/bot/status");
+                const data = await response.json();
+                if (data.status !== currentBotStatus) {
+                    currentBotStatus = data.status;
+                    updateBotUI();
+                }
+            } catch (err) {
+                console.error("Failed to query bot status:", err);
+            }
+        }
+
+        function updateBotUI() {
+            const btn = document.getElementById("btn-toggle-bot");
+            if (!btn) return;
+            
+            btn.disabled = false;
+            const badge = document.getElementById("bot-status-badge");
+            
+            if (currentBotStatus === "online") {
+                btn.innerText = "🛑 Stop Trading Bot";
+                btn.style.background = "linear-gradient(135deg, var(--accent-red) 0%, #ff4b2b 100%)";
+                btn.style.boxShadow = "0 0 15px rgba(255, 8, 68, 0.25)";
+                
+                if (badge) {
+                    badge.innerText = "BOT ONLINE";
+                    badge.style.border = "1px solid var(--accent-green)";
+                    badge.style.animation = "pulse 1.5s infinite";
+                    badge.className = "badge badge-win";
+                }
+            } else {
+                btn.innerText = "🚀 Start Trading Bot";
+                btn.style.background = "linear-gradient(135deg, var(--accent-green) 0%, #00b09b 100%)";
+                btn.style.boxShadow = "0 0 15px rgba(0, 255, 135, 0.25)";
+                
+                if (badge) {
+                    badge.innerText = "BOT OFFLINE";
+                    badge.style.border = "1px solid var(--text-secondary)";
+                    badge.style.animation = "none";
+                    badge.className = "badge badge-be";
                 }
             }
         }
