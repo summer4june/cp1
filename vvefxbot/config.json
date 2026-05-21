@@ -2,7 +2,8 @@
   "strategy_mode": "MULTI",
   "enabled_scanners": {
     "mmxm": true,
-    "ote": false
+    "ote": false,
+    "zgmt": false
   },
   "ote_scanner": {
     "enabled": false,
@@ -58,5 +59,39 @@
     "C": ["USDCAD"]
   },
   "demo_mode": true,
-  "trading_pool_size": 1000.0
+  "trading_pool_size": 1000.0,
+
+  "zgmt_scanner": {
+    "enabled": false,
+
+    "timeframe_bias": "D1",
+    "timeframe_entry": "H1",
+    "d1_candles_for_range": 20,
+
+    "zgmt_window_start_ist": "05:30",
+    "zgmt_window_end_ist": "08:00",
+    "zgmt_ny_midnight_ist": "09:30",
+
+    "require_pd_array_check": true,
+    "require_power_of_three": false,
+
+    "zgmt_entry_mode": "DIRECT",
+    "zgmt_filter_pips": 20,
+    "zgmt_test_threshold_pips": 5,
+
+    "zgmt_sl_tp": {
+      "sl_pips_gold": 95,
+      "tp_pips_gold": 190,
+      "sl_pips_fx": 25,
+      "tp_pips_fx": 50
+    },
+
+    "score": 70.0,
+    "cooldown_minutes": 60,
+    "max_daily_trades": 2,
+    "allow_buy": true,
+    "allow_sell": true,
+
+    "magic_number": 202412
+  }
 }

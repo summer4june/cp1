@@ -229,7 +229,7 @@ def main():
     # ── 12. Scanners ─────────────────────────────────────────────────
     scanners = []
     mode = getattr(config, "strategy_mode", "MMXM")
-    enabled = getattr(config, "enabled_scanners", {"mmxm": True, "ote": False})
+    enabled = getattr(config, "enabled_scanners", {"mmxm": True, "ote": False, "zgmt": False})
     
     if mode in ["MMXM", "MULTI"] and enabled.get("mmxm", True):
         scanners.append(("ScannerMMXM", ScannerMMXM(config, mt5_connector, state_engine)))
@@ -237,6 +237,10 @@ def main():
     if mode in ["OTE", "MULTI"] and enabled.get("ote", False):
         from modules.scannerote import ScannerOTE
         scanners.append(("ScannerOTE", ScannerOTE(config, mt5_connector, state_engine)))
+
+    if mode in ["ZGMT", "MULTI"] and enabled.get("zgmt", False):
+        from modules.scannerzgmt import ScannerZGMT
+        scanners.append(("ScannerZGMT", ScannerZGMT(config, mt5_connector, state_engine)))
         
     logger.info(f"[Main] Strategy mode: {mode}")
     logger.info(f"[Main] Enabled scanners: {', '.join([s[0] for s in scanners])}")

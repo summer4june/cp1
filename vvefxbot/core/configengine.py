@@ -11,6 +11,7 @@ class Config:
     strategy_mode: str
     enabled_scanners: Dict[str, bool]
     ote_scanner: Dict[str, Any]
+    zgmt_scanner: Dict[str, Any]
     pairs: List[str]
     session_timings: Dict[str, Dict[str, str]]
     killzone_timings: Dict[str, Dict[str, str]]
@@ -78,13 +79,18 @@ class ConfigEngine:
         if "strategy_mode" not in json_data:
             json_data["strategy_mode"] = "MMXM"
         if "enabled_scanners" not in json_data:
-            json_data["enabled_scanners"] = {"mmxm": True, "ote": False}
+            json_data["enabled_scanners"] = {"mmxm": True, "ote": False, "zgmt": False}
+        else:
+            # Backward-compatible: add zgmt key if missing
+            json_data["enabled_scanners"].setdefault("zgmt", False)
         if "ote_scanner" not in json_data:
             json_data["ote_scanner"] = {"enabled": False}
+        if "zgmt_scanner" not in json_data:
+            json_data["zgmt_scanner"] = {"enabled": False}
 
         # Required config.json keys
         json_keys = [
-            "strategy_mode", "enabled_scanners", "ote_scanner",
+            "strategy_mode", "enabled_scanners", "ote_scanner", "zgmt_scanner",
             "pairs", "session_timings", "killzone_timings", "risk_percent", 
             "max_trades_day", "max_trades_pair_day", "max_open_trades", 
             "max_open_risk_percent", "spread_limits", "effective_rr_min", 
@@ -116,12 +122,12 @@ class ConfigEngine:
             elif key == "pairs":
                 if not isinstance(json_data[key], list):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
-            elif key in ["session_timings", "killzone_timings", "spread_limits", "correlation_groups", "enabled_scanners", "ote_scanner"]:
+            elif key in ["session_timings", "killzone_timings", "spread_limits", "correlation_groups", "enabled_scanners", "ote_scanner", "zgmt_scanner"]:
                 if not isinstance(json_data[key], dict):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
             elif key == "strategy_mode":
-                if json_data[key] not in ["MMXM", "OTE", "MULTI"]:
-                    raise ValueError(f"CONFIG ERROR: strategy_mode must be MMXM, OTE, or MULTI")
+                if json_data[key] not in ["MMXM", "OTE", "ZGMT", "MULTI"]:
+                    raise ValueError(f"CONFIG ERROR: strategy_mode must be MMXM, OTE, ZGMT, or MULTI")
 
         # Validate OTE specific keys if enabled or if present
         ote = json_data.get("ote_scanner", {})
@@ -147,6 +153,40 @@ class ConfigEngine:
             if ote.get("max_daily_trades", 0) <= 0:
                 raise ValueError("CONFIG ERROR: OTE max_daily_trades must be > 0")
 
+        # ── Validate ZGMT scanner config (only when enabled) ──────────────────────
+        zgmt = json_data.get("zgmt_scanner", {})
+        if zgmt and zgmt.get("enabled", False):
+            for time_key in ["zgmt_window_start_ist", "zgmt_window_end_ist", "zgmt_ny_midnight_ist"]:
+                val = zgmt.get(time_key, "")
+                if val:
+                    try:
+                        parts = val.split(":")
+                        if len(parts) != 2 or not (0 <= int(parts[0]) <= 23) or not (0 <= int(parts[1]) <= 59):
+                            raise ValueError()
+                    except (ValueError, IndexError):
+                        raise ValueError(f"CONFIG ERROR: ZGMT {time_key} must be a valid HH:MM string (got '{val}')")
+            if zgmt.get("d1_candles_for_range", 0) <= 0:
+                raise ValueError("CONFIG ERROR: ZGMT d1_candles_for_range must be > 0")
+            if zgmt.get("zgmt_filter_pips", -1) < 0:
+                raise ValueError("CONFIG ERROR: ZGMT zgmt_filter_pips must be >= 0")
+            if zgmt.get("zgmt_test_threshold_pips", -1) < 0:
+                raise ValueError("CONFIG ERROR: ZGMT zgmt_test_threshold_pips must be >= 0")
+            sl_tp = zgmt.get("zgmt_sl_tp", {})
+            if sl_tp.get("sl_pips_gold", 0) <= 0:
+                raise ValueError("CONFIG ERROR: ZGMT sl_pips_gold must be > 0")
+            if sl_tp.get("tp_pips_gold", 0) <= sl_tp.get("sl_pips_gold", 0):
+                raise ValueError("CONFIG ERROR: ZGMT tp_pips_gold must be > sl_pips_gold")
+            if sl_tp.get("sl_pips_fx", 0) <= 0:
+                raise ValueError("CONFIG ERROR: ZGMT sl_pips_fx must be > 0")
+            if sl_tp.get("tp_pips_fx", 0) <= sl_tp.get("sl_pips_fx", 0):
+                raise ValueError("CONFIG ERROR: ZGMT tp_pips_fx must be > sl_pips_fx")
+            if zgmt.get("cooldown_minutes", -1) < 0:
+                raise ValueError("CONFIG ERROR: ZGMT cooldown_minutes must be >= 0")
+            if zgmt.get("max_daily_trades", 0) <= 0:
+                raise ValueError("CONFIG ERROR: ZGMT max_daily_trades must be > 0")
+            if zgmt.get("zgmt_entry_mode", "").upper() not in ["DIRECT", "FILTER", "SPLIT"]:
+                raise ValueError("CONFIG ERROR: ZGMT zgmt_entry_mode must be DIRECT, FILTER, or SPLIT")
+
         # Validate .env keys
         env_values = {}
         for key in env_keys:
@@ -166,6 +206,7 @@ class ConfigEngine:
             strategy_mode=json_data["strategy_mode"],
             enabled_scanners=json_data["enabled_scanners"],
             ote_scanner=json_data["ote_scanner"],
+            zgmt_scanner=json_data["zgmt_scanner"],
             pairs=json_data["pairs"],
             session_timings=json_data["session_timings"],
             killzone_timings=json_data["killzone_timings"],
