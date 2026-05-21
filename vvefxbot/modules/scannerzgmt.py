@@ -47,8 +47,13 @@ class ScannerZGMT:
     # Internal helpers
     # ──────────────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _utc_now() -> datetime:
+    def _utc_now(self) -> datetime:
+        """Get the current UTC time, supporting backtest connector's historical clock if present."""
+        if hasattr(self.mt5, "current_time"):
+            t = self.mt5.current_time()
+            if t.tzinfo is None:
+                return t.replace(tzinfo=timezone.utc)
+            return t.astimezone(timezone.utc)
         return datetime.now(timezone.utc)
 
     @staticmethod

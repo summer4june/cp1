@@ -134,3 +134,38 @@ def test_backtest_engine_force_close_at_end(mock_config):
     closed_trade = next(r for r in results if r["trade_id"] == "test_id")
     assert closed_trade["status"] == "CLOSED"
     assert closed_trade["result"] == "EXPIRED"
+
+def test_backtest_engine_zgmt_optimization(mock_config):
+    """Verifies that ScannerZGMT backtesting is optimized to only scan inside signal windows."""
+    from unittest.mock import MagicMock
+    from modules.scannerzgmt import ScannerZGMT
+    from core.stateengine import StateEngine
+    
+    mock_config.zgmt_scanner = {
+        "enabled": True,
+        "zgmt_window_start_ist": "05:30",
+        "zgmt_window_end_ist": "08:00"
+    }
+    
+    # 05:30 IST is 00:00 UTC
+    start_inside = datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc)
+    
+    # 200 bars with 1 min interval = 200 minutes = 3 hours and 20 mins (00:00 UTC to 03:20 UTC)
+    bars_df = create_dummy_ohlc(start_inside, 200, timedelta(minutes=1))
+    data = {"M1": bars_df, "M15": bars_df, "H1": bars_df}
+    connector = BacktestConnector(mock_config, data, "EURUSD")
+    
+    state = StateEngine(":memory:")
+    scanner = ScannerZGMT(mock_config, connector, state)
+    scanner.scan = MagicMock(return_value=None)
+    
+    engine = BacktestEngine(mock_config, connector, "EURUSD", scanner=scanner)
+    engine.run()
+    
+    assert scanner.scan.called
+    # Total bars = 200. Warmup = 120 bars (starts at index 120 / 02:00 UTC / 07:30 IST).
+    # Window ends at 08:00 IST / 02:30 UTC / index 150.
+    # Bars scanned should be indexes 120 to 150 inclusive = 31 calls.
+    # Remaining 49 bars (indexes 151 to 199) are outside window and must be skipped.
+    assert scanner.scan.call_count == 31
+

@@ -10,7 +10,7 @@ Replays M1 bars chronologically. At each bar:
 
 import uuid
 import pandas as pd
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 
 import pytz
@@ -163,6 +163,28 @@ class BacktestEngine:
         # Deduplicate signals: don't re-enter a trade on the very next bar
         bars_since_signal = 999
 
+        # ZGMT optimization setup: parse window bounds once outside the loop
+        is_zgmt = (self.scanner.__class__.__name__ == "ScannerZGMT")
+        w_start = None
+        w_end = None
+        if is_zgmt:
+            zgmt_cfg = getattr(self.config, "zgmt_scanner", {})
+            window_start_str = zgmt_cfg.get("zgmt_window_start_ist", "05:30")
+            window_end_str = zgmt_cfg.get("zgmt_window_end_ist", "08:00")
+
+            def _parse_time(s: str):
+                parts = s.split(":")
+                from datetime import time as dt_time
+                return dt_time(int(parts[0]), int(parts[1]))
+
+            try:
+                w_start = _parse_time(window_start_str)
+                w_end = _parse_time(window_end_str)
+            except Exception:
+                from datetime import time as dt_time
+                w_start = dt_time(5, 30)
+                w_end = dt_time(8, 0)
+
         for idx in range(_WARMUP_BARS, total_bars):
             self.connector.set_bar_index(idx)
             current_bar = m1_data.iloc[idx]
@@ -178,10 +200,25 @@ class BacktestEngine:
 
             bars_since_signal += 1
 
+            # ── ZGMT specific optimization: only scan within the ZGMT signal window ──
+            if is_zgmt:
+                # Convert current_time (UTC) to IST (UTC + 5:30)
+                if current_time.tzinfo is None:
+                    current_time_utc = current_time.replace(tzinfo=timezone.utc)
+                else:
+                    current_time_utc = current_time.astimezone(timezone.utc)
+                
+                # ZGMT works in IST
+                current_time_ist = current_time_utc + timedelta(hours=5, minutes=30)
+                current_ist_time = current_time_ist.time()
+                
+                if not (w_start <= current_ist_time <= w_end):
+                    continue
+
             # ── Skip scanning if outside session / killzone ────────────
             session = self.session_engine.get_active_session()
             killzone = self.session_engine.get_active_killzone()
-            if not killzone:
+            if not is_zgmt and not killzone:
                 continue
 
             # ── Skip if max open trades reached ───────────────────────
