@@ -204,3 +204,62 @@ def test_zgmt_daily_finalization_logic(mock_config):
     assert result is None
 
 
+def test_zgmt_structural_absence_finalization(mock_config):
+    """Verifies that structural missing data like 0 GMT open or PD bias finalizes the day."""
+    from modules.scannerzgmt import ScannerZGMT
+    from core.stateengine import StateEngine
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    mock_config.zgmt_scanner = {
+        "enabled": True,
+        "zgmt_window_start_ist": "05:30",
+        "zgmt_window_end_ist": "08:00",
+        "d1_candles_for_range": 20,
+        "require_pd_array_check": True
+    }
+
+    connector = MagicMock()
+    connector.current_time.return_value = datetime(2024, 1, 1, 1, 0, tzinfo=timezone.utc)
+    
+    # 1. Test case: Insufficient D1 candles (returns len < n)
+    connector.get_candles.return_value = pd.DataFrame()  # Empty D1/H1
+    
+    state = StateEngine(":memory:")
+    scanner = ScannerZGMT(mock_config, connector, state)
+    
+    assert scanner._is_daily_finalized("EURUSD") is False
+    result = scanner.scan("EURUSD", "London", "Asia")
+    assert result is None
+    # In backtest mode, it should be marked as finalized automatically on PD bias failure
+    assert scanner._is_daily_finalized("EURUSD") is True
+
+    # Reset finalization
+    scanner._daily_finalized.clear()
+    assert scanner._is_daily_finalized("EURUSD") is False
+
+    # 2. Test case: 0 GMT open price is structurally missing (no 00:00 H1 candle)
+    # Mock daily bias working, but H1 candles missing 00:00 H1 candle
+    # D1 candles (length 21, midpoint range high 1.12, low 1.08, mid 1.10)
+    d1_df = pd.DataFrame({
+        "high": [1.12] * 22,
+        "low": [1.08] * 22
+    })
+    connector.get_tick.return_value = {"bid": 1.09, "ask": 1.091}
+    
+    # Empty H1 dataframe (means 0 GMT candle not found)
+    h1_df = pd.DataFrame()
+    
+    def mock_get_candles(symbol, timeframe, count=None):
+        if timeframe == "D1":
+            return d1_df
+        return h1_df
+        
+    connector.get_candles.side_effect = mock_get_candles
+    
+    result = scanner.scan("EURUSD", "London", "Asia")
+    assert result is None
+    # 0 GMT candle structurally not found should trigger daily finalization
+    assert scanner._is_daily_finalized("EURUSD") is True
+
+
