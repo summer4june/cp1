@@ -260,22 +260,59 @@ class BacktestEngine:
                 logger.debug(f"[BT] Signal blocked by correlation: {reason}")
                 continue
 
-            # Simulate trade entry
+            # ── Lot size ────────────────────────────────────────────────
             lot = risk_result["lot_size"]
             # Respect strategy-level fixed lot override if set in signal
             fixed_lot = signal.get("fixed_lot_size", 0.0)
             if fixed_lot and fixed_lot > 0.0:
                 lot = round(fixed_lot, 2)
-            entry_price = current_bar["close"]   # Market order at bar close
+
+            # ── Determine fill price ────────────────────────────────────
+            # For ZGMT: the strategy enters exactly at the 0 GMT open price (signal's entry_price).
+            # We simulate a limit order: fill only if the bar's range contains that price.
+            # If the bar doesn't reach it, skip this bar (price hasn't returned to the level).
+            # For other strategies: market-order fill at bar close (existing behaviour).
+            signal_entry = signal.get("entry_price", current_bar["close"])
+            is_zgmt_signal = (signal.get("strategy") == "ZGMT")
+
+            if is_zgmt_signal:
+                bar_high = current_bar["high"]
+                bar_low = current_bar["low"]
+                # Check if bar range reached the 0 GMT level
+                if not (bar_low <= signal_entry <= bar_high):
+                    # Level not touched on this bar — keep scanning (don't reset cooldown)
+                    bars_since_signal = 15  # Don't permanently block; allow next bar to retry
+                    continue
+                entry_price = signal_entry  # Fill at the exact 0 GMT price
+                # Recompute SL/TP from actual fill using pip distances from signal
+                sl_pips = signal["sl_pips"]
+                tp_pips = signal["tp_pips"]
+                pip_size = self.pip_size
+                sl_diff = sl_pips * pip_size
+                tp_diff = tp_pips * pip_size
+                if signal["direction"] == "BUY":
+                    sl_price  = round(entry_price - sl_diff, 5)
+                    tp1_price = round(entry_price + sl_diff, 5)   # TP1 = 1R
+                    tp2_price = round(entry_price + tp_diff, 5)   # TP2 = 2R
+                else:
+                    sl_price  = round(entry_price + sl_diff, 5)
+                    tp1_price = round(entry_price - sl_diff, 5)
+                    tp2_price = round(entry_price - tp_diff, 5)
+            else:
+                entry_price = current_bar["close"]  # Market order at bar close
+                sl_price  = signal["sl_price"]
+                tp1_price = signal["tp1_price"]
+                tp2_price = signal["tp2_price"]
+
             trade = SimulatedTrade(
                 trade_id=str(uuid.uuid4()),
                 signal_id=signal_id,
                 pair=self.pair,
                 direction=signal["direction"],
                 entry=entry_price,
-                sl=signal["sl_price"],
-                tp1=signal["tp1_price"],
-                tp2=signal["tp2_price"],
+                sl=sl_price,
+                tp1=tp1_price,
+                tp2=tp2_price,
                 lot=lot,
                 bar_index=idx,
                 bar_time=current_time,
