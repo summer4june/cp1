@@ -138,6 +138,17 @@ def scan_pair(
 
             # All checks passed — send signal to Telegram for human approval
             lot_size = risk_result["lot_size"]
+
+            # Strategy-level fixed lot override (e.g. zgmt_scanner.fixed_lot_size)
+            # Risk/spread/RR checks above still run normally; only the lot is swapped.
+            fixed_lot = signal.get("fixed_lot_size", 0.0)
+            if fixed_lot and fixed_lot > 0.0:
+                logger.info(
+                    f"[{pair}] {scanner_name}: Fixed lot override "
+                    f"{lot_size:.2f} → {fixed_lot:.2f} (fixed_lot_size in config)"
+                )
+                lot_size = round(fixed_lot, 2)
+
             state_engine.insert_signal(signal)
             sent = telegram_bridge.send_signal(signal, lot_size)
             if sent:

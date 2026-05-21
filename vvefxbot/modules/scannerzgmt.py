@@ -490,6 +490,9 @@ class ScannerZGMT:
         signal_id = str(uuid.uuid4())
         now_iso = self._utc_now().isoformat()
 
+        # Fixed lot size override (optional — 0 or missing means use risk engine)
+        fixed_lot = float(zgmt_cfg.get("fixed_lot_size", 0.0))
+
         # ── Register signal ───────────────────────────────────────────
         self._last_signal_time[pair] = self._utc_now()
         self._increment_daily_count(pair)
@@ -521,4 +524,6 @@ class ScannerZGMT:
             "detected_time": now_iso,
             "strategy": "ZGMT",
             "setup_type": "ZGMT",
+            # fixed_lot_size: 0.0 means "use risk engine"; > 0 means override
+            "fixed_lot_size": fixed_lot,
         }
