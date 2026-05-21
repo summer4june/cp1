@@ -48,7 +48,8 @@ class SimulatedTrade:
     def __init__(
         self, trade_id: str, signal_id: str, pair: str, direction: str,
         entry: float, sl: float, tp1: float, tp2: float,
-        lot: float, bar_index: int, bar_time: datetime
+        lot: float, bar_index: int, bar_time: datetime,
+        use_full_tp: bool = False,
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
@@ -64,6 +65,10 @@ class SimulatedTrade:
         self.close_bar: Optional[int] = None
         self.close_time: Optional[datetime] = None
 
+        # use_full_tp=True: strategy says single 1:2 RR target — close full lot at TP2.
+        # use_full_tp=False: split half at TP1, run rest to TP2 (legacy MMXM behaviour).
+        self.use_full_tp = use_full_tp
+
         # State
         self.tp1_hit = False
         self.be_moved = False
@@ -72,7 +77,7 @@ class SimulatedTrade:
         self.status = "OPEN"    # OPEN | CLOSED
         self.result = None      # WIN | LOSS | BREAKEVEN
         self.profit_usd = 0.0
-        self.partial_profit = 0.0   # Locked at TP1
+        self.partial_profit = 0.0   # Locked at TP1 (only used when use_full_tp=False)
         self.exit_price = 0.0
         self.exit_reason = ""   # TP1, TP2, SL, BE_SL
 
@@ -316,6 +321,7 @@ class BacktestEngine:
                 fill_bar = m1_data.iloc[day_start_idx]
                 fill_time = fill_bar["time"]
 
+                # Strategy says RR=1:2 always — close full lot at TP2 (no TP1 split)
                 trade = SimulatedTrade(
                     trade_id=str(uuid.uuid4()),
                     signal_id=signal_id,
@@ -328,12 +334,13 @@ class BacktestEngine:
                     lot=lot,
                     bar_index=day_start_idx,
                     bar_time=fill_time,
+                    use_full_tp=True,  # ZGMT: single 2R target, full lot
                 )
 
                 logger.info(
                     f"[BT] Trade OPENED | {self.pair} {signal['direction']} | "
                     f"FillBar {day_start_idx} (0GMT) | Entry: {entry_price:.5f} | "
-                    f"SL: {trade.sl:.5f} | TP1: {trade.tp1:.5f} | TP2: {trade.tp2:.5f} | "
+                    f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
                     f"Lot: {lot} | Score: {signal['score']}"
                 )
 
@@ -413,31 +420,37 @@ class BacktestEngine:
         bar_time: datetime,
     ) -> bool:
         """
-        Check TP1/TP2/SL exits for one trade against current bar OHLC.
+        Check TP/SL exits for one trade against current bar OHLC.
 
         Returns True if the trade was closed, False if still open.
         Conservative assumption: if SL and TP hit same bar, SL wins.
+
+        Two modes:
+          use_full_tp=True  (ZGMT strategy — RR=1:2, single TP):
+            Close the FULL lot at TP2. No TP1 partial, no SL move to BE.
+          use_full_tp=False (MMXM — legacy split management):
+            Close half at TP1, move SL to BE, close rest at TP2.
         """
         direction = trade.direction
         bar_high = bar["high"]
         bar_low = bar["low"]
 
         if direction == "BUY":
-            sl_hit = bar_low <= trade.current_sl
-            tp1_hit = bar_high >= trade.tp1
+            sl_hit  = bar_low  <= trade.current_sl
             tp2_hit = bar_high >= trade.tp2
+            tp1_hit = bar_high >= trade.tp1
         else:  # SELL
-            sl_hit = bar_high >= trade.current_sl
-            tp1_hit = bar_low <= trade.tp1
-            tp2_hit = bar_low <= trade.tp2
+            sl_hit  = bar_high >= trade.current_sl
+            tp2_hit = bar_low  <= trade.tp2
+            tp1_hit = bar_low  <= trade.tp1
 
-        # SL hit — always takes priority
+        # ── SL hit — always takes priority ──────────────────────────────
         if sl_hit:
             pips = self._calc_pips(trade.entry, trade.current_sl, direction)
             loss = round(pips * self.pip_value * trade.remaining_lot, 2)
             total_profit = trade.partial_profit + loss
             trade.status = "CLOSED"
-            trade.result = "BREAKEVEN" if trade.be_moved and total_profit >= -0.5 else "LOSS"
+            trade.result = "LOSS"
             trade.exit_reason = "SL_HIT"
             trade.exit_price = trade.current_sl
             trade.profit_usd = round(total_profit, 2)
@@ -450,6 +463,26 @@ class BacktestEngine:
             )
             return True
 
+        # ── ZGMT mode: single full-lot close at TP (2R) ─────────────────
+        if trade.use_full_tp:
+            if tp2_hit:
+                pips = self._calc_pips(trade.entry, trade.tp2, direction)
+                profit = round(pips * self.pip_value * trade.lot, 2)
+                trade.status = "CLOSED"
+                trade.result = "WIN"
+                trade.exit_reason = "TP_HIT"
+                trade.exit_price = trade.tp2
+                trade.profit_usd = round(profit, 2)
+                trade.close_bar = bar_idx
+                trade.close_time = bar_time
+                self._closed_trades.append(trade)
+                logger.info(
+                    f"[BT] ✅ TP Hit (2R) | {trade.pair} | P&L: {trade.profit_usd:+.2f}"
+                )
+                return True
+            return False
+
+        # ── Legacy split mode (MMXM): TP1 partial → TP2 full ────────────
         # TP2 hit (after TP1 already hit)
         if tp2_hit and trade.tp1_hit:
             pips = self._calc_pips(trade.entry, trade.tp2, direction)
