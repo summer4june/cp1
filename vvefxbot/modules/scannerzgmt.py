@@ -42,6 +42,8 @@ class ScannerZGMT:
         self._last_signal_time: dict = {}
         # Per-pair daily signal count: { "YYYY-MM-DD:PAIR": count }
         self._daily_counts: dict = {}
+        # Tracks daily status per pair: YYYY-MM-DD:PAIR -> True if finalized/invalidated
+        self._daily_finalized: dict = {}
 
     # ──────────────────────────────────────────────────────────────────
     # Internal helpers
@@ -108,6 +110,21 @@ class ScannerZGMT:
         for k in stale:
             del self._daily_counts[k]
         return self._daily_counts.get(self._daily_count_key(pair), 0)
+
+    def _is_daily_finalized(self, pair: str) -> bool:
+        """Check if today's ZGMT setup has been completed or invalidated for this pair."""
+        today = self._today_ist_str()
+        key = f"{today}:{pair}"
+        # Purge stale keys from previous days
+        stale = [k for k in self._daily_finalized if not k.startswith(today)]
+        for k in stale:
+            del self._daily_finalized[k]
+        return self._daily_finalized.get(key, False)
+
+    def _mark_daily_finalized(self, pair: str):
+        """Mark today's ZGMT setup as finalized/invalidated for this pair."""
+        key = f"{self._today_ist_str()}:{pair}"
+        self._daily_finalized[key] = True
 
     # ──────────────────────────────────────────────────────────────────
     # Step 1 — Daily bias via PD Array Matrix
@@ -372,6 +389,10 @@ class ScannerZGMT:
         Execute the ZGMT scan for a single pair.
         Returns a signal dict on success, None otherwise.
         """
+        # ── Check if already finalized/invalidated today ─────────────
+        if self._is_daily_finalized(pair):
+            return None
+
         logger.debug(f"[{pair}] ZGMT: Scan started | Session={session} | KZ={killzone}")
 
         # ── 0. Config gate ───────────────────────────────────────────
@@ -393,6 +414,7 @@ class ScannerZGMT:
         max_daily = zgmt_cfg.get("max_daily_trades", 2)
         if self._get_daily_count(pair) >= max_daily:
             logger.debug(f"[{pair}] ZGMT: Daily trade cap ({max_daily}) reached.")
+            self._mark_daily_finalized(pair)
             return None
 
         # ── 0d. Scanner-level cooldown (minutes since last signal) ───
@@ -454,6 +476,7 @@ class ScannerZGMT:
                 f"[{pair}] ZGMT Step 2B: 0 GMT level already tested "
                 f"({zgmt_price:.5f}) — setup invalid for today."
             )
+            self._mark_daily_finalized(pair)
             return None
 
         # ── Step 3: Power of Three (optional) ────────────────────────
@@ -508,6 +531,8 @@ class ScannerZGMT:
             f"TP2={levels['tp2_price']:.5f} | 0GMT={zgmt_price:.5f} | "
             f"Bias={bias} | Mode={entry_mode} | RR={effective_rr:.2f} | Score={score}"
         )
+
+        self._mark_daily_finalized(pair)
 
         return {
             "signal_id": signal_id,

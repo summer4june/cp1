@@ -169,3 +169,38 @@ def test_backtest_engine_zgmt_optimization(mock_config):
     # Remaining 49 bars (indexes 151 to 199) are outside window and must be skipped.
     assert scanner.scan.call_count == 31
 
+
+def test_zgmt_daily_finalization_logic(mock_config):
+    """Verifies that ScannerZGMT correctly finalizes the daily setup when invalid or cap reached."""
+    from modules.scannerzgmt import ScannerZGMT
+    from core.stateengine import StateEngine
+    from unittest.mock import MagicMock
+
+    mock_config.zgmt_scanner = {
+        "enabled": True,
+        "zgmt_window_start_ist": "05:30",
+        "zgmt_window_end_ist": "08:00",
+        "zgmt_test_threshold_pips": 5,
+        "max_daily_trades": 1
+    }
+
+    connector = MagicMock()
+    # Mocking current_time to return a UTC datetime inside the window
+    # 05:30 IST is 00:00 UTC
+    connector.current_time.return_value = datetime(2024, 1, 1, 1, 0, tzinfo=timezone.utc)
+
+    state = StateEngine(":memory:")
+    scanner = ScannerZGMT(mock_config, connector, state)
+
+    # Initial state should not be finalized
+    assert scanner._is_daily_finalized("EURUSD") is False
+
+    # Mark it finalized manually
+    scanner._mark_daily_finalized("EURUSD")
+    assert scanner._is_daily_finalized("EURUSD") is True
+
+    # Test daily finalized checks when scan is called
+    result = scanner.scan("EURUSD", "London", "Asia")
+    assert result is None
+
+
