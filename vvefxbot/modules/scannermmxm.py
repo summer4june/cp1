@@ -40,9 +40,11 @@ class ScannerMMXM:
             pair (str): Trading symbol.
 
         Returns:
-            float: Pip size (0.01 for JPY pairs, 0.0001 for others).
+            float: Pip size (0.01 for JPY/Gold pairs, 0.0001 for others).
         """
-        return 0.01 if "JPY" in pair.upper() else 0.0001
+        if "JPY" in pair.upper() or "XAU" in pair.upper():
+            return 0.01
+        return 0.0001
 
     def _price_to_pips(self, price_diff: float, pair: str) -> float:
         """

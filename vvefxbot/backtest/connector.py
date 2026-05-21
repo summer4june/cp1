@@ -96,7 +96,7 @@ class BacktestConnector:
         close = float(bar["close"])
         # Simulate a minimal spread: use configured spread limit
         half_spread = self.config.spread_limits.get(symbol, 1.5) * (
-            0.01 if "JPY" in symbol.upper() else 0.0001
+            0.01 if ("JPY" in symbol.upper() or "XAU" in symbol.upper()) else 0.0001
         ) / 2.0
         return {"bid": round(close - half_spread, 5),
                 "ask": round(close + half_spread, 5)}
@@ -158,7 +158,7 @@ class BacktestConnector:
 
         bar = self.data["M1"].iloc[self.current_bar_idx]
         close_price = bar["close"]
-        pip_size = 0.01 if "JPY" in self.symbol else 0.0001
+        pip_size = 0.01 if ("JPY" in self.symbol.upper() or "XAU" in self.symbol.upper()) else 0.0001
         pip_value = self._pip_value_per_lot()
 
         if pos["type"] == 0:  # BUY
@@ -211,7 +211,9 @@ class BacktestConnector:
     def _pip_value_per_lot(self) -> float:
         """Approximate pip value in USD for a 1-lot position."""
         pair = self.symbol.upper()
-        if pair in ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"]:
+        if "XAU" in pair:
+            return 1.0
+        elif pair in ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"]:
             return 10.0
         elif "JPY" in pair:
             bar = self.data["M1"].iloc[self.current_bar_idx]

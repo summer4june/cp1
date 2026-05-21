@@ -50,7 +50,9 @@ class TradeManager:
 
     def _pip_size(self, pair: str) -> float:
         """Return pip size for the pair."""
-        return 0.01 if "JPY" in pair.upper() else 0.0001
+        if "JPY" in pair.upper() or "XAU" in pair.upper():
+            return 0.01
+        return 0.0001
 
     def _get_current_price(self, pair: str, direction: str) -> Optional[float]:
         """

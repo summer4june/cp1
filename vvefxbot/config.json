@@ -28,7 +28,7 @@
     "entry_price_side": "bid",
     "execution_mode": "telegram_approval"
   },
-  "pairs": ["EURUSD", "GBPUSD", "USDJPY", "GBPJPY", "EURJPY", "USDCAD"],
+  "pairs": ["EURUSD", "GBPUSD", "USDJPY", "GBPJPY", "EURJPY", "USDCAD", "XAUUSD"],
   "session_timings": {
     "Asia": {"start": "02:30", "end": "08:30"},
     "London": {"start": "12:30", "end": "21:30"},
@@ -47,9 +47,9 @@
   "max_open_risk_percent": 6.0,
   "spread_limits": {
     "EURUSD": 1.5, "GBPUSD": 2.0, "USDJPY": 2.0,
-    "GBPJPY": 3.0, "EURJPY": 3.0, "USDCAD": 2.5
+    "GBPJPY": 3.0, "EURJPY": 3.0, "USDCAD": 2.5, "XAUUSD": 30.0
   },
-  "effective_rr_min": 2.0,
+  "effective_rr_min": 1.9,
   "aplus_threshold": 85.0,
   "slippage_max_pips": 2.0,
   "scan_frequency_seconds": 10,

@@ -35,3 +35,20 @@ def test_check_effective_rr(config_mock):
     
     passed, rr2 = engine.check_effective_rr(tp_pips=30, sl_pips=10, spread_pips=1)
     assert passed is True
+
+def test_gold_risk_parameters(config_mock):
+    engine = RiskEngine(config_mock, None)
+    
+    # 1. Pip Size Verification
+    assert engine._get_pip_size("XAUUSD") == 0.01
+    assert engine._get_pip_size("xauusd") == 0.01
+    
+    # 2. Pip Value Verification
+    assert engine._get_pip_value("XAUUSD") == 1.0
+    
+    # 3. Lot Size Calculation Verification
+    # Trading Pool Size: 1000.0, Risk Percent: 1.0% -> Risk Amount = $10.0
+    # SL: 95 pips, Pip Value: 1.0 -> Lot = 10.0 / (95 * 1.0) = 0.10526... -> Rounded to 0.11
+    lot = engine.calculate_lot_size(95.0, "XAUUSD")
+    assert lot == 0.11
+

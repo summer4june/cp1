@@ -263,3 +263,119 @@ def test_zgmt_structural_absence_finalization(mock_config):
     assert scanner._is_daily_finalized("EURUSD") is True
 
 
+def test_backtest_engine_gold_initialization(mock_config):
+    """Verifies that the BacktestEngine correctly initializes Gold properties."""
+    start = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    m1_df = create_dummy_ohlc(start, 150, timedelta(minutes=1))
+    data = {"M1": m1_df, "M15": m1_df, "H1": m1_df}
+    connector = BacktestConnector(mock_config, data, "XAUUSD")
+    
+    # 1. Standard initialization with default 10.0 pip_value parameter (which should be overridden to 1.0)
+    engine = BacktestEngine(mock_config, connector, "XAUUSD")
+    assert engine.pip_size == 0.01
+    assert engine.pip_value == 1.0
+    
+    # 2. Custom pip_value should not be overridden if it was passed specifically (e.g. non-default)
+    engine_custom = BacktestEngine(mock_config, connector, "XAUUSD", pip_value=1.5)
+    assert engine_custom.pip_size == 0.01
+    assert engine_custom.pip_value == 1.5
+
+
+def test_backtest_engine_gold_trade_execution(mock_config):
+    """Verifies that a Gold trade executes, processes TP1 and TP2 with correct USD profit values."""
+    from unittest.mock import MagicMock
+    
+    mock_config.trading_pool_size = 1000.0
+    mock_config.risk_percent = 1.0
+    mock_config.effective_rr_min = 1.9
+    mock_config.spread_limits = {"XAUUSD": 30.0}
+    
+    # Setup data
+    start = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    # We need at least 125 bars to cover warm-up (120) and trade bars (121, 122, 123)
+    times = [start + i * timedelta(minutes=1) for i in range(130)]
+    df_data = {
+        "time": times,
+        "open": [2000.0] * 130,
+        "high": [2000.0] * 130,
+        "low": [2000.0] * 130,
+        "close": [2000.0] * 130,
+        "tick_volume": [100] * 130
+    }
+    m1_df = pd.DataFrame(df_data)
+    
+    # Customize the OHLC values at index 121 (TP1 hit) and 122 (TP2 hit)
+    # Entry at bar 120 close = 2000.00
+    # TP1 is at 2000.95. Bar 121 high = 2001.00, low = 1999.50
+    m1_df.loc[121, "high"] = 2001.00
+    m1_df.loc[121, "low"] = 1999.50
+    m1_df.loc[121, "close"] = 2000.50
+    
+    # TP2 is at 2001.90. Bar 122 high = 2002.00, low = 2000.50
+    m1_df.loc[122, "high"] = 2002.00
+    m1_df.loc[122, "low"] = 2000.50
+    m1_df.loc[122, "close"] = 2001.80
+    
+    data = {"M1": m1_df, "M15": m1_df, "H1": m1_df}
+    connector = BacktestConnector(mock_config, data, "XAUUSD")
+    
+    # Instantiate scanner and mock scan method to return a ZGMT gold signal at bar index 120
+    scanner = MagicMock()
+    
+    def mock_scan(pair, session, killzone):
+        # We only want to trigger the signal once on bar 120
+        if connector.current_bar_idx == 120:
+            return {
+                "signal_id": "sig_gold_1",
+                "pair": "XAUUSD",
+                "session": "London",
+                "direction": "BUY",
+                "entry_price": 2000.0,
+                "sl_price": 1999.05,
+                "tp1_price": 2000.95,
+                "tp2_price": 2001.90,
+                "sl_pips": 95.0,
+                "tp_pips": 190.0,
+                "spread_pips": 0.0,
+                "score": 90.0,
+                "fixed_lot_size": 0.0
+            }
+        return None
+        
+    scanner.scan.side_effect = mock_scan
+    
+    engine = BacktestEngine(mock_config, connector, "XAUUSD", scanner=scanner)
+    # Override HistoricalSessionEngine check to always return London
+    engine.session_engine.get_active_session = MagicMock(return_value="London")
+    engine.session_engine.get_active_killzone = MagicMock(return_value="London")
+    
+    results = engine.run()
+    
+    # We should have exactly 1 closed trade (expired trades would be 0 since it closes at TP2)
+    assert len(results) == 1
+    trade = results[0]
+    
+    assert trade["signal_id"] == "sig_gold_1"
+    assert trade["status"] == "CLOSED"
+    assert trade["result"] == "WIN"
+    assert trade["exit_reason"] == "TP2_HIT"
+    
+    # Math validation:
+    # Lot size calculation: Risk amount = $10.0. SL pips = 95.0. Pip value = 1.0.
+    # Lot = 10.0 / (95.0 * 1.0) = 0.10526... -> rounded to 0.11.
+    assert trade["lot"] == 0.11
+    
+    # Entry price
+    assert trade["entry"] == 2000.0
+    # TP2 exit price
+    assert trade["exit_price"] == 2001.90
+    
+    # P&L Calculation:
+    # TP1 hit at bar 121: 95.0 pips * 1.0 pip_value * 0.06 lots = $5.70 profit.
+    # TP2 hit at bar 122: 190.0 pips * 1.0 pip_value * 0.05 lots = $9.50 profit.
+    # Total profit = $5.70 + $9.50 = $15.20.
+    assert trade["profit_usd"] == 15.20
+
+
+
+

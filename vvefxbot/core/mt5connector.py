@@ -143,9 +143,9 @@ class MT5Connector:
         
         spread_points = symbol_info.spread
         
-        # JPY pairs usually have 2 or 3 decimal places (0.01 is 1 pip)
-        # Others usually have 4 or 5 (0.0001 is 1 pip)
-        if "JPY" in symbol.upper():
+        # JPY and Gold (XAU) pairs usually have 0.01 pip size
+        # Others usually have 0.0001 pip size
+        if "JPY" in symbol.upper() or "XAU" in symbol.upper():
             return spread_points * symbol_info.point / 0.01
         else:
             return spread_points * symbol_info.point / 0.0001
@@ -163,7 +163,9 @@ class MT5Connector:
         if symbol_info:
             return symbol_info.point
         # Fallback heuristic if symbol_info fails
-        return 0.001 if "JPY" in symbol.upper() else 0.00001
+        if "JPY" in symbol.upper() or "XAU" in symbol.upper():
+            return 0.01
+        return 0.00001
 
     def _get_filling_mode(self, symbol: str) -> int:
         """

@@ -22,12 +22,18 @@ class RiskEngine:
 
     def _get_pip_size(self, pair: str) -> float:
         """Helper to get pip size."""
-        return 0.01 if "JPY" in pair.upper() else 0.0001
+        if "JPY" in pair.upper() or "XAU" in pair.upper():
+            return 0.01
+        return 0.0001
 
     def _get_pip_value(self, pair: str) -> float:
         """
         Calculate the pip value for a standard lot (100,000 units).
         """
+        if "XAU" in pair.upper():
+            # Gold: 1 pip = 0.01, standard lot contract size = 100 oz.
+            # Pip Value = 100 * 0.01 = 1.00 USD
+            return 1.0
         if pair.upper() in ["EURUSD", "GBPUSD"]:
             return 10.0
         elif "JPY" in pair.upper():

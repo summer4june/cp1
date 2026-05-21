@@ -123,9 +123,12 @@ class BacktestEngine:
         self.config = config
         self.connector = connector
         self.pair = pair
+        
+        if "XAU" in pair.upper() and pip_value == 10.0:
+            pip_value = 1.0
         self.pip_value = pip_value
 
-        self.pip_size = 0.01 if "JPY" in pair.upper() else 0.0001
+        self.pip_size = 0.01 if ("JPY" in pair.upper() or "XAU" in pair.upper()) else 0.0001
 
         # Create a minimal in-memory StateEngine for the scanner cooldown tracking
         self.state = StateEngine(":memory:")
