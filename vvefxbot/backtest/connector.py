@@ -60,10 +60,24 @@ class BacktestConnector:
 
     def get_candles(self, symbol: str, timeframe: str, count: int = 100) -> pd.DataFrame:
         """Return up to `count` historical bars ending at the current replay bar."""
-        df = self.data.get(timeframe, pd.DataFrame())
-        if df.empty:
+        df = self.data.get(timeframe)
+
+        # Auto-derive D1 from M1 if not pre-loaded (needed for ZGMT bias check)
+        if (df is None or (isinstance(df, pd.DataFrame) and df.empty)) and timeframe == "D1":
+            m1 = self.data.get("M1", pd.DataFrame())
+            if not m1.empty:
+                df = (
+                    m1.set_index("time")
+                    .resample("1D")
+                    .agg({"open": "first", "high": "max", "low": "min",
+                          "close": "last", "tick_volume": "sum"})
+                    .dropna()
+                    .reset_index()
+                )
+
+        if df is None or (isinstance(df, pd.DataFrame) and df.empty):
             logger.warning(f"No data for timeframe {timeframe}")
-            return df
+            return pd.DataFrame()
 
         now = self.current_time()
         available = df[df["time"] <= now].tail(count).reset_index(drop=True)
@@ -72,6 +86,28 @@ class BacktestConnector:
     def get_current_spread(self, symbol: str) -> float:
         """Return configured spread limit as a fixed spread for simulation."""
         return self.config.spread_limits.get(symbol, 1.5)
+
+    def get_tick(self, symbol: str) -> dict:
+        """
+        Return a simulated bid/ask tick from the current M1 bar close.
+        Used by ScannerZGMT for live price comparisons.
+        """
+        bar = self.data["M1"].iloc[self.current_bar_idx]
+        close = float(bar["close"])
+        # Simulate a minimal spread: use configured spread limit
+        half_spread = self.config.spread_limits.get(symbol, 1.5) * (
+            0.01 if "JPY" in symbol.upper() else 0.0001
+        ) / 2.0
+        return {"bid": round(close - half_spread, 5),
+                "ask": round(close + half_spread, 5)}
+
+    def get_symbol_point(self, symbol: str) -> float:
+        """Return the point size for a symbol (for pip calculations)."""
+        if "JPY" in symbol.upper():
+            return 0.001
+        if "XAU" in symbol.upper():
+            return 0.01
+        return 0.00001
 
     def is_connected(self) -> bool:
         return True

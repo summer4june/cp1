@@ -148,7 +148,17 @@ class ExecutionEngine:
         lot_size = risk_result["lot_size"]
         risk_amount = self.config.trading_pool_size * (self.config.risk_percent / 100.0)
 
-        # ── STEP 7: Place order ───────────────────────────────────────
+        # Strategy-level fixed lot override (e.g. zgmt_scanner.fixed_lot_size)
+        # If the signal carries a positive fixed_lot_size, use it instead of the
+        # risk-formula result. All risk/spread/RR checks above still run normally.
+        fixed_lot = float(signal.get("fixed_lot_size", 0.0) or 0.0)
+        if fixed_lot > 0.0:
+            logger.info(
+                f"[{pair}] ExecutionEngine: Fixed lot override "
+                f"{lot_size:.2f} → {fixed_lot:.2f} (fixed_lot_size from signal)"
+            )
+            lot_size = round(fixed_lot, 2)
+
         order_result = self.mt5.place_order(
             symbol=pair,
             order_type=direction,
