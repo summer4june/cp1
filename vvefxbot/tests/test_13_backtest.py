@@ -11,8 +11,9 @@ from core.configengine import Config
 def mock_config():
     return Config(
         strategy_mode="MMXM",
-        enabled_scanners={"mmxm": True, "ote": False},
+        enabled_scanners={"mmxm": True, "ote": False, "zgmt": False},
         ote_scanner={"enabled": False},
+        zgmt_scanner={"enabled": False},
         pairs=["EURUSD"],
         session_timings={"London": {"start": "00:00", "end": "23:59"}},
         killzone_timings={"London": {"start": "00:00", "end": "23:59"}},
