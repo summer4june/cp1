@@ -78,6 +78,7 @@
     "zgmt_entry_mode": "DIRECT",
     "zgmt_filter_pips": 20,
     "zgmt_test_threshold_pips": 5,
+    "zgmt_test_exclude_first_mins": 15,
 
     "zgmt_sl_tp": {
       "sl_pips_gold": 95,

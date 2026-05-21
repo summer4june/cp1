@@ -225,7 +225,7 @@ class ScannerZGMT:
 
     def _is_zgmt_level_tested(self, pair: str, zgmt_price: float, zgmt_cfg: dict) -> bool:
         """
-        Check M1 candles from 0 GMT until now to see if price came within
+        Check M1 candles from today's 0 GMT onwards until now to see if price came within
         zgmt_test_threshold_pips of the 0 GMT open price.
 
         Returns True if tested (→ skip), False if untested (→ trade).
@@ -233,24 +233,29 @@ class ScannerZGMT:
         threshold_pips = zgmt_cfg.get("zgmt_test_threshold_pips", 5)
         threshold_price = self._pips_to_price(pair, threshold_pips)
 
-        # Fetch last 60 M1 candles (covers 1 hour after 0 GMT)
-        candles = self.mt5.get_candles(pair, "M1", count=60)
+        now_utc = self._utc_now()
+        today_zgmt_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Calculate minutes elapsed since 0 GMT today
+        elapsed_minutes = int((now_utc - today_zgmt_utc).total_seconds() / 60)
+        # Fetch enough M1 candles to cover the entire day from 0 GMT to now
+        fetch_count = max(60, elapsed_minutes + 15)
+
+        candles = self.mt5.get_candles(pair, "M1", count=fetch_count)
         if candles is None or candles.empty:
             logger.debug(f"[{pair}] ZGMT: No M1 candles for Step 2B test. Assuming untested.")
             return False
 
-        now_utc = self._utc_now()
-        today_zgmt_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        exclude_mins = zgmt_cfg.get("zgmt_test_exclude_first_mins", 15)
+        test_start_time = today_zgmt_utc + timedelta(minutes=exclude_mins)
 
         for _, row in candles.iterrows():
             candle_time = row["time"]
             if candle_time.tzinfo is None:
                 candle_time = candle_time.replace(tzinfo=timezone.utc)
 
-            # Only examine candles from 0 GMT onwards for today (and optionally yesterday)
-            # Per Step 2B: "only current day or 1 day before"
-            yesterday_zgmt_utc = today_zgmt_utc - timedelta(days=1)
-            if candle_time < yesterday_zgmt_utc:
+            # Skip candles before the test start time to ignore initial open consolidation
+            if candle_time < test_start_time:
                 continue
 
             candle_low = float(row["low"])

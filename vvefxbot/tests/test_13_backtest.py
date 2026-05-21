@@ -424,6 +424,70 @@ def test_backtest_timezone_offset_handling():
     assert df.iloc[0]["time"] == expected_time
 
 
+def test_zgmt_level_tested_exclusion(mock_config):
+    """Verify that _is_zgmt_level_tested respects the exclusion window and correctly evaluates subsequent touches."""
+    from modules.scannerzgmt import ScannerZGMT
+    from core.stateengine import StateEngine
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    # Configure scanner settings
+    mock_config.zgmt_scanner = {
+        "enabled": True,
+        "zgmt_window_start_ist": "05:30",
+        "zgmt_window_end_ist": "08:00",
+        "zgmt_test_threshold_pips": 5,
+        "zgmt_test_exclude_first_mins": 15
+    }
+
+    connector = MagicMock()
+    # Mock current_time as 01:00:00 UTC (1 hour after 0 GMT)
+    connector.current_time.return_value = datetime(2026, 5, 21, 1, 0, tzinfo=timezone.utc)
+
+    # 1. Test case: Touch occurs exactly at 00:05 UTC (within 15 min exclusion window)
+    times_1 = [
+        datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc),
+        datetime(2026, 5, 21, 0, 20, tzinfo=timezone.utc)
+    ]
+    # ZGMT price is 1.25000. Pip size for EURUSD is 0.0001. Threshold is 5 pips = 0.0005.
+    # First candle (at 00:05) touches 1.25000 (Low=1.24990, High=1.25010)
+    # Second candle (at 00:20) is far away (Low=1.26000, High=1.26010)
+    df_1 = pd.DataFrame({
+        "time": times_1,
+        "open": [1.25000, 1.26000],
+        "high": [1.25010, 1.26010],
+        "low": [1.24990, 1.26000],
+        "close": [1.25000, 1.26000]
+    })
+    connector.get_candles.return_value = df_1
+
+    state = StateEngine(":memory:")
+    scanner = ScannerZGMT(mock_config, connector, state)
+
+    # First test should return False (untested) because the touch at 00:05 is in the excluded first 15 mins.
+    assert scanner._is_zgmt_level_tested("EURUSD", 1.25000, mock_config.zgmt_scanner) is False
+
+    # 2. Test case: Touch occurs at 00:20 UTC (outside 15 min exclusion window)
+    times_2 = [
+        datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc),
+        datetime(2026, 5, 21, 0, 20, tzinfo=timezone.utc)
+    ]
+    # First candle (at 00:05) is far away (Low=1.26000, High=1.26010)
+    # Second candle (at 00:20) touches 1.25000 (Low=1.24990, High=1.25010)
+    df_2 = pd.DataFrame({
+        "time": times_2,
+        "open": [1.26000, 1.25000],
+        "high": [1.26010, 1.25010],
+        "low": [1.26000, 1.24990],
+        "close": [1.26000, 1.25000]
+    })
+    connector.get_candles.return_value = df_2
+
+    # Second test should return True (tested) because the touch at 00:20 is after the first 15 mins.
+    assert scanner._is_zgmt_level_tested("EURUSD", 1.25000, mock_config.zgmt_scanner) is True
+
+
+
 
 
 
