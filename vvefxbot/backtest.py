@@ -40,6 +40,7 @@ _TF_MAP = {
     "M1":  mt5.TIMEFRAME_M1,
     "M15": mt5.TIMEFRAME_M15,
     "H1":  mt5.TIMEFRAME_H1,
+    "D1":  mt5.TIMEFRAME_D1,
 }
 
 
