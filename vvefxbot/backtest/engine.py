@@ -450,7 +450,8 @@ class BacktestEngine:
             loss = round(pips * self.pip_value * trade.remaining_lot, 2)
             total_profit = trade.partial_profit + loss
             trade.status = "CLOSED"
-            trade.result = "LOSS"
+            # If SL was moved to BE (TP1 was hit), this is a breakeven — not a loss
+            trade.result = "BREAKEVEN" if trade.be_moved else "LOSS"
             trade.exit_reason = "SL_HIT"
             trade.exit_price = trade.current_sl
             trade.profit_usd = round(total_profit, 2)
@@ -458,19 +459,21 @@ class BacktestEngine:
             trade.close_time = bar_time
             self._closed_trades.append(trade)
             logger.info(
-                f"[BT] ❌ SL Hit | {trade.pair} | "
+                f"[BT] {'🔶' if trade.be_moved else '❌'} SL Hit | {trade.pair} | "
                 f"P&L: {trade.profit_usd:+.2f} | Result: {trade.result}"
             )
             return True
 
-        # ── ZGMT mode: single full-lot close at TP (2R) ─────────────────
+        # ── ZGMT mode: full lot, SL moves to BE at TP1, closes at TP2 ──────
+        # This matches the strategy: "once 1:1 RR hit, SL moves to BE"
         if trade.use_full_tp:
+            # TP2 hit — close full lot at 2R (WIN)
             if tp2_hit:
                 pips = self._calc_pips(trade.entry, trade.tp2, direction)
                 profit = round(pips * self.pip_value * trade.lot, 2)
                 trade.status = "CLOSED"
                 trade.result = "WIN"
-                trade.exit_reason = "TP_HIT"
+                trade.exit_reason = "TP2_HIT"
                 trade.exit_price = trade.tp2
                 trade.profit_usd = round(profit, 2)
                 trade.close_bar = bar_idx
@@ -480,6 +483,18 @@ class BacktestEngine:
                     f"[BT] ✅ TP Hit (2R) | {trade.pair} | P&L: {trade.profit_usd:+.2f}"
                 )
                 return True
+
+            # TP1 hit (1R) — move SL to breakeven, let full lot run to TP2
+            if tp1_hit and not trade.tp1_hit:
+                trade.tp1_hit = True
+                trade.be_moved = True
+                trade.current_sl = trade.entry   # SL moves to entry (breakeven)
+                logger.info(
+                    f"[BT] 📍 TP1 (1R) reached | {trade.pair} | "
+                    f"SL moved to BE @ {trade.entry:.5f} | Lot stays full"
+                )
+                # Do NOT close — full position continues to TP2
+
             return False
 
         # ── Legacy split mode (MMXM): TP1 partial → TP2 full ────────────
