@@ -96,11 +96,15 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
 
 
 def fetch_all_timeframes(symbol: str, date_from: datetime, date_to: datetime) -> dict:
-    """Fetch M1, M15, H1 from MT5 for one symbol."""
+    """Fetch M1, M15, H1, D1 from MT5 for one symbol."""
+    from datetime import timedelta
+    # Fetch D1 starting 60 days before date_from to ensure enough history for D1 bias range
+    d1_start = date_from - timedelta(days=60)
     return {
         "M1":  _fetch_from_mt5(symbol, "M1",  date_from, date_to),
         "M15": _fetch_from_mt5(symbol, "M15", date_from, date_to),
         "H1":  _fetch_from_mt5(symbol, "H1",  date_from, date_to),
+        "D1":  _fetch_from_mt5(symbol, "D1",  d1_start, date_to),
     }
 
 
@@ -158,10 +162,11 @@ def _resample(m1_df: pd.DataFrame, rule: str) -> pd.DataFrame:
 def load_from_csv(csv_dir: str, symbol: str,
                   date_from: datetime, date_to: datetime) -> dict:
     """
-    Load M1/M15/H1 OHLCV from CSV files in csv_dir.
-    Expected filenames: EURUSD_M1.csv, EURUSD_M15.csv, EURUSD_H1.csv
-    M15 and H1 are auto-derived from M1 if their files are missing.
+    Load M1/M15/H1/D1 OHLCV from CSV files in csv_dir.
+    Expected filenames: EURUSD_M1.csv, EURUSD_M15.csv, EURUSD_H1.csv, EURUSD_D1.csv
+    M15, H1, and D1 are auto-derived from M1 if their files are missing.
     """
+    from datetime import timedelta
     def _load(tf: str) -> pd.DataFrame:
         path = os.path.join(csv_dir, f"{symbol}_{tf}.csv")
         if not os.path.exists(path):
@@ -177,6 +182,7 @@ def load_from_csv(csv_dir: str, symbol: str,
 
     m15 = _load("M15")
     h1  = _load("H1")
+    d1  = _load("D1")
 
     if m15.empty:
         logger.warning(f"{symbol} M15 CSV not found — deriving from M1.")
@@ -184,16 +190,21 @@ def load_from_csv(csv_dir: str, symbol: str,
     if h1.empty:
         logger.warning(f"{symbol} H1 CSV not found — deriving from M1.")
         h1 = _resample(m1, "1h")
+    if d1.empty:
+        logger.warning(f"{symbol} D1 CSV not found — deriving from M1.")
+        d1 = _resample(m1, "1D")
 
-    # Apply date filter
-    for df in [m1, m15, h1]:
-        pass  # filtered below
-    m1  = m1[(m1["time"] >= date_from)  & (m1["time"] <= date_to)].reset_index(drop=True)
-    m15 = m15[(m15["time"] >= date_from) & (m15["time"] <= date_to)].reset_index(drop=True)
-    h1  = h1[(h1["time"] >= date_from)  & (h1["time"] <= date_to)].reset_index(drop=True)
+    # Filter M1, M15, H1 to requested date range
+    m1_filtered  = m1[(m1["time"] >= date_from)  & (m1["time"] <= date_to)].reset_index(drop=True)
+    m15_filtered = m15[(m15["time"] >= date_from) & (m15["time"] <= date_to)].reset_index(drop=True)
+    h1_filtered  = h1[(h1["time"] >= date_from)  & (h1["time"] <= date_to)].reset_index(drop=True)
 
-    logger.info(f"{symbol} CSV loaded: M1={len(m1)} | M15={len(m15)} | H1={len(h1)} bars")
-    return {"M1": m1, "M15": m15, "H1": h1}
+    # Filter D1 starting 60 days before date_from to ensure historical range bias checks succeed
+    d1_start = date_from - timedelta(days=60)
+    d1_filtered  = d1[(d1["time"] >= d1_start) & (d1["time"] <= date_to)].reset_index(drop=True)
+
+    logger.info(f"{symbol} CSV loaded: M1={len(m1_filtered)} | M15={len(m15_filtered)} | H1={len(h1_filtered)} | D1={len(d1_filtered)} bars")
+    return {"M1": m1_filtered, "M15": m15_filtered, "H1": h1_filtered, "D1": d1_filtered}
 
 
 # ──────────────────────────────────────────────────────────────────────
