@@ -171,13 +171,24 @@ class RiskEngine:
             return {"pass": False, "failed_check": "check_spread", "lot_size": 0.0, "effective_rr": 0.0}
 
         # 2. Effective RR Check
-        passed_rr, effective_rr = self.check_effective_rr(tp_pips, sl_pips, spread_pips)
-        if not passed_rr:
-            return {"pass": False, "failed_check": "check_effective_rr", "lot_size": 0.0, "effective_rr": effective_rr}
+        # Some strategies (e.g. ZGMT) define a fixed RR by design and explicitly opt out
+        # of the spread-penalised global RR gate via the 'skip_rr_check' signal flag.
+        skip_rr = signal.get("skip_rr_check", False)
+        if not skip_rr:
+            passed_rr, effective_rr = self.check_effective_rr(tp_pips, sl_pips, spread_pips)
+            if not passed_rr:
+                return {"pass": False, "failed_check": "check_effective_rr", "lot_size": 0.0, "effective_rr": effective_rr}
+        else:
+            # Still compute for logging — just don't gate on it
+            _, effective_rr = self.check_effective_rr(tp_pips, sl_pips, spread_pips)
 
         # 3. Spread vs SL Check
-        if not self.check_spread_vs_sl(spread_pips, sl_pips):
-            return {"pass": False, "failed_check": "check_spread_vs_sl", "lot_size": 0.0, "effective_rr": effective_rr}
+        # For fixed-RR strategies like ZGMT, the SL is strategy-defined and
+        # Gold's inherent spread ratio (30 pips / 95 pip SL = 31.6%) exceeds the
+        # 10% threshold by design. Skip this check alongside the RR check.
+        if not skip_rr:
+            if not self.check_spread_vs_sl(spread_pips, sl_pips):
+                return {"pass": False, "failed_check": "check_spread_vs_sl", "lot_size": 0.0, "effective_rr": effective_rr}
 
         # 4. Portfolio Exposure Check
         if not self.check_portfolio_exposure(open_trades):

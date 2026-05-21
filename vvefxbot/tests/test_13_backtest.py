@@ -424,14 +424,14 @@ def test_backtest_timezone_offset_handling():
     assert df.iloc[0]["time"] == expected_time
 
 
+
 def test_zgmt_level_tested_exclusion(mock_config):
-    """Verify that _is_zgmt_level_tested respects the exclusion window and correctly evaluates subsequent touches."""
+    """Verify that _is_zgmt_level_tested respects the exclusion window in all three critical scenarios."""
     from modules.scannerzgmt import ScannerZGMT
     from core.stateengine import StateEngine
     from unittest.mock import MagicMock
     import pandas as pd
 
-    # Configure scanner settings
     mock_config.zgmt_scanner = {
         "enabled": True,
         "zgmt_window_start_ist": "05:30",
@@ -440,51 +440,190 @@ def test_zgmt_level_tested_exclusion(mock_config):
         "zgmt_test_exclude_first_mins": 15
     }
 
-    connector = MagicMock()
-    # Mock current_time as 01:00:00 UTC (1 hour after 0 GMT)
-    connector.current_time.return_value = datetime(2026, 5, 21, 1, 0, tzinfo=timezone.utc)
+    state = StateEngine(":memory:")
 
-    # 1. Test case: Touch occurs exactly at 00:05 UTC (within 15 min exclusion window)
-    times_1 = [
-        datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc),
-        datetime(2026, 5, 21, 0, 20, tzinfo=timezone.utc)
-    ]
-    # ZGMT price is 1.25000. Pip size for EURUSD is 0.0001. Threshold is 5 pips = 0.0005.
-    # First candle (at 00:05) touches 1.25000 (Low=1.24990, High=1.25010)
-    # Second candle (at 00:20) is far away (Low=1.26000, High=1.26010)
-    df_1 = pd.DataFrame({
-        "time": times_1,
-        "open": [1.25000, 1.26000],
-        "high": [1.25010, 1.26010],
-        "low": [1.24990, 1.26000],
+    # ── Case 1: now < exclusion window end (still at 0 GMT open, 00:05 UTC) ─
+    # Must return True (block) regardless of candle data — price hasn't displaced yet.
+    connector1 = MagicMock()
+    connector1.current_time.return_value = datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc)
+    connector1.get_candles.return_value = pd.DataFrame({
+        "time": [datetime(2026, 5, 21, 0, 0, tzinfo=timezone.utc)],
+        "open": [1.25000], "high": [1.25010], "low": [1.24990], "close": [1.25000]
+    })
+    scanner1 = ScannerZGMT(mock_config, connector1, state)
+    assert scanner1._is_zgmt_level_tested("EURUSD", 1.25000, mock_config.zgmt_scanner) is True, \
+        "Inside exclusion window should block (return True)"
+
+    # ── Case 2: now past exclusion window, touch only inside excluded period → untested ─
+    connector2 = MagicMock()
+    connector2.current_time.return_value = datetime(2026, 5, 21, 1, 0, tzinfo=timezone.utc)
+    # Touch at 00:05 (inside excluded window), second candle far away
+    connector2.get_candles.return_value = pd.DataFrame({
+        "time": [datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc),
+                 datetime(2026, 5, 21, 0, 20, tzinfo=timezone.utc)],
+        "open":  [1.25000, 1.26000],
+        "high":  [1.25010, 1.26010],
+        "low":   [1.24990, 1.26000],
         "close": [1.25000, 1.26000]
     })
-    connector.get_candles.return_value = df_1
+    scanner2 = ScannerZGMT(mock_config, connector2, state)
+    assert scanner2._is_zgmt_level_tested("EURUSD", 1.25000, mock_config.zgmt_scanner) is False, \
+        "Touch only inside excluded window should return False (untested)"
+
+    # ── Case 3: now past exclusion window, touch after excluded period → tested ─
+    connector3 = MagicMock()
+    connector3.current_time.return_value = datetime(2026, 5, 21, 1, 0, tzinfo=timezone.utc)
+    # First candle far away, second candle (00:20) touches the level
+    connector3.get_candles.return_value = pd.DataFrame({
+        "time": [datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc),
+                 datetime(2026, 5, 21, 0, 20, tzinfo=timezone.utc)],
+        "open":  [1.26000, 1.25000],
+        "high":  [1.26010, 1.25010],
+        "low":   [1.26000, 1.24990],
+        "close": [1.26000, 1.25000]
+    })
+    scanner3 = ScannerZGMT(mock_config, connector3, state)
+    assert scanner3._is_zgmt_level_tested("EURUSD", 1.25000, mock_config.zgmt_scanner) is True, \
+        "Touch after excluded window should return True (already tested)"
+
+
+def test_zgmt_skip_rr_check_in_risk_engine(mock_config):
+    """Verify that a ZGMT signal with skip_rr_check=True bypasses the effective_rr_min gate."""
+    from modules.riskengine import RiskEngine
+    from unittest.mock import MagicMock
+
+    mock_config.effective_rr_min = 1.9  # Global threshold that would normally block ZGMT
+
+    connector = MagicMock()
+    engine = RiskEngine(mock_config, connector)
+
+    # GBPUSD ZGMT signal: SL=25, TP=50, spread=2 → effective RR=1.78 (below 1.9)
+    zgmt_signal = {
+        "pair": "GBPUSD",
+        "spread_pips": 2.0,
+        "sl_pips": 25.0,
+        "tp_pips": 50.0,
+        "skip_rr_check": True,
+    }
+
+    result = engine.run_all_checks(zgmt_signal, open_trades=[])
+    assert result["pass"] is True, "ZGMT signal with skip_rr_check=True must pass risk checks"
+    # Effective RR is still computed and reported
+    assert abs(result["effective_rr"] - 1.78) < 0.01
+
+    # Without skip_rr_check, the same signal should be blocked
+    regular_signal = dict(zgmt_signal)
+    regular_signal["skip_rr_check"] = False
+    result_blocked = engine.run_all_checks(regular_signal, open_trades=[])
+    assert result_blocked["pass"] is False
+    assert result_blocked["failed_check"] == "check_effective_rr"
+
+
+def test_zgmt_gold_spread_vs_sl_bypass(mock_config):
+    """Verify Gold ZGMT trades are not blocked by the spread_vs_sl check (30/95 = 31.6% > 10%)."""
+    from modules.riskengine import RiskEngine
+    from unittest.mock import MagicMock
+
+    mock_config.effective_rr_min = 1.9
+    mock_config.spread_limits = {"XAUUSD": 30.0}
+
+    connector = MagicMock()
+    engine = RiskEngine(mock_config, connector)
+
+    # XAUUSD ZGMT signal: spread=30 pips, SL=95 → 31.6% ratio fails 10% check without bypass
+    gold_signal = {
+        "pair": "XAUUSD",
+        "spread_pips": 30.0,
+        "sl_pips": 95.0,
+        "tp_pips": 190.0,
+        "skip_rr_check": True,
+    }
+    result = engine.run_all_checks(gold_signal, open_trades=[])
+    assert result["pass"] is True, "Gold ZGMT must not be blocked by spread_vs_sl check"
+
+    # Without skip_rr_check, the 31.6% spread ratio would block on check_spread_vs_sl
+    # (since check_effective_rr passes: (190-30)/(95+30) = 160/125 = 1.28, below 1.9 → blocked first)
+    gold_signal_no_skip = dict(gold_signal)
+    gold_signal_no_skip["skip_rr_check"] = False
+    result_blocked = engine.run_all_checks(gold_signal_no_skip, open_trades=[])
+    assert result_blocked["pass"] is False
+
+
+def test_zgmt_direct_entry_at_zgmt_price(mock_config):
+    """Verify DIRECT entry mode uses zgmt_price (strategy Step 4/10), not the drifted tick."""
+    from modules.scannerzgmt import ScannerZGMT
+    from core.stateengine import StateEngine
+    from unittest.mock import MagicMock, patch
+    import pandas as pd
+
+    mock_config.zgmt_scanner = {
+        "enabled": True,
+        "zgmt_window_start_ist": "05:30",
+        "zgmt_window_end_ist": "08:30",
+        "zgmt_window_end_ist": "08:30",
+        "d1_candles_for_range": 5,
+        "require_pd_array_check": True,
+        "require_power_of_three": False,
+        "zgmt_entry_mode": "DIRECT",
+        "zgmt_filter_pips": 20,
+        "zgmt_test_threshold_pips": 5,
+        "zgmt_test_exclude_first_mins": 15,
+        "zgmt_sl_tp": {"sl_pips_gold": 95, "tp_pips_gold": 190, "sl_pips_fx": 25, "tp_pips_fx": 50},
+        "score": 70.0,
+        "cooldown_minutes": 0,
+        "max_daily_trades": 5,
+        "allow_buy": True,
+        "allow_sell": True,
+        "fixed_lot_size": 0.0,
+        "skip_rr_check": True,
+    }
+
+    # Simulate scanning at 01:00 UTC (past exclusion window, inside IST window 05:30–08:30)
+    mock_time = datetime(2026, 5, 21, 1, 0, tzinfo=timezone.utc)
+    zgmt_price_open = 1.35000  # The 0 GMT open price
+
+    connector = MagicMock()
+    connector.current_time.return_value = mock_time
+    connector.get_current_spread.return_value = 2.0
+    connector.get_tick.return_value = {"bid": 1.35200, "ask": 1.35202}  # Drifted 20 pips away
+
+    # D1 candles: price in discount zone (BID 1.35200 < mid 1.36000)
+    d1_df = pd.DataFrame({
+        "time": [datetime(2026, 5, 20, tzinfo=timezone.utc)] * 6,
+        "high": [1.37000] * 6, "low": [1.35000] * 6,
+        "open": [1.36000] * 6, "close": [1.36000] * 6
+    })
+    # H1 candles: one at 00:00 UTC (0 GMT candle) with open = zgmt_price
+    h1_df = pd.DataFrame({
+        "time": [datetime(2026, 5, 21, 0, 0, tzinfo=timezone.utc)],
+        "open": [zgmt_price_open], "high": [1.35100],
+        "low": [1.34900], "close": [1.35050]
+    })
+    # M1 candles: all far from zgmt_price (level untested after exclusion window)
+    m1_df = pd.DataFrame({
+        "time": [datetime(2026, 5, 21, 0, 20, tzinfo=timezone.utc)],
+        "open": [1.35300], "high": [1.35400],
+        "low": [1.35250], "close": [1.35350]
+    })
+
+    def mock_get_candles(symbol, timeframe, count=None):
+        if timeframe == "D1": return d1_df
+        if timeframe == "H1": return h1_df
+        return m1_df
+
+    connector.get_candles.side_effect = mock_get_candles
 
     state = StateEngine(":memory:")
     scanner = ScannerZGMT(mock_config, connector, state)
+    signal = scanner.scan("GBPUSD", "Asia", "Asia")
 
-    # First test should return False (untested) because the touch at 00:05 is in the excluded first 15 mins.
-    assert scanner._is_zgmt_level_tested("EURUSD", 1.25000, mock_config.zgmt_scanner) is False
+    assert signal is not None, "Should produce a signal"
+    assert signal["direction"] == "BUY", "Bias should be BULLISH (discount zone)"
+    # DIRECT mode must use zgmt_price, NOT the drifted tick ask (1.35202)
+    assert signal["entry_price"] == round(zgmt_price_open, 5), \
+        f"DIRECT entry must be at zgmt_price ({zgmt_price_open}), got {signal['entry_price']}"
 
-    # 2. Test case: Touch occurs at 00:20 UTC (outside 15 min exclusion window)
-    times_2 = [
-        datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc),
-        datetime(2026, 5, 21, 0, 20, tzinfo=timezone.utc)
-    ]
-    # First candle (at 00:05) is far away (Low=1.26000, High=1.26010)
-    # Second candle (at 00:20) touches 1.25000 (Low=1.24990, High=1.25010)
-    df_2 = pd.DataFrame({
-        "time": times_2,
-        "open": [1.26000, 1.25000],
-        "high": [1.26010, 1.25010],
-        "low": [1.26000, 1.24990],
-        "close": [1.26000, 1.25000]
-    })
-    connector.get_candles.return_value = df_2
 
-    # Second test should return True (tested) because the touch at 00:20 is after the first 15 mins.
-    assert scanner._is_zgmt_level_tested("EURUSD", 1.25000, mock_config.zgmt_scanner) is True
 
 
 

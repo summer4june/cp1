@@ -236,6 +236,19 @@ class ScannerZGMT:
         now_utc = self._utc_now()
         today_zgmt_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
 
+        exclude_mins = zgmt_cfg.get("zgmt_test_exclude_first_mins", 15)
+        test_start_time = today_zgmt_utc + timedelta(minutes=exclude_mins)
+
+        # Guard: if we haven't even passed the exclusion window yet, don't signal.
+        # Price hasn't had a chance to displace from the open — no meaningful data to evaluate.
+        if now_utc < test_start_time:
+            logger.debug(
+                f"[{pair}] ZGMT Step 2B: Still inside exclusion window "
+                f"(now={now_utc.strftime('%H:%M')} UTC, window_ends={test_start_time.strftime('%H:%M')} UTC). "
+                f"Deferring check."
+            )
+            return True  # Treat as "not ready" → block signal until window elapses
+
         # Calculate minutes elapsed since 0 GMT today
         elapsed_minutes = int((now_utc - today_zgmt_utc).total_seconds() / 60)
         # Fetch enough M1 candles to cover the entire day from 0 GMT to now
@@ -246,15 +259,12 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT: No M1 candles for Step 2B test. Assuming untested.")
             return False
 
-        exclude_mins = zgmt_cfg.get("zgmt_test_exclude_first_mins", 15)
-        test_start_time = today_zgmt_utc + timedelta(minutes=exclude_mins)
-
         for _, row in candles.iterrows():
             candle_time = row["time"]
             if candle_time.tzinfo is None:
                 candle_time = candle_time.replace(tzinfo=timezone.utc)
 
-            # Skip candles before the test start time to ignore initial open consolidation
+            # Only evaluate candles that opened after the exclusion window
             if candle_time < test_start_time:
                 continue
 
@@ -348,16 +358,18 @@ class ScannerZGMT:
         # ── Entry price ──────────────────────────────────────────────
         if bias == "BULLISH":
             if entry_mode == "DIRECT":
-                entry_price = tick["ask"]  # Buy at ask
+                # Strategy Step 4 Option A: Buy exactly at the 5:30 AM IST open price.
+                # Use zgmt_price directly (the IPDA True Day Open), not the drifted market tick.
+                entry_price = zgmt_price
             elif entry_mode == "FILTER":
-                # Buy limit 20 pips BELOW 0 GMT open → more favourable fill
+                # Strategy Step 4 Option B: Buy limit 10–20 pips BELOW 0 GMT open (Judas Swing filter)
                 entry_price = zgmt_price - filter_diff
             elif entry_mode == "SPLIT":
-                # Primary half at direct ask; secondary noted in bias_summary
-                entry_price = tick["ask"]
+                # Strategy Step 4 Option C: Primary half at 0 GMT open directly
+                entry_price = zgmt_price
             else:
                 logger.warning(f"[{pair}] ZGMT: Unknown entry_mode '{entry_mode}'. Defaulting to DIRECT.")
-                entry_price = tick["ask"]
+                entry_price = zgmt_price
 
             sl_price = entry_price - sl_diff
             tp1_price = entry_price + sl_diff  # TP1 = 1R
@@ -365,15 +377,17 @@ class ScannerZGMT:
 
         else:  # BEARISH
             if entry_mode == "DIRECT":
-                entry_price = tick["bid"]  # Sell at bid
+                # Strategy Step 10: Sell directly at 5:30 AM IST open price — no filter, no adjustment.
+                entry_price = zgmt_price
             elif entry_mode == "FILTER":
-                # Sell limit 20 pips ABOVE 0 GMT open
+                # Strategy Step 9: Sell limit at 0 GMT + 20 pips above the open
                 entry_price = zgmt_price + filter_diff
             elif entry_mode == "SPLIT":
-                entry_price = tick["bid"]
+                # Strategy Step 4 Option C: Primary half at 0 GMT open directly
+                entry_price = zgmt_price
             else:
                 logger.warning(f"[{pair}] ZGMT: Unknown entry_mode '{entry_mode}'. Defaulting to DIRECT.")
-                entry_price = tick["bid"]
+                entry_price = zgmt_price
 
             sl_price = entry_price + sl_diff
             tp1_price = entry_price - sl_diff  # TP1 = 1R
@@ -485,13 +499,28 @@ class ScannerZGMT:
             return None
 
         # ── Step 2B: Untested condition ───────────────────────────────
-        if self._is_zgmt_level_tested(pair, zgmt_price, zgmt_cfg):
-            logger.info(
-                f"[{pair}] ZGMT Step 2B: 0 GMT level already tested "
-                f"({zgmt_price:.5f}) — setup invalid for today."
-            )
-            self._mark_daily_finalized(pair)
-            return None
+        is_tested = self._is_zgmt_level_tested(pair, zgmt_price, zgmt_cfg)
+        if is_tested:
+            now_utc = self._utc_now()
+            today_zgmt_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            exclude_mins = zgmt_cfg.get("zgmt_test_exclude_first_mins", 15)
+            test_start_time = today_zgmt_utc + timedelta(minutes=exclude_mins)
+
+            if now_utc < test_start_time:
+                # Still inside exclusion window — price hasn't displaced yet.
+                # Do NOT finalize the day: just defer to next scan bar.
+                logger.debug(
+                    f"[{pair}] ZGMT Step 2B: Inside exclusion window — deferring, day NOT finalized."
+                )
+                return None
+            else:
+                # Level has genuinely been touched after the exclusion window → invalid for today.
+                logger.info(
+                    f"[{pair}] ZGMT Step 2B: 0 GMT level already tested "
+                    f"({zgmt_price:.5f}) — setup invalid for today."
+                )
+                self._mark_daily_finalized(pair)
+                return None
 
         # ── Step 3: Power of Three (optional) ────────────────────────
         if zgmt_cfg.get("require_power_of_three", False):
@@ -548,6 +577,10 @@ class ScannerZGMT:
 
         self._mark_daily_finalized(pair)
 
+        # ZGMT uses a fixed 1:2 RR defined by the strategy — skip the global spread-penalised
+        # effective_rr_min check so the correct strategy RR is honoured in the risk engine.
+        skip_rr_check = bool(zgmt_cfg.get("skip_rr_check", True))
+
         return {
             "signal_id": signal_id,
             "pair": pair,
@@ -570,4 +603,6 @@ class ScannerZGMT:
             "setup_type": "ZGMT",
             # fixed_lot_size: 0.0 means "use risk engine"; > 0 means override
             "fixed_lot_size": fixed_lot,
+            # Skip global effective_rr_min check — ZGMT enforces its own 1:2 RR by design
+            "skip_rr_check": skip_rr_check,
         }

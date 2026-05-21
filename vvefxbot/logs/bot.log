@@ -24895,3 +24895,1632 @@
 [2026-05-21 15:02:20,972] [INFO] [Backtest]   ✓ EURUSD M1: 10 bars fetched.
 [2026-05-21 15:02:20,975] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT Step 2B: Level NOT YET TESTED. Proceeding.
 [2026-05-21 15:02:20,976] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT Step 2B: Level ALREADY TESTED. Candle H=1.25010 L=1.24990 vs ZGMT=1.25000 (threshold=0.00050)
+[2026-05-21 15:11:10,983] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4755115376'>
+[2026-05-21 15:11:10,986] [ERROR] [MT5Connector] MT5 initialization failed: <MagicMock name='mt5.last_error()' id='4755048832'>
+[2026-05-21 15:11:10,990] [WARNING] [MT5Connector] Failed to get candles for EURUSD. Attempting one-time reconnect.
+[2026-05-21 15:11:10,991] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4755119072'>
+[2026-05-21 15:11:10,991] [ERROR] [MT5Connector] Could not retrieve candles for EURUSD after retry.
+[2026-05-21 15:11:11,008] [ERROR] [ExecutionEngine] Signal not found in DB: missing_id
+[2026-05-21 15:11:11,011] [WARNING] [ExecutionEngine] [EURUSD] EXECUTION_BLOCKED: spread too high at execution (5.0 > 2.0)
+[2026-05-21 15:11:11,015] [WARNING] [ExecutionEngine] [EURUSD] Bot disabled for today. Blocking execution.
+[2026-05-21 15:11:11,018] [INFO] [TelegramBridge] Signal sent to Telegram: sig_1
+[2026-05-21 15:11:11,021] [WARNING] [TelegramBridge] Signal expired on YES press: sig_1
+[2026-05-21 15:11:11,025] [WARNING] [TradeManager] 🛑 Daily loss limit reached (250.00 USD). Bot disabled for today.
+[2026-05-21 15:11:11,034] [INFO] [GoogleSheetReporter] Added header row to Google Sheet.
+[2026-05-21 15:11:11,035] [INFO] [GoogleSheetReporter] Successfully connected to Google Sheet.
+[2026-05-21 15:11:11,035] [INFO] [GoogleSheetReporter] Added header row to Denied Google Sheet.
+[2026-05-21 15:11:11,037] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
+[2026-05-21 15:11:11,057] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345
+[2026-05-21 15:11:11,065] [INFO] [BacktestConnector] [BT] Order placed: EURUSD BUY 0.1 @ 1.10566 | Ticket: 1000001
+[2026-05-21 15:11:11,068] [INFO] [BacktestEngine] [BT] Starting replay: EURUSD | 150 M1 bars
+[2026-05-21 15:11:11,069] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,070] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,071] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,072] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108153691275168 | Midpoint: 1.1074161073825504
+[2026-05-21 15:11:11,073] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,073] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,073] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,074] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,074] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,076] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,077] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1082208053691276 | Midpoint: 1.10748322147651
+[2026-05-21 15:11:11,077] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,078] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,078] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,079] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,079] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,080] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,081] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1082879194630872 | Midpoint: 1.10755033557047
+[2026-05-21 15:11:11,081] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,082] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,082] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,083] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,083] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,084] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,085] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1083550335570471 | Midpoint: 1.1076174496644295
+[2026-05-21 15:11:11,085] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,086] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,086] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,086] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,086] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,088] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,088] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1084221476510068 | Midpoint: 1.1076845637583892
+[2026-05-21 15:11:11,089] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,089] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,090] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,090] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,090] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,091] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,092] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1084892617449664 | Midpoint: 1.1077516778523488
+[2026-05-21 15:11:11,093] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,093] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,093] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,094] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,094] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,095] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,096] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1085563758389263 | Midpoint: 1.1078187919463087
+[2026-05-21 15:11:11,097] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,097] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,097] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,098] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,098] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,099] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,100] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108623489932886 | Midpoint: 1.1078859060402684
+[2026-05-21 15:11:11,101] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,101] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,101] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,102] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,102] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,103] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,104] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1086906040268458 | Midpoint: 1.1079530201342283
+[2026-05-21 15:11:11,104] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,105] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,105] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,105] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,105] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,106] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,107] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1087577181208055 | Midpoint: 1.108020134228188
+[2026-05-21 15:11:11,107] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,108] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,108] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,109] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,109] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,110] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,111] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1088248322147651 | Midpoint: 1.1080872483221476
+[2026-05-21 15:11:11,111] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,112] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,112] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,112] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,112] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,114] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,114] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108891946308725 | Midpoint: 1.1081543624161074
+[2026-05-21 15:11:11,115] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,115] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,116] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,116] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,116] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,118] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,119] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1089590604026847 | Midpoint: 1.108221476510067
+[2026-05-21 15:11:11,120] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,120] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,120] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,121] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,121] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,122] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,123] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1090261744966443 | Midpoint: 1.108288590604027
+[2026-05-21 15:11:11,124] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,124] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,124] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,125] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,125] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,126] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,127] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1090932885906042 | Midpoint: 1.1083557046979866
+[2026-05-21 15:11:11,127] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,128] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,128] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,128] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,129] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,130] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,131] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1091604026845638 | Midpoint: 1.1084228187919463
+[2026-05-21 15:11:11,131] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,132] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,132] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,133] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,133] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,134] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,135] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1092275167785235 | Midpoint: 1.108489932885906
+[2026-05-21 15:11:11,135] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,136] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,136] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,136] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,137] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,138] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,139] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1092946308724834 | Midpoint: 1.1085570469798658
+[2026-05-21 15:11:11,139] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,140] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,140] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,141] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,142] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,143] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,144] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109361744966443 | Midpoint: 1.1086241610738254
+[2026-05-21 15:11:11,144] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,145] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,145] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,146] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,146] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,147] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,148] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1094288590604027 | Midpoint: 1.1086912751677853
+[2026-05-21 15:11:11,148] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,149] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,149] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,150] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,150] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,151] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,152] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1094959731543625 | Midpoint: 1.108758389261745
+[2026-05-21 15:11:11,152] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,153] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,153] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,153] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,154] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,155] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,156] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1095630872483222 | Midpoint: 1.1088255033557046
+[2026-05-21 15:11:11,156] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,157] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,157] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,157] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,157] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,159] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,160] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109630201342282 | Midpoint: 1.1088926174496645
+[2026-05-21 15:11:11,160] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,161] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,161] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,161] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,161] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,163] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,163] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1096973154362417 | Midpoint: 1.1089597315436241
+[2026-05-21 15:11:11,164] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,164] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,165] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,165] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,165] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,167] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,167] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1097644295302014 | Midpoint: 1.1090268456375838
+[2026-05-21 15:11:11,168] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,168] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,168] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,169] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,169] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,170] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,171] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1098315436241613 | Midpoint: 1.1090939597315437
+[2026-05-21 15:11:11,173] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,173] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,173] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,174] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,174] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,176] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,177] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109898657718121 | Midpoint: 1.1091610738255033
+[2026-05-21 15:11:11,178] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,178] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,178] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,179] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,179] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,181] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,181] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1099657718120806 | Midpoint: 1.109228187919463
+[2026-05-21 15:11:11,182] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,183] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,183] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,183] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,183] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,185] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,186] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1100328859060404 | Midpoint: 1.1092953020134229
+[2026-05-21 15:11:11,186] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,187] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,187] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,187] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,188] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,189] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,190] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1101 | Midpoint: 1.1093624161073825
+[2026-05-21 15:11:11,190] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,191] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,191] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,191] [INFO] [BacktestEngine] [BT] Replay complete | Signals: 0 | Trades: 0
+[2026-05-21 15:11:11,195] [INFO] [BacktestEngine] [BT] Starting replay: EURUSD | 200 M1 bars
+[2026-05-21 15:11:11,196] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,196] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,198] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,198] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1061301507537689 | Midpoint: 1.1055527638190954
+[2026-05-21 15:11:11,199] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,200] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,200] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,200] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,200] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,202] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,204] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1061804020100503 | Midpoint: 1.1056030150753768
+[2026-05-21 15:11:11,204] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,205] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,205] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,206] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,206] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,208] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,209] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1062306532663317 | Midpoint: 1.1056532663316583
+[2026-05-21 15:11:11,209] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,210] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,210] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,211] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,211] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,212] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,213] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1062809045226132 | Midpoint: 1.1057035175879397
+[2026-05-21 15:11:11,214] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,214] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,215] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,215] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,215] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,217] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,218] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1063311557788946 | Midpoint: 1.1057537688442212
+[2026-05-21 15:11:11,218] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,219] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,219] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,219] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,219] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,221] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,222] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.106381407035176 | Midpoint: 1.1058040201005026
+[2026-05-21 15:11:11,222] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,223] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,223] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,224] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,224] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,225] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,226] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1064316582914573 | Midpoint: 1.1058542713567838
+[2026-05-21 15:11:11,227] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,227] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,227] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,228] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,228] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,230] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,230] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1064819095477387 | Midpoint: 1.1059045226130653
+[2026-05-21 15:11:11,231] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,231] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,231] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,232] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,232] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,233] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,234] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1065321608040202 | Midpoint: 1.1059547738693467
+[2026-05-21 15:11:11,235] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,235] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,235] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,236] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,236] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,237] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,238] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1065824120603016 | Midpoint: 1.1060050251256281
+[2026-05-21 15:11:11,238] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,239] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,239] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,239] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,240] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,241] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,242] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.106632663316583 | Midpoint: 1.1060552763819096
+[2026-05-21 15:11:11,242] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,243] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,243] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,243] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,243] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,245] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,246] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1066829145728645 | Midpoint: 1.106105527638191
+[2026-05-21 15:11:11,246] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,247] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,247] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,247] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,248] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,249] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,250] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1067331658291457 | Midpoint: 1.1061557788944723
+[2026-05-21 15:11:11,250] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,251] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,251] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,251] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,251] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,253] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,254] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1067834170854272 | Midpoint: 1.1062060301507537
+[2026-05-21 15:11:11,254] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,255] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,255] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,255] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,255] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,257] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,257] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1068336683417086 | Midpoint: 1.1062562814070351
+[2026-05-21 15:11:11,258] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,258] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,259] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,259] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,260] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,262] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,263] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.10688391959799 | Midpoint: 1.1063065326633166
+[2026-05-21 15:11:11,264] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,264] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,264] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,265] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,265] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,266] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,267] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1069341708542715 | Midpoint: 1.106356783919598
+[2026-05-21 15:11:11,267] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,268] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,268] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,269] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,269] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,270] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,271] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.106984422110553 | Midpoint: 1.1064070351758795
+[2026-05-21 15:11:11,272] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,272] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,272] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,273] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,273] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,274] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,275] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1070346733668344 | Midpoint: 1.106457286432161
+[2026-05-21 15:11:11,276] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,276] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,276] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,277] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,277] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,279] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,279] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1070849246231156 | Midpoint: 1.1065075376884421
+[2026-05-21 15:11:11,280] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,281] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,281] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,281] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,281] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,283] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,283] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.107135175879397 | Midpoint: 1.1065577889447236
+[2026-05-21 15:11:11,284] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,285] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,285] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,285] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,285] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,287] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,288] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1071854271356785 | Midpoint: 1.106608040201005
+[2026-05-21 15:11:11,288] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,289] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,289] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,289] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,289] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,291] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,292] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.10723567839196 | Midpoint: 1.1066582914572864
+[2026-05-21 15:11:11,292] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,293] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,293] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,293] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,294] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,295] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,296] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1072859296482414 | Midpoint: 1.1067085427135679
+[2026-05-21 15:11:11,297] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,297] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,297] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,298] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,298] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,299] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,300] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1073361809045228 | Midpoint: 1.1067587939698493
+[2026-05-21 15:11:11,301] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,301] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,301] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,302] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,302] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,303] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,304] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.107386432160804 | Midpoint: 1.1068090452261306
+[2026-05-21 15:11:11,305] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,305] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,305] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,306] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,306] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,307] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,308] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1074366834170855 | Midpoint: 1.106859296482412
+[2026-05-21 15:11:11,309] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,309] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,309] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,310] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,310] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,312] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,313] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.107486934673367 | Midpoint: 1.1069095477386934
+[2026-05-21 15:11:11,313] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,314] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,314] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,315] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,315] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,316] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,317] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1075371859296483 | Midpoint: 1.1069597989949749
+[2026-05-21 15:11:11,318] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,318] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,318] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,319] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,319] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,320] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,321] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1075874371859298 | Midpoint: 1.1070100502512563
+[2026-05-21 15:11:11,322] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,322] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,322] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,323] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,323] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,325] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,326] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1076376884422112 | Midpoint: 1.1070603015075378
+[2026-05-21 15:11:11,326] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,327] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,327] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,327] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,328] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,329] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,330] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1076879396984924 | Midpoint: 1.107110552763819
+[2026-05-21 15:11:11,331] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,331] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,331] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,332] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,332] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,334] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,334] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1077381909547739 | Midpoint: 1.1071608040201004
+[2026-05-21 15:11:11,335] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,335] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,335] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,336] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,336] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,338] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,338] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1077884422110553 | Midpoint: 1.1072110552763819
+[2026-05-21 15:11:11,339] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,339] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,340] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,340] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,340] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,342] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,342] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1078386934673368 | Midpoint: 1.1072613065326633
+[2026-05-21 15:11:11,343] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,344] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,344] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,344] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,344] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,346] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,347] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1078889447236182 | Midpoint: 1.1073115577889447
+[2026-05-21 15:11:11,347] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,348] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,348] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,349] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,349] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,350] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,351] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1079391959798996 | Midpoint: 1.1073618090452262
+[2026-05-21 15:11:11,351] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,352] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,352] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,353] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,353] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,354] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,355] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.107989447236181 | Midpoint: 1.1074120603015074
+[2026-05-21 15:11:11,356] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,356] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,356] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,357] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,357] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,358] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,359] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1080396984924623 | Midpoint: 1.1074623115577888
+[2026-05-21 15:11:11,360] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,360] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,360] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,361] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,361] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,363] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,364] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1080899497487438 | Midpoint: 1.1075125628140703
+[2026-05-21 15:11:11,365] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,365] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,366] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,366] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,366] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,368] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,368] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1081402010050252 | Midpoint: 1.1075628140703517
+[2026-05-21 15:11:11,369] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,370] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,370] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,370] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,370] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,372] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,373] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1081904522613066 | Midpoint: 1.1076130653266332
+[2026-05-21 15:11:11,373] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,374] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,374] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,374] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,374] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,376] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,377] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108240703517588 | Midpoint: 1.1076633165829146
+[2026-05-21 15:11:11,377] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,378] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,378] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,379] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,379] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,380] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,381] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1082909547738695 | Midpoint: 1.107713567839196
+[2026-05-21 15:11:11,382] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,382] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,382] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,383] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,383] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,384] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,385] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1083412060301507 | Midpoint: 1.1077638190954773
+[2026-05-21 15:11:11,385] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,386] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,386] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,387] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,387] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,388] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,389] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1083914572864322 | Midpoint: 1.1078140703517587
+[2026-05-21 15:11:11,389] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,390] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,390] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,390] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,390] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,392] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,393] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1084417085427136 | Midpoint: 1.1078643216080402
+[2026-05-21 15:11:11,393] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,394] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,394] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,394] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,394] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,396] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,397] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108491959798995 | Midpoint: 1.1079145728643216
+[2026-05-21 15:11:11,397] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,398] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,398] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,398] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,399] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,400] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,401] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1085422110552765 | Midpoint: 1.107964824120603
+[2026-05-21 15:11:11,401] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,402] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,402] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,402] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,402] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,404] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,404] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108592462311558 | Midpoint: 1.1080150753768845
+[2026-05-21 15:11:11,405] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,405] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,406] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,406] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,406] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,408] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,409] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1086427135678394 | Midpoint: 1.1080653266331657
+[2026-05-21 15:11:11,409] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,410] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,410] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,410] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,411] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,412] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,413] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1086929648241206 | Midpoint: 1.1081155778894471
+[2026-05-21 15:11:11,414] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,414] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,414] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,415] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,415] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,416] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,417] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108743216080402 | Midpoint: 1.1081658291457286
+[2026-05-21 15:11:11,417] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,418] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,418] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,419] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,419] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,420] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,421] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1087934673366835 | Midpoint: 1.10821608040201
+[2026-05-21 15:11:11,422] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,422] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,422] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,423] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,423] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,425] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,425] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108843718592965 | Midpoint: 1.1082663316582915
+[2026-05-21 15:11:11,426] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,426] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,427] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,427] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,427] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,429] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,430] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1088939698492464 | Midpoint: 1.108316582914573
+[2026-05-21 15:11:11,430] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,431] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,431] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,431] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,432] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,433] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,434] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1089442211055278 | Midpoint: 1.1083668341708544
+[2026-05-21 15:11:11,434] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,435] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,435] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,435] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,436] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,437] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,438] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108994472361809 | Midpoint: 1.1084170854271356
+[2026-05-21 15:11:11,438] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,439] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,439] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,439] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,440] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,441] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,442] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1090447236180905 | Midpoint: 1.108467336683417
+[2026-05-21 15:11:11,442] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,443] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,443] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,443] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,444] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,445] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,446] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109094974874372 | Midpoint: 1.1085175879396985
+[2026-05-21 15:11:11,447] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,447] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,447] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,448] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,448] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,450] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,450] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1091452261306534 | Midpoint: 1.10856783919598
+[2026-05-21 15:11:11,451] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,451] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,452] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,452] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,452] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,454] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,455] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1091954773869348 | Midpoint: 1.1086180904522613
+[2026-05-21 15:11:11,455] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,456] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,456] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,456] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,456] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,458] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,459] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1092457286432162 | Midpoint: 1.1086683417085428
+[2026-05-21 15:11:11,459] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,460] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,460] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,461] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,461] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,463] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,464] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1092959798994975 | Midpoint: 1.108718592964824
+[2026-05-21 15:11:11,464] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,465] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,465] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,465] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,466] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,467] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,468] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109346231155779 | Midpoint: 1.1087688442211054
+[2026-05-21 15:11:11,468] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,469] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,469] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,469] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,470] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,471] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,472] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1093964824120603 | Midpoint: 1.1088190954773869
+[2026-05-21 15:11:11,472] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,473] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,473] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,473] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,474] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,475] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,476] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1094467336683418 | Midpoint: 1.1088693467336683
+[2026-05-21 15:11:11,476] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,477] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,477] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,478] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,478] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,480] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,480] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1094969849246232 | Midpoint: 1.1089195979899498
+[2026-05-21 15:11:11,481] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,481] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,482] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,482] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,482] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,484] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,484] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1095472361809047 | Midpoint: 1.1089698492462312
+[2026-05-21 15:11:11,485] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,485] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,486] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,486] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,486] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,488] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,488] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1095974874371861 | Midpoint: 1.1090201005025127
+[2026-05-21 15:11:11,489] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,490] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,490] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,490] [INFO] [BacktestEngine] [BT] 📊 TP1 Hit | EURUSD | Partial locked: +50.00 | SL → BE
+[2026-05-21 15:11:11,490] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,491] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,492] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,493] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1096477386934673 | Midpoint: 1.1090703517587939
+[2026-05-21 15:11:11,493] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,494] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,494] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,495] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,495] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,497] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,497] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1096979899497488 | Midpoint: 1.1091206030150753
+[2026-05-21 15:11:11,498] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,499] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,499] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,499] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,499] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,501] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,502] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1097482412060302 | Midpoint: 1.1091708542713568
+[2026-05-21 15:11:11,502] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,503] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,503] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,503] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,503] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,505] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,506] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1097984924623117 | Midpoint: 1.1092211055276382
+[2026-05-21 15:11:11,506] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,507] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,507] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,507] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,508] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,509] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,510] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109848743718593 | Midpoint: 1.1092713567839196
+[2026-05-21 15:11:11,510] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,511] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,511] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,512] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,512] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,514] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,515] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1098989949748745 | Midpoint: 1.109321608040201
+[2026-05-21 15:11:11,516] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,516] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,516] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,517] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,517] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,518] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,519] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1099492462311558 | Midpoint: 1.1093718592964823
+[2026-05-21 15:11:11,520] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,520] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,520] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,521] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,521] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,522] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,523] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1099994974874372 | Midpoint: 1.1094221105527637
+[2026-05-21 15:11:11,524] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,524] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,524] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,525] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,525] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,527] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,527] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1100497487437186 | Midpoint: 1.1094723618090452
+[2026-05-21 15:11:11,528] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,529] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,529] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,529] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:11:11,529] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:11:11,531] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:11:11,531] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1101 | Midpoint: 1.1095226130653266
+[2026-05-21 15:11:11,532] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:11:11,533] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:11:11,533] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:11:11,533] [INFO] [BacktestEngine] [BT] Trade EXPIRED at session end: test_id
+[2026-05-21 15:11:11,533] [INFO] [BacktestEngine] [BT] Replay complete | Signals: 0 | Trades: 1
+[2026-05-21 15:11:11,544] [INFO] [BacktestEngine] [BT] Starting replay: EURUSD | 200 M1 bars
+[2026-05-21 15:11:11,562] [INFO] [BacktestEngine] [BT] Replay complete | Signals: 0 | Trades: 0
+[2026-05-21 15:11:11,566] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: Scan started | Session=London | KZ=Asia
+[2026-05-21 15:11:11,567] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: Insufficient D1 candles for PD bias (0/20).
+[2026-05-21 15:11:11,567] [INFO] [ScannerZGMT] [EURUSD] ZGMT: Could not determine D1 PD bias — skipping.
+[2026-05-21 15:11:11,568] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: Scan started | Session=London | KZ=Asia
+[2026-05-21 15:11:11,568] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: D1 Range High=1.12000 Low=1.08000 Mid=1.10000 BID=1.09000 → Bias=BULLISH
+[2026-05-21 15:11:11,569] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: No H1 candles returned.
+[2026-05-21 15:11:11,569] [INFO] [ScannerZGMT] [EURUSD] ZGMT: 0 GMT open price not available — skipping.
+[2026-05-21 15:11:11,577] [INFO] [BacktestEngine] [BT] Starting replay: XAUUSD | 130 M1 bars
+[2026-05-21 15:11:11,578] [INFO] [BacktestEngine] [BT] Trade OPENED | XAUUSD BUY | Bar 120 | Entry: 2000.00000 | SL: 1999.05000 | TP1: 2000.95000 | TP2: 2001.90000 | Lot: 0.11 | Score: 90.0
+[2026-05-21 15:11:11,578] [INFO] [BacktestEngine] [BT] 📊 TP1 Hit | XAUUSD | Partial locked: +5.70 | SL → BE
+[2026-05-21 15:11:11,578] [INFO] [BacktestEngine] [BT] ✅ TP2 Hit | XAUUSD | P&L: +15.20
+[2026-05-21 15:11:11,579] [INFO] [BacktestEngine] [BT] Replay complete | Signals: 1 | Trades: 1
+[2026-05-21 15:11:11,582] [INFO] [Backtest] Fetching EURUSD M1 from MT5: 2024-04-01 → 2024-04-01
+[2026-05-21 15:11:11,585] [INFO] [Backtest]   ✓ EURUSD M1: 10 bars fetched.
+[2026-05-21 15:11:11,588] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT Step 2B: Still inside exclusion window (now=00:05 UTC, window_ends=00:15 UTC). Deferring check.
+[2026-05-21 15:11:11,590] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT Step 2B: Level NOT YET TESTED. Proceeding.
+[2026-05-21 15:11:11,591] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT Step 2B: Level ALREADY TESTED. Candle H=1.25010 L=1.24990 vs ZGMT=1.25000 (threshold=0.00050)
+[2026-05-21 15:18:16,220] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4620422512'>
+[2026-05-21 15:18:16,224] [ERROR] [MT5Connector] MT5 initialization failed: <MagicMock name='mt5.last_error()' id='4621027712'>
+[2026-05-21 15:18:16,228] [WARNING] [MT5Connector] Failed to get candles for EURUSD. Attempting one-time reconnect.
+[2026-05-21 15:18:16,230] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4620425872'>
+[2026-05-21 15:18:16,230] [ERROR] [MT5Connector] Could not retrieve candles for EURUSD after retry.
+[2026-05-21 15:18:16,245] [ERROR] [ExecutionEngine] Signal not found in DB: missing_id
+[2026-05-21 15:18:16,248] [WARNING] [ExecutionEngine] [EURUSD] EXECUTION_BLOCKED: spread too high at execution (5.0 > 2.0)
+[2026-05-21 15:18:16,251] [WARNING] [ExecutionEngine] [EURUSD] Bot disabled for today. Blocking execution.
+[2026-05-21 15:18:16,254] [INFO] [TelegramBridge] Signal sent to Telegram: sig_1
+[2026-05-21 15:18:16,257] [WARNING] [TelegramBridge] Signal expired on YES press: sig_1
+[2026-05-21 15:18:16,261] [WARNING] [TradeManager] 🛑 Daily loss limit reached (250.00 USD). Bot disabled for today.
+[2026-05-21 15:18:16,269] [INFO] [GoogleSheetReporter] Added header row to Google Sheet.
+[2026-05-21 15:18:16,269] [INFO] [GoogleSheetReporter] Successfully connected to Google Sheet.
+[2026-05-21 15:18:16,270] [INFO] [GoogleSheetReporter] Added header row to Denied Google Sheet.
+[2026-05-21 15:18:16,271] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
+[2026-05-21 15:18:16,289] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345
+[2026-05-21 15:18:16,296] [INFO] [BacktestConnector] [BT] Order placed: EURUSD BUY 0.1 @ 1.10566 | Ticket: 1000001
+[2026-05-21 15:18:16,299] [INFO] [BacktestEngine] [BT] Starting replay: EURUSD | 150 M1 bars
+[2026-05-21 15:18:16,300] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,300] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,302] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,303] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108153691275168 | Midpoint: 1.1074161073825504
+[2026-05-21 15:18:16,303] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,304] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,304] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,305] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,305] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,306] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,307] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1082208053691276 | Midpoint: 1.10748322147651
+[2026-05-21 15:18:16,307] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,308] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,308] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,308] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,308] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,310] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,311] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1082879194630872 | Midpoint: 1.10755033557047
+[2026-05-21 15:18:16,311] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,311] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,312] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,312] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,312] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,314] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,315] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1083550335570471 | Midpoint: 1.1076174496644295
+[2026-05-21 15:18:16,315] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,316] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,316] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,316] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,316] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,318] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,318] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1084221476510068 | Midpoint: 1.1076845637583892
+[2026-05-21 15:18:16,319] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,319] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,319] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,320] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,320] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,321] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,322] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1084892617449664 | Midpoint: 1.1077516778523488
+[2026-05-21 15:18:16,322] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,323] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,323] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,323] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,324] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,325] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,325] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1085563758389263 | Midpoint: 1.1078187919463087
+[2026-05-21 15:18:16,326] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,326] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,326] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,327] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,327] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,328] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,329] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108623489932886 | Midpoint: 1.1078859060402684
+[2026-05-21 15:18:16,329] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,329] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,329] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,330] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,330] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,331] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,332] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1086906040268458 | Midpoint: 1.1079530201342283
+[2026-05-21 15:18:16,332] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,333] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,333] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,333] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,333] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,334] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,335] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1087577181208055 | Midpoint: 1.108020134228188
+[2026-05-21 15:18:16,335] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,336] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,336] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,336] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,337] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,338] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,338] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1088248322147651 | Midpoint: 1.1080872483221476
+[2026-05-21 15:18:16,339] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,339] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,339] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,340] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,340] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,342] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,342] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108891946308725 | Midpoint: 1.1081543624161074
+[2026-05-21 15:18:16,343] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,343] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,343] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,344] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,344] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,345] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,346] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1089590604026847 | Midpoint: 1.108221476510067
+[2026-05-21 15:18:16,346] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,347] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,347] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,347] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,348] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,349] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,350] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1090261744966443 | Midpoint: 1.108288590604027
+[2026-05-21 15:18:16,350] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,351] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,351] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,351] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,352] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,353] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,354] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1090932885906042 | Midpoint: 1.1083557046979866
+[2026-05-21 15:18:16,354] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,355] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,355] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,356] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,356] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,357] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,358] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1091604026845638 | Midpoint: 1.1084228187919463
+[2026-05-21 15:18:16,358] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,359] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,359] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,359] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,360] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,361] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,362] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1092275167785235 | Midpoint: 1.108489932885906
+[2026-05-21 15:18:16,362] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,363] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,363] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,363] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,363] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,364] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,365] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1092946308724834 | Midpoint: 1.1085570469798658
+[2026-05-21 15:18:16,365] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,366] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,366] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,366] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,366] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,368] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,368] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109361744966443 | Midpoint: 1.1086241610738254
+[2026-05-21 15:18:16,369] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,369] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,369] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,370] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,370] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,371] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,371] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1094288590604027 | Midpoint: 1.1086912751677853
+[2026-05-21 15:18:16,372] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,372] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,372] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,373] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,373] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,374] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,375] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1094959731543625 | Midpoint: 1.108758389261745
+[2026-05-21 15:18:16,375] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,376] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,376] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,376] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,376] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,378] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,378] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1095630872483222 | Midpoint: 1.1088255033557046
+[2026-05-21 15:18:16,379] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,379] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,379] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,379] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,380] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,381] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,381] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109630201342282 | Midpoint: 1.1088926174496645
+[2026-05-21 15:18:16,382] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,382] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,382] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,383] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,383] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,384] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,385] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1096973154362417 | Midpoint: 1.1089597315436241
+[2026-05-21 15:18:16,385] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,385] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,386] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,386] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,386] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,387] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,388] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1097644295302014 | Midpoint: 1.1090268456375838
+[2026-05-21 15:18:16,388] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,389] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,389] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,389] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,390] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,391] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,391] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1098315436241613 | Midpoint: 1.1090939597315437
+[2026-05-21 15:18:16,392] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,392] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,392] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,393] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,393] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,394] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,395] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109898657718121 | Midpoint: 1.1091610738255033
+[2026-05-21 15:18:16,395] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,396] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,396] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,396] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,396] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,398] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,398] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1099657718120806 | Midpoint: 1.109228187919463
+[2026-05-21 15:18:16,399] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,399] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,400] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,400] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,400] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,401] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,402] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1100328859060404 | Midpoint: 1.1092953020134229
+[2026-05-21 15:18:16,402] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,403] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,403] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,403] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,403] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,405] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,405] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1101 | Midpoint: 1.1093624161073825
+[2026-05-21 15:18:16,406] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,406] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,407] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,407] [INFO] [BacktestEngine] [BT] Replay complete | Signals: 0 | Trades: 0
+[2026-05-21 15:18:16,410] [INFO] [BacktestEngine] [BT] Starting replay: EURUSD | 200 M1 bars
+[2026-05-21 15:18:16,410] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,411] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,412] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,413] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1061301507537689 | Midpoint: 1.1055527638190954
+[2026-05-21 15:18:16,413] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,414] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,414] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,414] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,415] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,417] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,417] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1061804020100503 | Midpoint: 1.1056030150753768
+[2026-05-21 15:18:16,418] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,418] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,418] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,419] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,419] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,421] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,421] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1062306532663317 | Midpoint: 1.1056532663316583
+[2026-05-21 15:18:16,422] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,422] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,423] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,423] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,423] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,425] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,426] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1062809045226132 | Midpoint: 1.1057035175879397
+[2026-05-21 15:18:16,426] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,427] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,427] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,427] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,428] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,429] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,430] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1063311557788946 | Midpoint: 1.1057537688442212
+[2026-05-21 15:18:16,430] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,431] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,431] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,431] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,431] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,433] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,434] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.106381407035176 | Midpoint: 1.1058040201005026
+[2026-05-21 15:18:16,434] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,435] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,435] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,435] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,436] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,437] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,438] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1064316582914573 | Midpoint: 1.1058542713567838
+[2026-05-21 15:18:16,438] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,439] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,439] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,440] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,440] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,441] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,442] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1064819095477387 | Midpoint: 1.1059045226130653
+[2026-05-21 15:18:16,442] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,443] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,443] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,443] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,443] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,445] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,446] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1065321608040202 | Midpoint: 1.1059547738693467
+[2026-05-21 15:18:16,446] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,446] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,447] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,447] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,447] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,449] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,449] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1065824120603016 | Midpoint: 1.1060050251256281
+[2026-05-21 15:18:16,450] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,450] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,450] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,451] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,451] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,452] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,453] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.106632663316583 | Midpoint: 1.1060552763819096
+[2026-05-21 15:18:16,453] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,453] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,454] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,454] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,454] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,455] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,456] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1066829145728645 | Midpoint: 1.106105527638191
+[2026-05-21 15:18:16,456] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,457] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,457] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,457] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,457] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,459] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,459] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1067331658291457 | Midpoint: 1.1061557788944723
+[2026-05-21 15:18:16,460] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,460] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,460] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,460] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,461] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,462] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,462] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1067834170854272 | Midpoint: 1.1062060301507537
+[2026-05-21 15:18:16,463] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,463] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,463] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,464] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,464] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,465] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,466] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1068336683417086 | Midpoint: 1.1062562814070351
+[2026-05-21 15:18:16,466] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,467] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,467] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,467] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,467] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,468] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,469] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.10688391959799 | Midpoint: 1.1063065326633166
+[2026-05-21 15:18:16,469] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,470] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,470] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,470] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,471] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,472] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,473] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1069341708542715 | Midpoint: 1.106356783919598
+[2026-05-21 15:18:16,473] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,474] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,474] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,474] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,474] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,476] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,476] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.106984422110553 | Midpoint: 1.1064070351758795
+[2026-05-21 15:18:16,477] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,477] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,477] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,478] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,478] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,479] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,480] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1070346733668344 | Midpoint: 1.106457286432161
+[2026-05-21 15:18:16,481] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,481] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,481] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,482] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,482] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,483] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,484] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1070849246231156 | Midpoint: 1.1065075376884421
+[2026-05-21 15:18:16,484] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,485] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,485] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,486] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,486] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,487] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,488] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.107135175879397 | Midpoint: 1.1065577889447236
+[2026-05-21 15:18:16,488] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,489] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,489] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,489] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,490] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,491] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,492] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1071854271356785 | Midpoint: 1.106608040201005
+[2026-05-21 15:18:16,492] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,493] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,493] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,493] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,493] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,495] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,496] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.10723567839196 | Midpoint: 1.1066582914572864
+[2026-05-21 15:18:16,496] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,497] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,497] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,497] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,497] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,499] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,500] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1072859296482414 | Midpoint: 1.1067085427135679
+[2026-05-21 15:18:16,500] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,501] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,501] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,501] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,501] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,503] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,504] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1073361809045228 | Midpoint: 1.1067587939698493
+[2026-05-21 15:18:16,504] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,505] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,505] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,505] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,505] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,507] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,507] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.107386432160804 | Midpoint: 1.1068090452261306
+[2026-05-21 15:18:16,508] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,508] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,509] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,509] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,509] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,511] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,512] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1074366834170855 | Midpoint: 1.106859296482412
+[2026-05-21 15:18:16,512] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,513] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,513] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,513] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,513] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,515] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,515] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.107486934673367 | Midpoint: 1.1069095477386934
+[2026-05-21 15:18:16,516] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,516] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,517] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,517] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,517] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,519] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,519] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1075371859296483 | Midpoint: 1.1069597989949749
+[2026-05-21 15:18:16,520] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,520] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,520] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,521] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,521] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,522] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,523] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1075874371859298 | Midpoint: 1.1070100502512563
+[2026-05-21 15:18:16,524] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,524] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,524] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,525] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,525] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,526] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,527] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1076376884422112 | Midpoint: 1.1070603015075378
+[2026-05-21 15:18:16,528] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,529] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,529] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,529] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,529] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,531] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,532] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1076879396984924 | Midpoint: 1.107110552763819
+[2026-05-21 15:18:16,532] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,533] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,533] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,533] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,533] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,535] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,536] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1077381909547739 | Midpoint: 1.1071608040201004
+[2026-05-21 15:18:16,536] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,537] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,537] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,537] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,537] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,539] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,540] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1077884422110553 | Midpoint: 1.1072110552763819
+[2026-05-21 15:18:16,540] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,541] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,541] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,542] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,542] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,544] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,545] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1078386934673368 | Midpoint: 1.1072613065326633
+[2026-05-21 15:18:16,545] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,546] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,546] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,546] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,546] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,548] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,548] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1078889447236182 | Midpoint: 1.1073115577889447
+[2026-05-21 15:18:16,549] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,549] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,550] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,550] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,550] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,552] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,552] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1079391959798996 | Midpoint: 1.1073618090452262
+[2026-05-21 15:18:16,553] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,553] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,553] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,554] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,554] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,555] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,556] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.107989447236181 | Midpoint: 1.1074120603015074
+[2026-05-21 15:18:16,557] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,557] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,557] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,558] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,558] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,559] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,560] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1080396984924623 | Midpoint: 1.1074623115577888
+[2026-05-21 15:18:16,561] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,561] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,561] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,562] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,562] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,563] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,564] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1080899497487438 | Midpoint: 1.1075125628140703
+[2026-05-21 15:18:16,564] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,565] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,565] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,565] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,566] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,567] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,568] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1081402010050252 | Midpoint: 1.1075628140703517
+[2026-05-21 15:18:16,568] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,569] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,569] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,569] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,569] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,571] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,572] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1081904522613066 | Midpoint: 1.1076130653266332
+[2026-05-21 15:18:16,572] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,573] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,573] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,573] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,573] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,575] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,575] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108240703517588 | Midpoint: 1.1076633165829146
+[2026-05-21 15:18:16,576] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,577] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,577] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,577] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,577] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,579] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,579] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1082909547738695 | Midpoint: 1.107713567839196
+[2026-05-21 15:18:16,580] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,580] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,581] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,581] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,581] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,583] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,583] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1083412060301507 | Midpoint: 1.1077638190954773
+[2026-05-21 15:18:16,584] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,585] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,585] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,585] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,585] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,587] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,587] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1083914572864322 | Midpoint: 1.1078140703517587
+[2026-05-21 15:18:16,588] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,588] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,589] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,589] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,589] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,591] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,591] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1084417085427136 | Midpoint: 1.1078643216080402
+[2026-05-21 15:18:16,592] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,592] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,592] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,593] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,593] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,595] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,595] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108491959798995 | Midpoint: 1.1079145728643216
+[2026-05-21 15:18:16,596] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,596] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,596] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,597] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,597] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,598] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,599] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1085422110552765 | Midpoint: 1.107964824120603
+[2026-05-21 15:18:16,600] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,600] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,600] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,601] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,601] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,602] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,603] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108592462311558 | Midpoint: 1.1080150753768845
+[2026-05-21 15:18:16,603] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,604] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,604] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,605] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,605] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,606] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,607] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1086427135678394 | Midpoint: 1.1080653266331657
+[2026-05-21 15:18:16,607] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,608] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,608] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,608] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,608] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,610] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,611] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1086929648241206 | Midpoint: 1.1081155778894471
+[2026-05-21 15:18:16,611] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,612] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,612] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,612] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,613] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,614] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,615] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108743216080402 | Midpoint: 1.1081658291457286
+[2026-05-21 15:18:16,615] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,616] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,616] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,616] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,616] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,618] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,618] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1087934673366835 | Midpoint: 1.10821608040201
+[2026-05-21 15:18:16,619] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,620] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,620] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,620] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,620] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,622] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,622] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108843718592965 | Midpoint: 1.1082663316582915
+[2026-05-21 15:18:16,623] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,624] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,624] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,624] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,624] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,626] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,627] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1088939698492464 | Midpoint: 1.108316582914573
+[2026-05-21 15:18:16,627] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,628] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,628] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,628] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,628] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,630] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,631] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1089442211055278 | Midpoint: 1.1083668341708544
+[2026-05-21 15:18:16,631] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,632] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,632] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,632] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,632] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,634] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,634] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.108994472361809 | Midpoint: 1.1084170854271356
+[2026-05-21 15:18:16,635] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,635] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,636] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,636] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,636] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,638] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,638] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1090447236180905 | Midpoint: 1.108467336683417
+[2026-05-21 15:18:16,639] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,639] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,639] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,640] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,640] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,642] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,642] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109094974874372 | Midpoint: 1.1085175879396985
+[2026-05-21 15:18:16,643] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,643] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,644] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,644] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,644] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,646] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,646] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1091452261306534 | Midpoint: 1.10856783919598
+[2026-05-21 15:18:16,647] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,647] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,647] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,648] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,648] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,649] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,650] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1091954773869348 | Midpoint: 1.1086180904522613
+[2026-05-21 15:18:16,651] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,651] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,651] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,652] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,652] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,653] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,654] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1092457286432162 | Midpoint: 1.1086683417085428
+[2026-05-21 15:18:16,654] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,655] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,655] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,656] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,656] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,657] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,658] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1092959798994975 | Midpoint: 1.108718592964824
+[2026-05-21 15:18:16,658] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,659] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,659] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,660] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,660] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,661] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,662] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109346231155779 | Midpoint: 1.1087688442211054
+[2026-05-21 15:18:16,662] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,663] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,663] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,664] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,664] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,665] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,666] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1093964824120603 | Midpoint: 1.1088190954773869
+[2026-05-21 15:18:16,666] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,667] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,667] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,667] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,668] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,669] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,670] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1094467336683418 | Midpoint: 1.1088693467336683
+[2026-05-21 15:18:16,670] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,671] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,671] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,671] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,671] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,673] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,673] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1094969849246232 | Midpoint: 1.1089195979899498
+[2026-05-21 15:18:16,674] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,674] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,674] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,675] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,675] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,677] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,678] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1095472361809047 | Midpoint: 1.1089698492462312
+[2026-05-21 15:18:16,678] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,679] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,679] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,679] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,679] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,681] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,682] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1095974874371861 | Midpoint: 1.1090201005025127
+[2026-05-21 15:18:16,682] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,683] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,683] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,683] [INFO] [BacktestEngine] [BT] 📊 TP1 Hit | EURUSD | Partial locked: +50.00 | SL → BE
+[2026-05-21 15:18:16,683] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,683] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,685] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,686] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1096477386934673 | Midpoint: 1.1090703517587939
+[2026-05-21 15:18:16,686] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,687] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,687] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,687] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,687] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,689] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,690] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1096979899497488 | Midpoint: 1.1091206030150753
+[2026-05-21 15:18:16,690] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,690] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,691] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,691] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,691] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,693] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,694] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1097482412060302 | Midpoint: 1.1091708542713568
+[2026-05-21 15:18:16,694] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,695] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,695] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,695] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,695] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,697] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,698] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1097984924623117 | Midpoint: 1.1092211055276382
+[2026-05-21 15:18:16,698] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,699] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,699] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,699] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,699] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,701] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,701] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.109848743718593 | Midpoint: 1.1092713567839196
+[2026-05-21 15:18:16,702] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,703] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,703] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,703] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,703] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,705] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,705] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1098989949748745 | Midpoint: 1.109321608040201
+[2026-05-21 15:18:16,706] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,706] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,706] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,707] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,707] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,709] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,709] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1099492462311558 | Midpoint: 1.1093718592964823
+[2026-05-21 15:18:16,710] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,710] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,710] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,711] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,711] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,713] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,713] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1099994974874372 | Midpoint: 1.1094221105527637
+[2026-05-21 15:18:16,714] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,714] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,714] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,715] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,715] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,716] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,717] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1100497487437186 | Midpoint: 1.1094723618090452
+[2026-05-21 15:18:16,718] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,718] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,718] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,719] [INFO] [ScannerMMXM] [EURUSD] scan() called | session=London | killzone=London
+[2026-05-21 15:18:16,719] [INFO] [ScannerMMXM] [EURUSD] Cooldown check passed
+[2026-05-21 15:18:16,720] [INFO] [ScannerMMXM] [EURUSD] M15 candles: 100 | M1 candles: 100
+[2026-05-21 15:18:16,721] [INFO] [ScannerMMXM] [EURUSD] Bias: SELL | Price: 1.1101 | Midpoint: 1.1095226130653266
+[2026-05-21 15:18:16,721] [INFO] [ScannerMMXM] [EURUSD] Liquidity sweep: True
+[2026-05-21 15:18:16,722] [INFO] [ScannerMMXM] [EURUSD] Displacement: False
+[2026-05-21 15:18:16,722] [DEBUG] [ScannerMMXM] [EURUSD] No MSS/displacement detected. Skipping.
+[2026-05-21 15:18:16,722] [INFO] [BacktestEngine] [BT] Trade EXPIRED at session end: test_id
+[2026-05-21 15:18:16,722] [INFO] [BacktestEngine] [BT] Replay complete | Signals: 0 | Trades: 1
+[2026-05-21 15:18:16,732] [INFO] [BacktestEngine] [BT] Starting replay: EURUSD | 200 M1 bars
+[2026-05-21 15:18:16,747] [INFO] [BacktestEngine] [BT] Replay complete | Signals: 0 | Trades: 0
+[2026-05-21 15:18:16,752] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: Scan started | Session=London | KZ=Asia
+[2026-05-21 15:18:16,752] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: Insufficient D1 candles for PD bias (0/20).
+[2026-05-21 15:18:16,752] [INFO] [ScannerZGMT] [EURUSD] ZGMT: Could not determine D1 PD bias — skipping.
+[2026-05-21 15:18:16,753] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: Scan started | Session=London | KZ=Asia
+[2026-05-21 15:18:16,754] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: D1 Range High=1.12000 Low=1.08000 Mid=1.10000 BID=1.09000 → Bias=BULLISH
+[2026-05-21 15:18:16,754] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: No H1 candles returned.
+[2026-05-21 15:18:16,754] [INFO] [ScannerZGMT] [EURUSD] ZGMT: 0 GMT open price not available — skipping.
+[2026-05-21 15:18:16,762] [INFO] [BacktestEngine] [BT] Starting replay: XAUUSD | 130 M1 bars
+[2026-05-21 15:18:16,762] [INFO] [BacktestEngine] [BT] Trade OPENED | XAUUSD BUY | Bar 120 | Entry: 2000.00000 | SL: 1999.05000 | TP1: 2000.95000 | TP2: 2001.90000 | Lot: 0.11 | Score: 90.0
+[2026-05-21 15:18:16,762] [INFO] [BacktestEngine] [BT] 📊 TP1 Hit | XAUUSD | Partial locked: +5.70 | SL → BE
+[2026-05-21 15:18:16,763] [INFO] [BacktestEngine] [BT] ✅ TP2 Hit | XAUUSD | P&L: +15.20
+[2026-05-21 15:18:16,764] [INFO] [BacktestEngine] [BT] Replay complete | Signals: 1 | Trades: 1
+[2026-05-21 15:18:16,767] [INFO] [Backtest] Fetching EURUSD M1 from MT5: 2024-04-01 → 2024-04-01
+[2026-05-21 15:18:16,770] [INFO] [Backtest]   ✓ EURUSD M1: 10 bars fetched.
+[2026-05-21 15:18:16,773] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT Step 2B: Still inside exclusion window (now=00:05 UTC, window_ends=00:15 UTC). Deferring check.
+[2026-05-21 15:18:16,774] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT Step 2B: Level NOT YET TESTED. Proceeding.
+[2026-05-21 15:18:16,775] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT Step 2B: Level ALREADY TESTED. Candle H=1.25010 L=1.24990 vs ZGMT=1.25000 (threshold=0.00050)
+[2026-05-21 15:18:16,781] [DEBUG] [ScannerZGMT] [GBPUSD] ZGMT: Scan started | Session=Asia | KZ=Asia
+[2026-05-21 15:18:16,781] [DEBUG] [ScannerZGMT] [GBPUSD] ZGMT: D1 Range High=1.37000 Low=1.35000 Mid=1.36000 BID=1.35200 → Bias=BULLISH
+[2026-05-21 15:18:16,782] [DEBUG] [ScannerZGMT] [GBPUSD] ZGMT: Found 0 GMT open price = 1.35000 at 2026-05-21 00:00:00+00:00
+[2026-05-21 15:18:16,782] [DEBUG] [ScannerZGMT] [GBPUSD] ZGMT Step 2B: Level NOT YET TESTED. Proceeding.
+[2026-05-21 15:18:16,783] [INFO] [ScannerZGMT] [GBPUSD] ZGMT Signal ✅ BUY | Entry=1.35000 SL=1.34750 TP2=1.35500 | 0GMT=1.35000 | Bias=BULLISH | Mode=DIRECT | RR=1.78 | Score=70.0
