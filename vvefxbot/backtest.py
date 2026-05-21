@@ -204,6 +204,7 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     """Print summary and save CSV for all trades across all pairs."""
     date_from = bt_config["date_from"]
     date_to   = bt_config["date_to"]
+    strategy_label = bt_config.get("strategy", "MMXM").upper()
 
     if not all_trades:
         print("\n⚠️  No trades generated. Try a longer date range or lower aplus_threshold in config.json.\n")
@@ -230,7 +231,7 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
 
     print()
     print("=" * 65)
-    print("  VvE FxBOT — MMXM BACKTEST REPORT")
+    print(f"  VvE FxBOT — {strategy_label} BACKTEST REPORT")
     print(f"  Pairs  : {pairs_tested}")
     print(f"  Period : {date_from}  →  {date_to}")
     print("=" * 65)
@@ -292,6 +293,15 @@ def main():
     pairs     = bt_config["pairs"]
     date_from = datetime.fromisoformat(bt_config["date_from"]).replace(tzinfo=timezone.utc)
     date_to   = datetime.fromisoformat(bt_config["date_to"]).replace(tzinfo=timezone.utc)
+
+    # Strategy to backtest (default MMXM for backward-compatibility)
+    strategy_name = bt_config.get("strategy", "MMXM").upper()
+    valid_strategies = ["MMXM", "OTE", "ZGMT"]
+    if strategy_name not in valid_strategies:
+        print(f"❌ Unknown strategy: '{strategy_name}'. Valid options: {', '.join(valid_strategies)}")
+        sys.exit(1)
+
+    logger.info(f"Backtesting strategy: {strategy_name}")
 
     # ── Load bot config ───────────────────────────────────────────────
     config_engine = ConfigEngine("config.json")
@@ -355,8 +365,32 @@ def main():
                 continue
 
             connector = BacktestConnector(config, data, pair)
-            engine    = BacktestEngine(config, connector, pair)
-            trades    = engine.run()
+
+            # ── Instantiate the chosen scanner ───────────────────────────
+            from core.stateengine import StateEngine as _SE
+            _bt_state = _SE(":memory:")
+
+            if strategy_name == "MMXM":
+                from modules.scannermmxm import ScannerMMXM
+                scanner = ScannerMMXM(config, connector, _bt_state)
+            elif strategy_name == "OTE":
+                from modules.scannerote import ScannerOTE
+                # Ensure OTE is enabled for the backtest run
+                if isinstance(config.ote_scanner, dict):
+                    config.ote_scanner["enabled"] = True
+                scanner = ScannerOTE(config, connector, _bt_state)
+            elif strategy_name == "ZGMT":
+                from modules.scannerzgmt import ScannerZGMT
+                # Ensure ZGMT is enabled for the backtest run
+                if isinstance(config.zgmt_scanner, dict):
+                    config.zgmt_scanner["enabled"] = True
+                scanner = ScannerZGMT(config, connector, _bt_state)
+            else:
+                from modules.scannermmxm import ScannerMMXM
+                scanner = ScannerMMXM(config, connector, _bt_state)
+
+            engine = BacktestEngine(config, connector, pair, scanner=scanner)
+            trades = engine.run()
             all_trades.extend(trades)
             logger.info(f"{pair}: {len(trades)} trades simulated.")
 

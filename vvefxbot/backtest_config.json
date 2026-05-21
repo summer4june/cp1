@@ -1,6 +1,9 @@
 {
   "_comment": "VvE FxBOT Backtest Configuration",
 
+  "_comment_strategy": "Choose which strategy to backtest: MMXM | OTE | ZGMT",
+  "strategy": "MMXM",
+
   "pairs": ["EURUSD", "GBPUSD"],
 
   "date_from": "2024-01-01",

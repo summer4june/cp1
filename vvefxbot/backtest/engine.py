@@ -17,7 +17,6 @@ import pytz
 from core.logger import get_logger
 from core.configengine import Config
 from core.stateengine import StateEngine
-from modules.scannermmxm import ScannerMMXM
 from modules.riskengine import RiskEngine
 from modules.correlationfilter import CorrelationFilter
 from modules.sessionengine import SessionEngine
@@ -102,12 +101,14 @@ class SimulatedTrade:
 
 class BacktestEngine:
     """
-    Runs the full MMXM strategy on historical M1/M15/H1 data.
+    Runs any strategy scanner on historical M1/M15/H1 data.
 
     Args:
         config (Config): Bot configuration.
         connector (BacktestConnector): Historical data connector.
         pair (str): Trading symbol to backtest.
+        scanner: An instantiated scanner object with a .scan(pair, session, killzone) method.
+                 Defaults to ScannerMMXM if not provided (backward-compatible).
         pip_value (float): USD value per pip per standard lot.
     """
 
@@ -116,6 +117,7 @@ class BacktestEngine:
         config: Config,
         connector: BacktestConnector,
         pair: str,
+        scanner=None,
         pip_value: float = 10.0,
     ):
         self.config = config
@@ -128,8 +130,13 @@ class BacktestEngine:
         # Create a minimal in-memory StateEngine for the scanner cooldown tracking
         self.state = StateEngine(":memory:")
 
-        # Plug BacktestConnector into scanner
-        self.scanner = ScannerMMXM(config, connector, self.state)
+        # Use injected scanner, or fall back to MMXM (backward-compatible)
+        if scanner is not None:
+            self.scanner = scanner
+        else:
+            from modules.scannermmxm import ScannerMMXM
+            self.scanner = ScannerMMXM(config, connector, self.state)
+
         self.risk_engine = RiskEngine(config, connector)
         self.corr_filter = CorrelationFilter(config)
         self.session_engine = HistoricalSessionEngine(config, connector)
@@ -215,6 +222,10 @@ class BacktestEngine:
 
             # Simulate trade entry
             lot = risk_result["lot_size"]
+            # Respect strategy-level fixed lot override if set in signal
+            fixed_lot = signal.get("fixed_lot_size", 0.0)
+            if fixed_lot and fixed_lot > 0.0:
+                lot = round(fixed_lot, 2)
             entry_price = current_bar["close"]   # Market order at bar close
             trade = SimulatedTrade(
                 trade_id=str(uuid.uuid4()),
