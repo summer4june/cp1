@@ -377,5 +377,53 @@ def test_backtest_engine_gold_trade_execution(mock_config):
     assert trade["profit_usd"] == 15.20
 
 
+def test_backtest_timezone_offset_handling():
+    """Verify that _fetch_from_mt5 adjusts query dates and returned times correctly by offset_hours."""
+    from unittest.mock import patch
+    import MetaTrader5 as mock_mt5
+    import importlib.util
+    import os
+    from datetime import datetime, timezone
+    
+    # Load backtest.py script dynamically to avoid name collision with backtest package
+    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backtest.py")
+    spec = importlib.util.spec_from_file_location("backtest_script", script_path)
+    backtest_script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(backtest_script)
+    _fetch_from_mt5 = backtest_script._fetch_from_mt5
+    
+    # Setup mock data for copy_rates_range
+    # Epoch time 1711930800 is 2024-04-01 00:20:00 UTC (or broker time 03:20:00)
+    mock_rates = [
+        {"time": 1711930800 + idx * 60, "open": 1.1000, "high": 1.1010, "low": 1.0990, "close": 1.1001, "tick_volume": 100}
+        for idx in range(10)
+    ]
+    
+    mock_mt5.copy_rates_range.return_value = mock_rates
+    mock_mt5.symbol_select.return_value = True
+    
+    date_from = datetime(2024, 4, 1, 0, 0, tzinfo=timezone.utc)
+    date_to = datetime(2024, 4, 1, 1, 0, tzinfo=timezone.utc)
+    
+    # Fetch with offset_hours = 3.0
+    df = _fetch_from_mt5("EURUSD", "M1", date_from, date_to, offset_hours=3.0)
+    
+    # 1. Assert copy_rates_range was called with times adjusted by +3 hours
+    # 2024-04-01 00:00:00 + 3h = 03:00:00
+    # 2024-04-01 01:00:00 + 3h = 04:00:00
+    args, kwargs = mock_mt5.copy_rates_range.call_args
+    # args: (symbol, timeframe, dt_from, dt_to)
+    assert args[0] == "EURUSD"
+    assert args[2] == datetime(2024, 4, 1, 3, 0)
+    assert args[3] == datetime(2024, 4, 1, 4, 0)
+    
+    # 2. Assert returned DataFrame time is shifted back by 3 hours
+    # Raw time in rates is 1711930800 -> 2024-04-01 00:20:00 UTC
+    # Shifted by -3 hours -> 2024-03-31 21:20:00 UTC
+    expected_time = pd.to_datetime(1711930800, unit="s", utc=True) - pd.to_timedelta(3.0, unit="h")
+    assert df.iloc[0]["time"] == expected_time
+
+
+
 
 

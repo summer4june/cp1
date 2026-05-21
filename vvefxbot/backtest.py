@@ -44,7 +44,7 @@ _TF_MAP = {
 }
 
 
-def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: datetime) -> pd.DataFrame:
+def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: datetime, offset_hours: float = 0.0) -> pd.DataFrame:
     """
     Pull historical OHLCV bars from the connected MT5 terminal.
 
@@ -53,6 +53,7 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
         timeframe (str): 'M1', 'M15', or 'H1'.
         date_from (datetime): UTC start datetime.
         date_to (datetime): UTC end datetime.
+        offset_hours (float): Timezone offset of the broker server relative to UTC.
 
     Returns:
         pd.DataFrame with columns: time, open, high, low, close, tick_volume
@@ -67,9 +68,14 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
 
     logger.info(f"Fetching {symbol} {timeframe} from MT5: {date_from.date()} → {date_to.date()}")
     
+    # Adjust query times to the broker's timezone to ensure we fetch the correct range
+    from datetime import timedelta
+    date_from_adj = date_from + timedelta(hours=offset_hours)
+    date_to_adj = date_to + timedelta(hours=offset_hours)
+
     # MT5 often requires naive datetime objects (no timezone)
-    dt_from = date_from.replace(tzinfo=None) if date_from.tzinfo else date_from
-    dt_to = date_to.replace(tzinfo=None) if date_to.tzinfo else date_to
+    dt_from = date_from_adj.replace(tzinfo=None) if date_from_adj.tzinfo else date_from_adj
+    dt_to = date_to_adj.replace(tzinfo=None) if date_to_adj.tzinfo else date_to_adj
     
     rates = mt5.copy_rates_range(symbol, tf, dt_from, dt_to)
 
@@ -87,7 +93,8 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
         )
 
     df = pd.DataFrame(rates)
-    df["time"] = pd.to_datetime(df["time"], unit="s", utc=True)
+    # Convert broker local times to actual UTC timestamps
+    df["time"] = pd.to_datetime(df["time"], unit="s", utc=True) - pd.to_timedelta(offset_hours, unit="h")
     df = df[["time", "open", "high", "low", "close", "tick_volume"]].copy()
     df.sort_values("time", inplace=True)
     df.reset_index(drop=True, inplace=True)
@@ -96,16 +103,16 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
     return df
 
 
-def fetch_all_timeframes(symbol: str, date_from: datetime, date_to: datetime) -> dict:
+def fetch_all_timeframes(symbol: str, date_from: datetime, date_to: datetime, offset_hours: float = 0.0) -> dict:
     """Fetch M1, M15, H1, D1 from MT5 for one symbol."""
     from datetime import timedelta
     # Fetch D1 starting 60 days before date_from to ensure enough history for D1 bias range
     d1_start = date_from - timedelta(days=60)
     return {
-        "M1":  _fetch_from_mt5(symbol, "M1",  date_from, date_to),
-        "M15": _fetch_from_mt5(symbol, "M15", date_from, date_to),
-        "H1":  _fetch_from_mt5(symbol, "H1",  date_from, date_to),
-        "D1":  _fetch_from_mt5(symbol, "D1",  d1_start, date_to),
+        "M1":  _fetch_from_mt5(symbol, "M1",  date_from, date_to, offset_hours),
+        "M15": _fetch_from_mt5(symbol, "M15", date_from, date_to, offset_hours),
+        "H1":  _fetch_from_mt5(symbol, "H1",  date_from, date_to, offset_hours),
+        "D1":  _fetch_from_mt5(symbol, "D1",  d1_start, date_to, offset_hours),
     }
 
 
@@ -161,7 +168,7 @@ def _resample(m1_df: pd.DataFrame, rule: str) -> pd.DataFrame:
 
 
 def load_from_csv(csv_dir: str, symbol: str,
-                  date_from: datetime, date_to: datetime) -> dict:
+                  date_from: datetime, date_to: datetime, offset_hours: float = 0.0) -> dict:
     """
     Load M1/M15/H1/D1 OHLCV from CSV files in csv_dir.
     Expected filenames: EURUSD_M1.csv, EURUSD_M15.csv, EURUSD_H1.csv, EURUSD_D1.csv
@@ -173,7 +180,10 @@ def load_from_csv(csv_dir: str, symbol: str,
         if not os.path.exists(path):
             return pd.DataFrame()
         logger.info(f"Loading CSV: {path}")
-        return _parse_csv(path)
+        df = _parse_csv(path)
+        if not df.empty and offset_hours != 0.0:
+            df["time"] = df["time"] - pd.to_timedelta(offset_hours, unit="h")
+        return df
 
     m1 = _load("M1")
     if m1.empty:
@@ -306,6 +316,11 @@ def main():
     date_from = datetime.fromisoformat(bt_config["date_from"]).replace(tzinfo=timezone.utc)
     date_to   = datetime.fromisoformat(bt_config["date_to"]).replace(tzinfo=timezone.utc)
 
+    # Load broker timezone offset
+    offset_hours = float(bt_config.get("broker_timezone_offset_hours", 0.0))
+    if offset_hours != 0.0:
+        logger.info(f"Applying broker server timezone offset of {offset_hours} hours to shift data to UTC.")
+
     # Strategy to backtest (default MMXM for backward-compatibility)
     strategy_name = bt_config.get("strategy", "MMXM").upper()
     valid_strategies = ["MMXM", "OTE", "ZGMT"]
@@ -368,9 +383,9 @@ def main():
             logger.info(f"\n{'='*50}\nBacktesting {pair}\n{'='*50}")
             try:
                 if ds_mode == "mt5":
-                    data = fetch_all_timeframes(pair, date_from, date_to)
+                    data = fetch_all_timeframes(pair, date_from, date_to, offset_hours)
                 else:  # csv
-                    data = load_from_csv(csv_dir, pair, date_from, date_to)
+                    data = load_from_csv(csv_dir, pair, date_from, date_to, offset_hours)
             except (RuntimeError, FileNotFoundError) as e:
                 logger.error(str(e))
                 print(f"⚠️  Skipping {pair}: {e}")

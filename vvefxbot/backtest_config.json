@@ -3,6 +3,7 @@
 
   "_comment_strategy": "Choose which strategy to backtest: MMXM | OTE | ZGMT",
   "strategy": "ZGMT",
+  "broker_timezone_offset_hours": 3.0,
 
   "pairs": ["XAUUSD"],
 
