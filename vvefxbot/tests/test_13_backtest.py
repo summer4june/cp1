@@ -14,6 +14,11 @@ def mock_config():
         enabled_scanners={"mmxm": True, "ote": False, "zgmt": False},
         ote_scanner={"enabled": False},
         zgmt_scanner={"enabled": False},
+        trade_management={
+            "partial_tp_enabled": True,
+            "partial_tp_fraction": 0.5,
+            "breakeven_buffer_pips": 30,
+        },
         pairs=["EURUSD"],
         session_timings={"London": {"start": "00:00", "end": "23:59"}},
         killzone_timings={"London": {"start": "00:00", "end": "23:59"}},

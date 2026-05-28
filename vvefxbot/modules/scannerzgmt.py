@@ -13,6 +13,7 @@ Strategy Reference: ICT 0-GMT Open Master Strategy
 """
 
 import uuid
+import pandas as pd
 from datetime import datetime, timezone, timedelta, time as dt_time
 from core.logger import get_logger
 from core.configengine import Config
@@ -44,6 +45,8 @@ class ScannerZGMT:
         self._daily_counts: dict = {}
         # Tracks daily status per pair: YYYY-MM-DD:PAIR -> True if finalized/invalidated
         self._daily_finalized: dict = {}
+        # Cached config section — also used by HTF OB exception methods
+        self.zgmt_cfg: dict = getattr(config, "zgmt_scanner", {})
 
     # ──────────────────────────────────────────────────────────────────
     # Internal helpers
@@ -581,6 +584,16 @@ class ScannerZGMT:
         # effective_rr_min check so the correct strategy RR is honoured in the risk engine.
         skip_rr_check = bool(zgmt_cfg.get("skip_rr_check", True))
 
+        # ── HTF OB Exception Override ─────────────────────────────────────
+        # Runs just before returning the 0-GMT signal.
+        # If a valid unmitigated HTF OB is active it takes institutional priority.
+        if zgmt_cfg.get("zgmt_exception_enabled", False):
+            ob_signal = self._check_htf_ob_exception(pair, session, killzone)
+            if ob_signal is not None:
+                logger.info(f"[{pair}] ZGMT-EXCEPTION: HTF OB overrides 0-GMT entry.")
+                return ob_signal
+            # ob_signal is None → no HTF OB conflict → fall through to 0-GMT signal
+
         return {
             "signal_id": signal_id,
             "pair": pair,
@@ -606,3 +619,378 @@ class ScannerZGMT:
             # Skip global effective_rr_min check — ZGMT enforces its own 1:2 RR by design
             "skip_rr_check": skip_rr_check,
         }
+
+    # ══════════════════════════════════════════════════════════════════
+    # HTF Order Block Exception — private methods
+    # ══════════════════════════════════════════════════════════════════
+
+    def _check_htf_ob_exception(self, pair: str, session: str, killzone: str) -> dict | None:
+        """
+        Checks if a valid unmitigated HTF Order Block on H4 or H1 overrides the 0-GMT setup.
+        Returns signal dict if valid OB found inside correct Fibonacci zone, else None.
+        """
+        zgmt_cfg = self.zgmt_cfg
+
+        h4_candles = self.mt5.get_candles(pair, "H4", count=zgmt_cfg.get("zgmt_ob_candles_4h", 50))
+        h1_candles = self.mt5.get_candles(pair, "H1", count=zgmt_cfg.get("zgmt_ob_candles_1h", 100))
+
+        h4_empty = h4_candles is None or (hasattr(h4_candles, 'empty') and h4_candles.empty)
+        h1_empty = h1_candles is None or (hasattr(h1_candles, 'empty') and h1_candles.empty)
+        if h4_empty and h1_empty:
+            return None
+
+        current_price = self.mt5.get_current_bid(pair)
+        if not current_price:
+            return None
+
+        symbol_point = self.mt5.get_symbol_point(pair)
+        tap_threshold = zgmt_cfg.get("zgmt_ob_tap_threshold_pips", 5) * symbol_point
+
+        all_obs = []
+        for df, tf in [(h4_candles, "H4"), (h1_candles, "H1")]:
+            if df is None or (hasattr(df, 'empty') and df.empty):
+                continue
+            df = df.reset_index(drop=True)
+            all_obs += self._detect_normal_ob(df, tf)
+            all_obs += self._detect_mitigation_block(df, tf)
+            all_obs += self._detect_breaker_block(df, tf)
+
+        if not all_obs:
+            return None
+
+        # Filter 1: unmitigated only
+        valid_obs = [ob for ob in all_obs if not ob["is_mitigated"]]
+        if not valid_obs:
+            return None
+
+        # Filter 2: price must currently be tapping into the OB zone
+        tapping_obs = [
+            ob for ob in valid_obs
+            if (ob["body_low"] - tap_threshold) <= current_price <= (ob["body_high"] + tap_threshold)
+        ]
+        if not tapping_obs:
+            return None
+
+        # Filter 3: OB must sit inside the correct Fibonacci premium / discount zone
+        fib_min = zgmt_cfg.get("zgmt_ob_fib_min", 0.50)
+        fib_max = zgmt_cfg.get("zgmt_ob_fib_max", 0.618)
+        swing_lookback = zgmt_cfg.get("zgmt_swing_lookback", 3)
+
+        fib_valid_obs = []
+        for ob in tapping_obs:
+            df = h4_candles if ob["timeframe"] == "H4" else h1_candles
+            if df is None or (hasattr(df, 'empty') and df.empty):
+                continue
+            df = df.reset_index(drop=True)
+            if self._is_ob_in_fib_zone(df, ob, swing_lookback, fib_min, fib_max):
+                fib_valid_obs.append(ob)
+
+        if not fib_valid_obs:
+            return None
+
+        # Select best OB: prefer H4 over H1, then most recent (highest candle_index)
+        fib_valid_obs.sort(key=lambda x: (0 if x["timeframe"] == "H4" else 1, -x["candle_index"]))
+        best_ob = fib_valid_obs[0]
+
+        direction = best_ob["direction"]
+        if direction == "BUY" and not zgmt_cfg.get("allow_buy", True):
+            return None
+        if direction == "SELL" and not zgmt_cfg.get("allow_sell", True):
+            return None
+
+        entry_price = best_ob["body_mid"]
+
+        # ADR-based dynamic SL
+        sl_distance = self._calculate_adr_sl(pair)
+        if not sl_distance or sl_distance <= 0:
+            return None
+
+        sl_pips = sl_distance / symbol_point
+        tp_pips = sl_pips * 2
+
+        if direction == "BUY":
+            sl_price = entry_price - sl_distance
+            tp_price = entry_price + (sl_distance * 2)
+        else:
+            sl_price = entry_price + sl_distance
+            tp_price = entry_price - (sl_distance * 2)
+
+        spread_pips = self.mt5.get_current_spread(pair)
+        denom = sl_pips + spread_pips
+        effective_rr = (tp_pips - spread_pips) / denom if denom > 0 else 0.0
+
+        zone_label = "PREMIUM" if direction == "SELL" else "DISCOUNT"
+
+        return {
+            "signal_id": str(uuid.uuid4()),
+            "pair": pair,
+            "session": session,
+            "timeframe_bias": best_ob["timeframe"],
+            "timeframe_entry": best_ob["timeframe"],
+            "direction": direction,
+            "bias_summary": (
+                f"ZGMT-EXCEPTION | {best_ob['ob_type']} OB | "
+                f"{best_ob['timeframe']} | Zone: {zone_label} | ADR SL"
+            ),
+            "entry_price": round(entry_price, 5),
+            "sl_price": round(sl_price, 5),
+            "tp1_price": round(tp_price, 5),   # TP1 = TP2 (single 2R target, no split)
+            "tp2_price": round(tp_price, 5),
+            "sl_pips": sl_pips,
+            "tp_pips": tp_pips,
+            "spread_pips": spread_pips,
+            "effective_rr": round(effective_rr, 3),
+            "score": float(zgmt_cfg.get("zgmt_exception_score", 68.0)),
+            "detected_time": datetime.now(timezone.utc).isoformat(),
+            "strategy": "ZGMT-EXCEPTION",
+            "setup_type": "ZGMT-EXCEPTION",
+            "fixed_lot_size": float(zgmt_cfg.get("fixed_lot_size", 0.0)),
+            "skip_rr_check": bool(zgmt_cfg.get("skip_rr_check", True)),
+        }
+
+    # ──────────────────────────────────────────────────────────────────
+
+    def _detect_normal_ob(self, df: pd.DataFrame, tf: str) -> list:
+        """
+        Detects Normal Order Blocks.
+        Bullish: last bearish candle before a strong bullish displacement (close > prior high).
+        Bearish: last bullish candle before a strong bearish displacement (close < prior low).
+        """
+        obs = []
+        for i in range(len(df) - 4):
+            candle = df.iloc[i]
+            body_high = max(float(candle['open']), float(candle['close']))
+            body_low  = min(float(candle['open']), float(candle['close']))
+            body_mid  = (body_high + body_low) / 2
+
+            # Bullish Normal OB: bearish candle followed by strong upward displacement
+            if candle['close'] < candle['open']:
+                for j in range(i + 1, min(i + 4, len(df))):
+                    if df.iloc[j]['close'] > candle['high']:
+                        is_mitigated = self._check_mitigated(df, i, "BUY", body_low)
+                        obs.append({
+                            "ob_type": "NORMAL",
+                            "direction": "BUY",
+                            "body_high": body_high,
+                            "body_low": body_low,
+                            "body_mid": body_mid,
+                            "candle_index": i,
+                            "timeframe": tf,
+                            "is_mitigated": is_mitigated,
+                        })
+                        break
+
+            # Bearish Normal OB: bullish candle followed by strong downward displacement
+            elif candle['close'] > candle['open']:
+                for j in range(i + 1, min(i + 4, len(df))):
+                    if df.iloc[j]['close'] < candle['low']:
+                        is_mitigated = self._check_mitigated(df, i, "SELL", body_high)
+                        obs.append({
+                            "ob_type": "NORMAL",
+                            "direction": "SELL",
+                            "body_high": body_high,
+                            "body_low": body_low,
+                            "body_mid": body_mid,
+                            "candle_index": i,
+                            "timeframe": tf,
+                            "is_mitigated": is_mitigated,
+                        })
+                        break
+        return obs
+
+    # ──────────────────────────────────────────────────────────────────
+
+    def _detect_mitigation_block(self, df: pd.DataFrame, tf: str) -> list:
+        """
+        Detects Mitigation Blocks: institutions revisit a prior imbalance zone
+        (deep 50%+ retracement) before continuing in the original direction.
+        Bullish: bullish move → retrace below midpoint → bullish continuation.
+        Bearish: bearish move → retrace above midpoint → bearish continuation.
+        """
+        obs = []
+        for i in range(5, len(df) - 5):
+            move_start = df.iloc[i - 5]
+            move_end   = df.iloc[i]
+            move_range = float(move_end['close']) - float(move_start['close'])
+
+            if abs(move_range) < float(df.iloc[i]['close']) * 0.001:
+                continue  # Negligibly small move
+
+            midpoint = float(move_start['close']) + move_range * 0.50
+
+            for j in range(i + 1, min(i + 6, len(df))):
+                retrace = df.iloc[j]
+
+                # Bullish mitigation: bullish move, retraced below midpoint
+                if move_range > 0 and float(retrace['low']) < midpoint:
+                    body_high = max(float(move_start['open']), float(move_start['close']))
+                    body_low  = min(float(move_start['open']), float(move_start['close']))
+                    body_mid  = (body_high + body_low) / 2
+                    obs.append({
+                        "ob_type": "MITIGATION",
+                        "direction": "BUY",
+                        "body_high": body_high,
+                        "body_low": body_low,
+                        "body_mid": body_mid,
+                        "candle_index": i - 5,
+                        "timeframe": tf,
+                        "is_mitigated": self._check_mitigated(df, i - 5, "BUY", body_low),
+                    })
+                    break
+
+                # Bearish mitigation: bearish move, retraced above midpoint
+                elif move_range < 0 and float(retrace['high']) > midpoint:
+                    body_high = max(float(move_start['open']), float(move_start['close']))
+                    body_low  = min(float(move_start['open']), float(move_start['close']))
+                    body_mid  = (body_high + body_low) / 2
+                    obs.append({
+                        "ob_type": "MITIGATION",
+                        "direction": "SELL",
+                        "body_high": body_high,
+                        "body_low": body_low,
+                        "body_mid": body_mid,
+                        "candle_index": i - 5,
+                        "timeframe": tf,
+                        "is_mitigated": self._check_mitigated(df, i - 5, "SELL", body_high),
+                    })
+                    break
+        return obs
+
+    # ──────────────────────────────────────────────────────────────────
+
+    def _detect_breaker_block(self, df: pd.DataFrame, tf: str) -> list:
+        """
+        Detects Breaker Blocks — failed OBs that flipped after a structure break.
+        Bullish Breaker: bearish OB that price later broke above → now acts as support.
+        Bearish Breaker: bullish OB that price later broke below → now acts as resistance.
+        """
+        normal_obs = self._detect_normal_ob(df, tf)
+        breakers = []
+
+        for ob in normal_obs:
+            idx = ob["candle_index"]
+            subsequent = df.iloc[idx + 1:]
+
+            if ob["direction"] == "SELL":
+                # Bullish Breaker: bearish OB that was broken to the upside
+                if len(subsequent) > 0 and any(subsequent['close'] > ob["body_high"]):
+                    breakers.append({
+                        "ob_type": "BREAKER",
+                        "direction": "BUY",
+                        "body_high": ob["body_high"],
+                        "body_low": ob["body_low"],
+                        "body_mid": ob["body_mid"],
+                        "candle_index": ob["candle_index"],
+                        "timeframe": tf,
+                        "is_mitigated": self._check_mitigated(df, idx, "BUY", ob["body_low"]),
+                    })
+
+            elif ob["direction"] == "BUY":
+                # Bearish Breaker: bullish OB that was broken to the downside
+                if len(subsequent) > 0 and any(subsequent['close'] < ob["body_low"]):
+                    breakers.append({
+                        "ob_type": "BREAKER",
+                        "direction": "SELL",
+                        "body_high": ob["body_high"],
+                        "body_low": ob["body_low"],
+                        "body_mid": ob["body_mid"],
+                        "candle_index": ob["candle_index"],
+                        "timeframe": tf,
+                        "is_mitigated": self._check_mitigated(df, idx, "SELL", ob["body_high"]),
+                    })
+
+        return breakers
+
+    # ──────────────────────────────────────────────────────────────────
+
+    def _check_mitigated(self, df: pd.DataFrame, ob_index: int, direction: str, level: float) -> bool:
+        """
+        Returns True if the OB has been mitigated (retested) by a subsequent candle.
+        BUY OB:  mitigated if any subsequent candle's low  <= body_low.
+        SELL OB: mitigated if any subsequent candle's high >= body_high.
+        """
+        subsequent = df.iloc[ob_index + 1:]
+        if len(subsequent) == 0:
+            return False
+        if direction == "BUY":
+            return bool(any(subsequent['low'] <= level))
+        else:
+            return bool(any(subsequent['high'] >= level))
+
+    # ──────────────────────────────────────────────────────────────────
+
+    def _is_ob_in_fib_zone(
+        self,
+        df: pd.DataFrame,
+        ob: dict,
+        swing_lookback: int,
+        fib_min: float,
+        fib_max: float,
+    ) -> bool:
+        """
+        Validates that the OB body_mid sits inside the correct Fibonacci
+        premium or discount zone (wick-to-wick swing high/low).
+
+        Bearish OB: must be in premium zone (above 50% Fib from high→low).
+        Bullish OB: must be in discount zone (below 50% Fib from low→high).
+        """
+        highs = df['high'].values
+        lows  = df['low'].values
+        n = len(df)
+
+        swing_high = None
+        swing_low  = None
+
+        for i in range(swing_lookback, n - swing_lookback):
+            # Swing high: wick higher than swing_lookback candles on each side
+            if (all(highs[i] > highs[i - k] for k in range(1, swing_lookback + 1)) and
+                    all(highs[i] > highs[i + k] for k in range(1, swing_lookback + 1))):
+                swing_high = float(highs[i])
+
+            # Swing low: wick lower than swing_lookback candles on each side
+            if (all(lows[i] < lows[i - k] for k in range(1, swing_lookback + 1)) and
+                    all(lows[i] < lows[i + k] for k in range(1, swing_lookback + 1))):
+                swing_low = float(lows[i])
+
+        if swing_high is None or swing_low is None or swing_high <= swing_low:
+            return False
+
+        fib_range = swing_high - swing_low
+
+        if ob["direction"] == "SELL":
+            # Premium zone: fib drawn from high → low.
+            # 50% from top = swing_high - fib_range * 0.50
+            # 61.8% from top = swing_high - fib_range * 0.618
+            fib_zone_top    = swing_high - fib_range * fib_min   # closer to high (50%)
+            fib_zone_bottom = swing_high - fib_range * fib_max   # deeper (61.8%)
+            return fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
+
+        else:  # BUY
+            # Discount zone: fib drawn from low → high.
+            # 50% from bottom = swing_low + fib_range * 0.50
+            # 61.8% from bottom = swing_low + fib_range * 0.618
+            fib_zone_bottom = swing_low + fib_range * fib_min    # 50%
+            fib_zone_top    = swing_low + fib_range * fib_max    # 61.8%
+            return fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
+
+    # ──────────────────────────────────────────────────────────────────
+
+    def _calculate_adr_sl(self, pair: str) -> float | None:
+        """
+        Dynamic SL using the previous 5-day ADR (wick-to-wick).
+        ADR = average of (daily high − daily low) over the last N completed days.
+        SL distance = ADR ÷ 2.
+        Returns price-unit distance, or None if data is insufficient.
+        """
+        adr_days = self.zgmt_cfg.get("zgmt_adr_days", 5)
+        d1 = self.mt5.get_candles(pair, "D1", count=adr_days + 2)
+
+        if d1 is None or len(d1) < adr_days + 1:
+            logger.warning(f"[{pair}] ZGMT-EXCEPTION: Insufficient D1 candles for ADR ({len(d1) if d1 is not None else 0} available).")
+            return None
+
+        # Index 0 is the current forming candle — skip it; use next adr_days completed candles
+        completed = d1.iloc[1: adr_days + 1]
+        daily_ranges = completed['high'] - completed['low']   # wick-to-wick as per strategy
+        adr = float(daily_ranges.mean())
+        return adr / 2  # SL = ADR ÷ 2

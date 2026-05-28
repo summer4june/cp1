@@ -261,6 +261,30 @@ class StateEngine:
             finally:
                 self._close_connection(conn)
 
+    def update_trade_current_sl(self, trade_id: str, new_sl: float) -> None:
+        """
+        Persists the current SL price after it has been moved (e.g. to BE+buffer).
+        Uses ALTER TABLE migration if the column doesn't exist yet.
+        """
+        with self.lock:
+            conn = self._get_connection()
+            try:
+                # Migration: add current_sl column if it doesn't exist
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(trades_executed)")
+                cols = [row[1] for row in cursor.fetchall()]
+                if "current_sl" not in cols:
+                    conn.execute("ALTER TABLE trades_executed ADD COLUMN current_sl REAL")
+                conn.execute(
+                    "UPDATE trades_executed SET current_sl = ? WHERE trade_id = ?",
+                    (new_sl, trade_id)
+                )
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Error updating current SL for trade {trade_id}: {e}")
+            finally:
+                self._close_connection(conn)
+
     def get_trade(self, trade_id: str) -> Optional[Dict[str, Any]]:
         """Fetches a full trade row from trades_executed by trade_id."""
         with self.lock:

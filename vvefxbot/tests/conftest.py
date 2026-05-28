@@ -62,6 +62,11 @@ def config_mock():
     config.max_open_trades = 5
     config.max_trades_day = 10
     config.max_trades_pair_day = 3
+    config.trade_management = {
+        "partial_tp_enabled": True,
+        "partial_tp_fraction": 0.5,
+        "breakeven_buffer_pips": 30,
+    }
     config.google_creds_path = "dummy.json"
     config.google_sheet_id = "dummy_id"
     config.mt5_login = "123"

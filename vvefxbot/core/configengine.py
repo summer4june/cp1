@@ -12,6 +12,7 @@ class Config:
     enabled_scanners: Dict[str, bool]
     ote_scanner: Dict[str, Any]
     zgmt_scanner: Dict[str, Any]
+    trade_management: Dict[str, Any]   # partial TP, BE buffer, etc.
     pairs: List[str]
     session_timings: Dict[str, Dict[str, str]]
     killzone_timings: Dict[str, Dict[str, str]]
@@ -87,6 +88,13 @@ class ConfigEngine:
             json_data["ote_scanner"] = {"enabled": False}
         if "zgmt_scanner" not in json_data:
             json_data["zgmt_scanner"] = {"enabled": False}
+        # trade_management — backward-compatible default
+        if "trade_management" not in json_data:
+            json_data["trade_management"] = {
+                "partial_tp_enabled": True,
+                "partial_tp_fraction": 0.5,
+                "breakeven_buffer_pips": 30,
+            }
 
         # Required config.json keys
         json_keys = [
@@ -207,6 +215,7 @@ class ConfigEngine:
             enabled_scanners=json_data["enabled_scanners"],
             ote_scanner=json_data["ote_scanner"],
             zgmt_scanner=json_data["zgmt_scanner"],
+            trade_management=json_data["trade_management"],
             pairs=json_data["pairs"],
             session_timings=json_data["session_timings"],
             killzone_timings=json_data["killzone_timings"],

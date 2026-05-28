@@ -167,6 +167,27 @@ class MT5Connector:
             return 0.01
         return 0.00001
 
+    def get_volume_step(self, symbol: str) -> float:
+        """
+        Returns the minimum volume step for a symbol (e.g. 0.01 on most brokers).
+        Used to round partial lots to a valid broker-supported size.
+        Falls back to 0.01 if symbol info is unavailable.
+        """
+        symbol_info = mt5.symbol_info(symbol)
+        if symbol_info and hasattr(symbol_info, "volume_step") and symbol_info.volume_step > 0:
+            return float(symbol_info.volume_step)
+        return 0.01  # Safe universal fallback
+
+    def get_current_bid(self, symbol: str) -> Optional[float]:
+        """
+        Returns the current bid price for a symbol.
+        Returns None if price data is unavailable.
+        """
+        tick = mt5.symbol_info_tick(symbol)
+        if tick:
+            return float(tick.bid)
+        return None
+
     def _get_filling_mode(self, symbol: str) -> int:
         """
         Detects the best supported filling mode for the given symbol.
