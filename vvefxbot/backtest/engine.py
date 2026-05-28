@@ -49,7 +49,10 @@ class SimulatedTrade:
         self, trade_id: str, signal_id: str, pair: str, direction: str,
         entry: float, sl: float, tp1: float, tp2: float,
         lot: float, bar_index: int, bar_time: datetime,
-        use_full_tp: bool = False,
+        pip_size: float = 0.0001,
+        use_partial_tp: bool = False,
+        partial_tp_fraction: float = 0.5,
+        be_buffer_pips: float = 30.0,
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
@@ -60,14 +63,18 @@ class SimulatedTrade:
         self.tp1 = tp1
         self.tp2 = tp2
         self.lot = lot
+        self.pip_size = pip_size
         self.open_bar = bar_index
         self.open_time = bar_time
         self.close_bar: Optional[int] = None
         self.close_time: Optional[datetime] = None
 
-        # use_full_tp=True: strategy says single 1:2 RR target — close full lot at TP2.
-        # use_full_tp=False: split half at TP1, run rest to TP2 (legacy MMXM behaviour).
-        self.use_full_tp = use_full_tp
+        # use_partial_tp=True  (ZGMT): close partial_tp_fraction at TP1,
+        #                              move SL to BE+buffer, close rest at TP2.
+        # use_partial_tp=False (MMXM legacy): same split logic, SL moves to exact BE.
+        self.use_partial_tp = use_partial_tp
+        self.partial_tp_fraction = partial_tp_fraction
+        self.be_buffer_pips = be_buffer_pips
 
         # State
         self.tp1_hit = False
@@ -77,7 +84,7 @@ class SimulatedTrade:
         self.status = "OPEN"    # OPEN | CLOSED
         self.result = None      # WIN | LOSS | BREAKEVEN
         self.profit_usd = 0.0
-        self.partial_profit = 0.0   # Locked at TP1 (only used when use_full_tp=False)
+        self.partial_profit = 0.0   # P&L locked at TP1 partial close
         self.exit_price = 0.0
         self.exit_reason = ""   # TP1, TP2, SL, BE_SL
 
@@ -175,6 +182,12 @@ class BacktestEngine:
         is_zgmt = (self.scanner.__class__.__name__ == "ScannerZGMT")
         w_start = None
         w_end = None
+
+        # Read trade-management config once for ZGMT partial TP simulation
+        tm_cfg = getattr(self.config, "trade_management", {})
+        bt_partial_tp_fraction = float(tm_cfg.get("partial_tp_fraction", 0.5))
+        bt_be_buffer_pips = float(tm_cfg.get("breakeven_buffer_pips", 30))
+
         if is_zgmt:
             zgmt_cfg = getattr(self.config, "zgmt_scanner", {})
             window_start_str = zgmt_cfg.get("zgmt_window_start_ist", "05:30")
@@ -321,7 +334,7 @@ class BacktestEngine:
                 fill_bar = m1_data.iloc[day_start_idx]
                 fill_time = fill_bar["time"]
 
-                # Strategy says RR=1:2 always — close full lot at TP2 (no TP1 split)
+                # Strategy: close partial_tp_fraction at TP1, move SL to BE+buffer, rest to TP2
                 trade = SimulatedTrade(
                     trade_id=str(uuid.uuid4()),
                     signal_id=signal_id,
@@ -334,7 +347,10 @@ class BacktestEngine:
                     lot=lot,
                     bar_index=day_start_idx,
                     bar_time=fill_time,
-                    use_full_tp=True,  # ZGMT: single 2R target, full lot
+                    pip_size=self.pip_size,
+                    use_partial_tp=True,
+                    partial_tp_fraction=bt_partial_tp_fraction,
+                    be_buffer_pips=bt_be_buffer_pips,
                 )
 
                 logger.info(
@@ -444,13 +460,13 @@ class BacktestEngine:
             tp2_hit = bar_low  <= trade.tp2
             tp1_hit = bar_low  <= trade.tp1
 
-        # ── SL hit — always takes priority ──────────────────────────────
+        # ── SL hit — always takes priority over TPs ──────────────────────
         if sl_hit:
             pips = self._calc_pips(trade.entry, trade.current_sl, direction)
             loss = round(pips * self.pip_value * trade.remaining_lot, 2)
             total_profit = trade.partial_profit + loss
             trade.status = "CLOSED"
-            # If SL was moved to BE (TP1 was hit), this is a breakeven — not a loss
+            # If SL was moved to BE+buffer (TP1 was hit), classify as BREAKEVEN
             trade.result = "BREAKEVEN" if trade.be_moved else "LOSS"
             trade.exit_reason = "SL_HIT"
             trade.exit_price = trade.current_sl
@@ -464,40 +480,82 @@ class BacktestEngine:
             )
             return True
 
-        # ── ZGMT mode: full lot, SL moves to BE at TP1, closes at TP2 ──────
-        # This matches the strategy: "once 1:1 RR hit, SL moves to BE"
-        if trade.use_full_tp:
-            # TP2 hit — close full lot at 2R (WIN)
-            if tp2_hit:
+        # ── ZGMT mode: partial close at TP1, SL to BE+buffer, rest to TP2 ──
+        if trade.use_partial_tp:
+
+            # ── TP2 already hit on a previous bar ─────────────────────────
+            if tp2_hit and trade.tp1_hit:
                 pips = self._calc_pips(trade.entry, trade.tp2, direction)
-                profit = round(pips * self.pip_value * trade.lot, 2)
+                tp2_profit = round(pips * self.pip_value * trade.remaining_lot, 2)
+                total_profit = trade.partial_profit + tp2_profit
                 trade.status = "CLOSED"
                 trade.result = "WIN"
                 trade.exit_reason = "TP2_HIT"
                 trade.exit_price = trade.tp2
-                trade.profit_usd = round(profit, 2)
+                trade.profit_usd = round(total_profit, 2)
                 trade.close_bar = bar_idx
                 trade.close_time = bar_time
                 self._closed_trades.append(trade)
                 logger.info(
-                    f"[BT] ✅ TP Hit (2R) | {trade.pair} | P&L: {trade.profit_usd:+.2f}"
+                    f"[BT] ✅ TP2 Hit | {trade.pair} | "
+                    f"TP1 partial: {trade.partial_profit:+.2f} | "
+                    f"TP2 remainder: {tp2_profit:+.2f} | "
+                    f"Total P&L: {total_profit:+.2f}"
                 )
                 return True
 
-            # TP1 hit (1R) — move SL to breakeven, let full lot run to TP2
+            # ── TP1 hit for the first time (may be same bar as TP2) ───────
             if tp1_hit and not trade.tp1_hit:
-                trade.tp1_hit = True
+                partial_lot   = round(trade.lot * trade.partial_tp_fraction, 8)
+                remainder_lot = round(trade.lot - partial_lot, 8)
+
+                pips_tp1   = self._calc_pips(trade.entry, trade.tp1, direction)
+                partial_pnl = round(pips_tp1 * self.pip_value * partial_lot, 2)
+
+                trade.partial_profit  = partial_pnl
+                trade.remaining_lot   = max(round(remainder_lot, 8), 0.0)
+                trade.tp1_hit  = True
                 trade.be_moved = True
-                trade.current_sl = trade.entry   # SL moves to entry (breakeven)
+
+                # Move SL to entry + buffer pips (not exact breakeven)
+                buffer = trade.be_buffer_pips * trade.pip_size
+                if direction == "BUY":
+                    trade.current_sl = round(trade.entry + buffer, 5)
+                else:
+                    trade.current_sl = round(trade.entry - buffer, 5)
+
                 logger.info(
-                    f"[BT] 📍 TP1 (1R) reached | {trade.pair} | "
-                    f"SL moved to BE @ {trade.entry:.5f} | Lot stays full"
+                    f"[BT] 📊 TP1 Hit | {trade.pair} | "
+                    f"Closed {partial_lot:.3f} lot @ {trade.tp1:.5f} | "
+                    f"P&L locked: {partial_pnl:+.2f} | "
+                    f"SL → BE+{trade.be_buffer_pips:.0f}pips @ {trade.current_sl:.5f} | "
+                    f"Remaining: {trade.remaining_lot:.3f} lot"
                 )
-                # Do NOT close — full position continues to TP2
+
+                # ── Same bar: TP2 also hit — close the remainder immediately
+                if tp2_hit:
+                    pips_tp2  = self._calc_pips(trade.entry, trade.tp2, direction)
+                    tp2_profit = round(pips_tp2 * self.pip_value * trade.remaining_lot, 2)
+                    total_profit = trade.partial_profit + tp2_profit
+                    trade.status = "CLOSED"
+                    trade.result = "WIN"
+                    trade.exit_reason = "TP2_HIT"
+                    trade.exit_price = trade.tp2
+                    trade.profit_usd = round(total_profit, 2)
+                    trade.close_bar = bar_idx
+                    trade.close_time = bar_time
+                    self._closed_trades.append(trade)
+                    logger.info(
+                        f"[BT] ✅ TP1+TP2 same bar | {trade.pair} | "
+                        f"TP1: {partial_pnl:+.2f} | TP2: {tp2_profit:+.2f} | "
+                        f"Total P&L: {total_profit:+.2f}"
+                    )
+                    return True
+                # Still open — monitor next bar for TP2
 
             return False
 
-        # ── Legacy split mode (MMXM): TP1 partial → TP2 full ────────────
+        # ── Legacy split mode (MMXM): TP1 partial → TP2 full, SL to exact BE ──
         # TP2 hit (after TP1 already hit)
         if tp2_hit and trade.tp1_hit:
             pips = self._calc_pips(trade.entry, trade.tp2, direction)
@@ -525,7 +583,7 @@ class BacktestEngine:
             trade.remaining_lot = max(0.01, round(trade.lot - half_lot, 2))
             trade.tp1_hit = True
             trade.be_moved = True
-            trade.current_sl = trade.entry   # SL moved to breakeven
+            trade.current_sl = trade.entry   # SL moved to exact breakeven
             logger.info(
                 f"[BT] 📊 TP1 Hit | {trade.pair} | "
                 f"Partial locked: {partial:+.2f} | SL → BE"

@@ -629,9 +629,160 @@ def test_zgmt_direct_entry_at_zgmt_price(mock_config):
         f"DIRECT entry must be at zgmt_price ({zgmt_price_open}), got {signal['entry_price']}"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ZGMT Partial-TP Backtest Logic Tests
+# Each test directly invokes BacktestEngine._check_exits() via a minimal helper
+# so we never need a scanner, config file, or MT5 connection.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _zgmt_engine(mock_config):
+    """Return a minimal BacktestEngine wired for XAUUSD (pip_size=0.01, pip_value=$1)."""
+    from backtest.engine import BacktestEngine, SimulatedTrade
+    from backtest.connector import BacktestConnector
+    from unittest.mock import MagicMock
+    import numpy as np
+
+    # Minimal 200-bar M1 dataset so the engine initialises without complaining
+    start = datetime(2026, 5, 1, tzinfo=timezone.utc)
+    times = [start + timedelta(minutes=i) for i in range(200)]
+    df = pd.DataFrame({
+        "time": times,
+        "open":  [3200.0] * 200,
+        "high":  [3205.0] * 200,
+        "low":   [3195.0] * 200,
+        "close": [3200.0] * 200,
+        "tick_volume": [100] * 200,
+    })
+
+    connector = BacktestConnector(mock_config, {"M1": df}, "XAUUSD")
+    engine = BacktestEngine(mock_config, connector, "XAUUSD", scanner=MagicMock(), pip_value=1.0)
+    return engine, SimulatedTrade
 
 
+def _make_zgmt_trade(SimulatedTrade, direction="BUY", lot=0.02):
+    """Build a fresh ZGMT SimulatedTrade for XAUUSD."""
+    pip_size = 0.01
+    entry = 3200.00
+    sl    = 3150.00   # 50 pips below  (BUY)
+    tp1   = 3250.00   # +50 pips  = 1R
+    tp2   = 3300.00   # +100 pips = 2R
+    if direction == "SELL":
+        sl, tp1, tp2 = 3250.00, 3150.00, 3100.00
 
+    return SimulatedTrade(
+        trade_id="T1", signal_id="S1", pair="XAUUSD",
+        direction=direction, entry=entry,
+        sl=sl, tp1=tp1, tp2=tp2,
+        lot=lot, bar_index=0,
+        bar_time=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        pip_size=pip_size,
+        use_partial_tp=True,
+        partial_tp_fraction=0.5,
+        be_buffer_pips=30,
+    )
+
+
+def _bar(high, low):
+    """Make a fake M1 bar Series."""
+    return pd.Series({"high": float(high), "low": float(low)})
+
+
+def _fake_time():
+    return datetime(2026, 5, 1, 1, 0, tzinfo=timezone.utc)
+
+
+# ── Test 1: Full WIN — TP1 bar then TP2 bar ─────────────────────────────────
+def test_zgmt_bt_full_win(mock_config):
+    """TP1 hit → partial closed → TP2 hit → WIN with combined P&L."""
+    engine, ST = _zgmt_engine(mock_config)
+    trade = _make_zgmt_trade(ST, "BUY", lot=0.02)
+
+    # Bar 1: price hits TP1 but NOT TP2
+    closed = engine._check_exits(trade, _bar(high=3255, low=3198), 1, _fake_time())
+    assert not closed,             "Should still be open after TP1"
+    assert trade.tp1_hit,          "tp1_hit must be set"
+    assert trade.be_moved,         "be_moved must be set"
+    assert trade.remaining_lot == pytest.approx(0.01)  # 50% closed
+    assert trade.partial_profit > 0                     # locked profit at TP1
+    assert trade.current_sl == pytest.approx(3200.30)  # entry + 30*0.01
+
+    # Bar 2: price hits TP2
+    closed = engine._check_exits(trade, _bar(high=3310, low=3295), 2, _fake_time())
+    assert closed,                 "Should be closed at TP2"
+    assert trade.result == "WIN"
+    assert trade.exit_reason == "TP2_HIT"
+    assert trade.profit_usd > 0
+
+
+# ── Test 2: LOSS — SL hit before TP1 ────────────────────────────────────────
+def test_zgmt_bt_loss_before_tp1(mock_config):
+    """SL hit before TP1 → full lot LOSS."""
+    engine, ST = _zgmt_engine(mock_config)
+    trade = _make_zgmt_trade(ST, "BUY", lot=0.02)
+
+    closed = engine._check_exits(trade, _bar(high=3210, low=3140), 1, _fake_time())
+    assert closed,                 "Should be closed at SL"
+    assert trade.result == "LOSS"
+    assert trade.exit_reason == "SL_HIT"
+    assert trade.profit_usd < 0   # net loss
+    assert not trade.tp1_hit
+
+
+# ── Test 3: BREAKEVEN — SL hit at BE+buffer after TP1 ───────────────────────
+def test_zgmt_bt_breakeven_after_tp1(mock_config):
+    """TP1 hit → SL moved to BE+30pips → SL hit → BREAKEVEN with positive total."""
+    engine, ST = _zgmt_engine(mock_config)
+    trade = _make_zgmt_trade(ST, "BUY", lot=0.02)
+
+    # Bar 1: hit TP1
+    engine._check_exits(trade, _bar(high=3255, low=3198), 1, _fake_time())
+    assert trade.tp1_hit
+    # New SL must be above entry (be_buffer makes it a small profit even at SL)
+    assert trade.current_sl == pytest.approx(3200.30)
+
+    # Bar 2: price dips to exactly BE+buffer SL
+    closed = engine._check_exits(trade, _bar(high=3205, low=3199), 2, _fake_time())
+    assert closed,                     "Should close at BE SL"
+    assert trade.result == "BREAKEVEN"
+    assert trade.profit_usd > 0        # TP1 profit > tiny SL loss at +30pip
+
+
+# ── Test 4: Same-bar TP1 + TP2 (big candle) ─────────────────────────────────
+def test_zgmt_bt_same_bar_tp1_tp2(mock_config):
+    """A single large candle hits both TP1 and TP2 — must close as WIN immediately."""
+    engine, ST = _zgmt_engine(mock_config)
+    trade = _make_zgmt_trade(ST, "BUY", lot=0.02)
+
+    # One bar whose high blows past both TP1 (3250) and TP2 (3300)
+    closed = engine._check_exits(trade, _bar(high=3310, low=3198), 1, _fake_time())
+    assert closed,                 "Must close when same bar hits both TP1+TP2"
+    assert trade.result == "WIN"
+    assert trade.exit_reason == "TP2_HIT"
+    assert trade.tp1_hit
+    assert trade.profit_usd > 0
+    # TP1 partial + TP2 remainder should both be positive
+    assert trade.partial_profit > 0
+
+
+# ── Test 5: SELL trade — TP1 hit → TP2 hit ─────────────────────────────────
+def test_zgmt_bt_sell_full_win(mock_config):
+    """SELL: TP1 = lower price, TP2 = even lower. Verify direction is handled correctly."""
+    engine, ST = _zgmt_engine(mock_config)
+    trade = _make_zgmt_trade(ST, "SELL", lot=0.02)
+    # SELL: entry=3200, sl=3250, tp1=3150, tp2=3100
+
+    # Bar 1: low drops to TP1
+    closed = engine._check_exits(trade, _bar(high=3202, low=3145), 1, _fake_time())
+    assert not closed
+    assert trade.tp1_hit
+    # SL should have moved DOWN from 3250 to entry - 30*pip = 3200 - 0.30 = 3199.70
+    assert trade.current_sl == pytest.approx(3199.70)
+
+    # Bar 2: low drops to TP2
+    closed = engine._check_exits(trade, _bar(high=3199, low=3090), 2, _fake_time())
+    assert closed
+    assert trade.result == "WIN"
+    assert trade.profit_usd > 0
 
 
 
