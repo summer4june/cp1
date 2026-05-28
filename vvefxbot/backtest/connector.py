@@ -59,16 +59,57 @@ class BacktestConnector:
     # ------------------------------------------------------------------
 
     def get_candles(self, symbol: str, timeframe: str, count: int = 100) -> pd.DataFrame:
-        """Return up to `count` historical bars ending at the current replay bar."""
+        """Return up to `count` historical bars ending at the current replay bar.
+
+        Auto-derives missing higher timeframes from available lower-timeframe data:
+          D1  ← M1   (daily OHLC from minute bars)
+          H4  ← H1   (4-hour OHLC from hourly bars)
+          H1  ← M15  (hourly OHLC from 15-minute bars, fallback only)
+        """
         df = self.data.get(timeframe)
 
-        # Auto-derive D1 from M1 if not pre-loaded (needed for ZGMT bias check)
+        # ── Auto-derive D1 from M1 ──────────────────────────────────────────
         if (df is None or (isinstance(df, pd.DataFrame) and df.empty)) and timeframe == "D1":
             m1 = self.data.get("M1", pd.DataFrame())
             if not m1.empty:
+                m1_indexed = m1.copy()
+                if not pd.api.types.is_datetime64_any_dtype(m1_indexed["time"]):
+                    m1_indexed["time"] = pd.to_datetime(m1_indexed["time"], utc=True)
                 df = (
-                    m1.set_index("time")
+                    m1_indexed.set_index("time")
                     .resample("1D")
+                    .agg({"open": "first", "high": "max", "low": "min",
+                          "close": "last", "tick_volume": "sum"})
+                    .dropna()
+                    .reset_index()
+                )
+
+        # ── Auto-derive H4 from H1 ──────────────────────────────────────────
+        if (df is None or (isinstance(df, pd.DataFrame) and df.empty)) and timeframe == "H4":
+            h1 = self.data.get("H1", pd.DataFrame())
+            if not h1.empty:
+                h1_indexed = h1.copy()
+                if not pd.api.types.is_datetime64_any_dtype(h1_indexed["time"]):
+                    h1_indexed["time"] = pd.to_datetime(h1_indexed["time"], utc=True)
+                df = (
+                    h1_indexed.set_index("time")
+                    .resample("4h")
+                    .agg({"open": "first", "high": "max", "low": "min",
+                          "close": "last", "tick_volume": "sum"})
+                    .dropna()
+                    .reset_index()
+                )
+
+        # ── Auto-derive H1 from M15 (fallback) ─────────────────────────────
+        if (df is None or (isinstance(df, pd.DataFrame) and df.empty)) and timeframe == "H1":
+            m15 = self.data.get("M15", pd.DataFrame())
+            if not m15.empty:
+                m15_indexed = m15.copy()
+                if not pd.api.types.is_datetime64_any_dtype(m15_indexed["time"]):
+                    m15_indexed["time"] = pd.to_datetime(m15_indexed["time"], utc=True)
+                df = (
+                    m15_indexed.set_index("time")
+                    .resample("1h")
                     .agg({"open": "first", "high": "max", "low": "min",
                           "close": "last", "tick_volume": "sum"})
                     .dropna()
@@ -80,7 +121,17 @@ class BacktestConnector:
             return pd.DataFrame()
 
         now = self.current_time()
-        available = df[df["time"] <= now].tail(count).reset_index(drop=True)
+        if not pd.api.types.is_datetime64_any_dtype(df["time"]):
+            df["time"] = pd.to_datetime(df["time"], utc=True)
+        if now.tzinfo is not None and hasattr(df["time"].iloc[0], "tzinfo"):
+            # Ensure timezone-aware comparison works
+            try:
+                available = df[df["time"] <= now].tail(count).reset_index(drop=True)
+            except TypeError:
+                df["time"] = df["time"].dt.tz_localize("UTC")
+                available = df[df["time"] <= now].tail(count).reset_index(drop=True)
+        else:
+            available = df[df["time"] <= now].tail(count).reset_index(drop=True)
         return available
 
     def get_current_spread(self, symbol: str) -> float:
@@ -108,6 +159,26 @@ class BacktestConnector:
         if "XAU" in symbol.upper():
             return 0.01
         return 0.00001
+
+    def get_current_bid(self, symbol: str) -> float:
+        """
+        Return the current bar's close as the bid price.
+        Used by ScannerZGMT._check_htf_ob_exception() during backtesting.
+        """
+        bar = self.data["M1"].iloc[self.current_bar_idx]
+        close = float(bar["close"])
+        # Subtract half spread to simulate bid (slightly below close)
+        half_spread = self.config.spread_limits.get(symbol, 1.5) * (
+            0.01 if ("JPY" in symbol.upper() or "XAU" in symbol.upper()) else 0.0001
+        ) / 2.0
+        return round(close - half_spread, 5)
+
+    def get_volume_step(self, symbol: str) -> float:
+        """
+        Return the minimum lot step for the symbol.
+        Broker minimum is typically 0.01 for retail MT5 accounts.
+        """
+        return 0.01
 
     def is_connected(self) -> bool:
         return True
