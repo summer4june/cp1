@@ -430,7 +430,7 @@ class BacktestEngine:
 
     def _check_exits(
         self,
-        trade: SimulatedTrade,
+        trade: "SimulatedTrade",
         bar: pd.Series,
         bar_idx: int,
         bar_time: datetime,
@@ -438,18 +438,14 @@ class BacktestEngine:
         """
         Check TP/SL exits for one trade against current bar OHLC.
 
-        Returns True if the trade was closed, False if still open.
-        Conservative assumption: if SL and TP hit same bar, SL wins.
-
-        Two modes:
-          use_full_tp=True  (ZGMT strategy — RR=1:2, single TP):
-            Close the FULL lot at TP2. No TP1 partial, no SL move to BE.
-          use_full_tp=False (MMXM — legacy split management):
-            Close half at TP1, move SL to BE, close rest at TP2.
+        Exit priority (matching MT5 limit-order fill semantics):
+          INITIAL phase (tp1_hit=False): SL beats TP1 on same bar (conservative).
+          RUNNER phase  (tp1_hit=True):  TP2 beats SL on same bar (optimistic).
+          SAME-BAR TP1+TP2: both processed immediately as WIN.
         """
         direction = trade.direction
-        bar_high = bar["high"]
-        bar_low = bar["low"]
+        bar_high  = bar["high"]
+        bar_low   = bar["low"]
 
         if direction == "BUY":
             sl_hit  = bar_low  <= trade.current_sl
@@ -460,64 +456,91 @@ class BacktestEngine:
             tp2_hit = bar_low  <= trade.tp2
             tp1_hit = bar_low  <= trade.tp1
 
-        # ── SL hit — always takes priority over TPs ──────────────────────
-        if sl_hit:
-            pips = self._calc_pips(trade.entry, trade.current_sl, direction)
-            loss = round(pips * self.pip_value * trade.remaining_lot, 2)
-            total_profit = trade.partial_profit + loss
-            trade.status = "CLOSED"
-            # If SL was moved to BE+buffer (TP1 was hit), classify as BREAKEVEN
-            trade.result = "BREAKEVEN" if trade.be_moved else "LOSS"
-            trade.exit_reason = "SL_HIT"
-            trade.exit_price = trade.current_sl
-            trade.profit_usd = round(total_profit, 2)
-            trade.close_bar = bar_idx
-            trade.close_time = bar_time
-            self._closed_trades.append(trade)
-            logger.info(
-                f"[BT] {'🔶' if trade.be_moved else '❌'} SL Hit | {trade.pair} | "
-                f"P&L: {trade.profit_usd:+.2f} | Result: {trade.result}"
-            )
-            return True
-
-        # ── ZGMT mode: partial close at TP1, SL to BE+buffer, rest to TP2 ──
+        # ══════════════════════════════════════════════════════════════════
+        # ZGMT partial-TP mode
+        # ══════════════════════════════════════════════════════════════════
         if trade.use_partial_tp:
 
-            # ── TP2 already hit on a previous bar ─────────────────────────
-            if tp2_hit and trade.tp1_hit:
-                pips = self._calc_pips(trade.entry, trade.tp2, direction)
-                tp2_profit = round(pips * self.pip_value * trade.remaining_lot, 2)
-                total_profit = trade.partial_profit + tp2_profit
-                trade.status = "CLOSED"
-                trade.result = "WIN"
-                trade.exit_reason = "TP2_HIT"
-                trade.exit_price = trade.tp2
-                trade.profit_usd = round(total_profit, 2)
-                trade.close_bar = bar_idx
-                trade.close_time = bar_time
+            # ── RUNNER PHASE: TP1 already hit on a previous bar ──────────
+            # TP2 is checked FIRST so a same-bar TP2+SL event credits the TP2.
+            if trade.tp1_hit:
+
+                if tp2_hit:
+                    # ✅ TP2 WIN — TP2 limit order filled within bar range
+                    pips      = self._calc_pips(trade.entry, trade.tp2, direction)
+                    tp2_pnl   = round(pips * self.pip_value * trade.remaining_lot, 2)
+                    total_pnl = trade.partial_profit + tp2_pnl
+                    trade.status      = "CLOSED"
+                    trade.result      = "WIN"
+                    trade.exit_reason = "TP2_HIT"
+                    trade.exit_price  = trade.tp2
+                    trade.profit_usd  = round(total_pnl, 2)
+                    trade.close_bar   = bar_idx
+                    trade.close_time  = bar_time
+                    self._closed_trades.append(trade)
+                    logger.info(
+                        f"[BT] ✅ TP2 Hit | {trade.pair} | "
+                        f"TP1 partial: {trade.partial_profit:+.2f} | "
+                        f"TP2 runner: {tp2_pnl:+.2f} | "
+                        f"Total P&L: {total_pnl:+.2f}"
+                    )
+                    return True
+
+                if sl_hit:
+                    # 🔶 Runner stopped — SL moved to BE+buffer, locked partial profit
+                    pips      = self._calc_pips(trade.entry, trade.current_sl, direction)
+                    sl_pnl    = round(pips * self.pip_value * trade.remaining_lot, 2)
+                    total_pnl = trade.partial_profit + sl_pnl
+                    trade.status      = "CLOSED"
+                    trade.result      = "BREAKEVEN"
+                    trade.exit_reason = "SL_HIT"
+                    trade.exit_price  = trade.current_sl
+                    trade.profit_usd  = round(total_pnl, 2)
+                    trade.close_bar   = bar_idx
+                    trade.close_time  = bar_time
+                    self._closed_trades.append(trade)
+                    logger.info(
+                        f"[BT] 🔶 Runner SL | {trade.pair} | "
+                        f"TP1 locked: {trade.partial_profit:+.2f} | "
+                        f"Runner SL: {sl_pnl:+.2f} @ {trade.current_sl:.5f} | "
+                        f"Total P&L: {total_pnl:+.2f}"
+                    )
+                    return True
+
+                return False   # Runner still alive — neither TP2 nor SL reached
+
+            # ── INITIAL PHASE: TP1 not yet hit ───────────────────────────
+            # Conservative: SL takes priority over TP1 on same bar.
+            if sl_hit:
+                pips      = self._calc_pips(trade.entry, trade.current_sl, direction)
+                loss      = round(pips * self.pip_value * trade.remaining_lot, 2)
+                trade.status      = "CLOSED"
+                trade.result      = "LOSS"
+                trade.exit_reason = "SL_HIT"
+                trade.exit_price  = trade.current_sl
+                trade.profit_usd  = round(loss, 2)
+                trade.close_bar   = bar_idx
+                trade.close_time  = bar_time
                 self._closed_trades.append(trade)
                 logger.info(
-                    f"[BT] ✅ TP2 Hit | {trade.pair} | "
-                    f"TP1 partial: {trade.partial_profit:+.2f} | "
-                    f"TP2 remainder: {tp2_profit:+.2f} | "
-                    f"Total P&L: {total_profit:+.2f}"
+                    f"[BT] ❌ SL Hit (pre-TP1) | {trade.pair} | "
+                    f"P&L: {loss:+.2f}"
                 )
                 return True
 
-            # ── TP1 hit for the first time (may be same bar as TP2) ───────
-            if tp1_hit and not trade.tp1_hit:
+            if tp1_hit:
+                # Process TP1 partial close
                 partial_lot   = round(trade.lot * trade.partial_tp_fraction, 8)
                 remainder_lot = round(trade.lot - partial_lot, 8)
+                pips_tp1      = self._calc_pips(trade.entry, trade.tp1, direction)
+                partial_pnl   = round(pips_tp1 * self.pip_value * partial_lot, 2)
 
-                pips_tp1   = self._calc_pips(trade.entry, trade.tp1, direction)
-                partial_pnl = round(pips_tp1 * self.pip_value * partial_lot, 2)
-
-                trade.partial_profit  = partial_pnl
-                trade.remaining_lot   = max(round(remainder_lot, 8), 0.0)
+                trade.partial_profit = partial_pnl
+                trade.remaining_lot  = max(round(remainder_lot, 8), 0.0)
                 trade.tp1_hit  = True
                 trade.be_moved = True
 
-                # Move SL to entry + buffer pips (not exact breakeven)
+                # Move SL to entry + buffer pips
                 buffer = trade.be_buffer_pips * trade.pip_size
                 if direction == "BUY":
                     trade.current_sl = round(trade.entry + buffer, 5)
@@ -532,63 +555,81 @@ class BacktestEngine:
                     f"Remaining: {trade.remaining_lot:.3f} lot"
                 )
 
-                # ── Same bar: TP2 also hit — close the remainder immediately
+                # Same-bar TP2 hit: close remainder immediately
                 if tp2_hit:
                     pips_tp2  = self._calc_pips(trade.entry, trade.tp2, direction)
-                    tp2_profit = round(pips_tp2 * self.pip_value * trade.remaining_lot, 2)
-                    total_profit = trade.partial_profit + tp2_profit
-                    trade.status = "CLOSED"
-                    trade.result = "WIN"
+                    tp2_pnl   = round(pips_tp2 * self.pip_value * trade.remaining_lot, 2)
+                    total_pnl = trade.partial_profit + tp2_pnl
+                    trade.status      = "CLOSED"
+                    trade.result      = "WIN"
                     trade.exit_reason = "TP2_HIT"
-                    trade.exit_price = trade.tp2
-                    trade.profit_usd = round(total_profit, 2)
-                    trade.close_bar = bar_idx
-                    trade.close_time = bar_time
+                    trade.exit_price  = trade.tp2
+                    trade.profit_usd  = round(total_pnl, 2)
+                    trade.close_bar   = bar_idx
+                    trade.close_time  = bar_time
                     self._closed_trades.append(trade)
                     logger.info(
                         f"[BT] ✅ TP1+TP2 same bar | {trade.pair} | "
-                        f"TP1: {partial_pnl:+.2f} | TP2: {tp2_profit:+.2f} | "
-                        f"Total P&L: {total_profit:+.2f}"
+                        f"TP1: {partial_pnl:+.2f} | TP2: {tp2_pnl:+.2f} | "
+                        f"Total P&L: {total_pnl:+.2f}"
                     )
                     return True
-                # Still open — monitor next bar for TP2
 
-            return False
+            return False   # Still open
 
-        # ── Legacy split mode (MMXM): TP1 partial → TP2 full, SL to exact BE ──
-        # TP2 hit (after TP1 already hit)
+        # ══════════════════════════════════════════════════════════════════
+        # Legacy MMXM split mode: SL always takes priority (conservative)
+        # ══════════════════════════════════════════════════════════════════
+        if sl_hit:
+            pips      = self._calc_pips(trade.entry, trade.current_sl, direction)
+            loss      = round(pips * self.pip_value * trade.remaining_lot, 2)
+            total_pnl = trade.partial_profit + loss
+            trade.status      = "CLOSED"
+            trade.result      = "BREAKEVEN" if trade.be_moved else "LOSS"
+            trade.exit_reason = "SL_HIT"
+            trade.exit_price  = trade.current_sl
+            trade.profit_usd  = round(total_pnl, 2)
+            trade.close_bar   = bar_idx
+            trade.close_time  = bar_time
+            self._closed_trades.append(trade)
+            logger.info(
+                f"[BT] {'🔶' if trade.be_moved else '❌'} SL Hit | {trade.pair} | "
+                f"P&L: {trade.profit_usd:+.2f} | Result: {trade.result}"
+            )
+            return True
+
+        # MMXM: TP2 hit (after TP1 already hit)
         if tp2_hit and trade.tp1_hit:
-            pips = self._calc_pips(trade.entry, trade.tp2, direction)
-            tp2_profit = round(pips * self.pip_value * trade.remaining_lot, 2)
-            total_profit = trade.partial_profit + tp2_profit
-            trade.status = "CLOSED"
-            trade.result = "WIN"
+            pips      = self._calc_pips(trade.entry, trade.tp2, direction)
+            tp2_pnl   = round(pips * self.pip_value * trade.remaining_lot, 2)
+            total_pnl = trade.partial_profit + tp2_pnl
+            trade.status      = "CLOSED"
+            trade.result      = "WIN"
             trade.exit_reason = "TP2_HIT"
-            trade.exit_price = trade.tp2
-            trade.profit_usd = round(total_profit, 2)
-            trade.close_bar = bar_idx
-            trade.close_time = bar_time
+            trade.exit_price  = trade.tp2
+            trade.profit_usd  = round(total_pnl, 2)
+            trade.close_bar   = bar_idx
+            trade.close_time  = bar_time
             self._closed_trades.append(trade)
             logger.info(
                 f"[BT] ✅ TP2 Hit | {trade.pair} | P&L: {trade.profit_usd:+.2f}"
             )
             return True
 
-        # TP1 hit (first time)
+        # MMXM: TP1 hit (first time)
         if tp1_hit and not trade.tp1_hit:
             half_lot = max(0.01, round(trade.lot / 2, 2))
-            pips = self._calc_pips(trade.entry, trade.tp1, direction)
-            partial = round(pips * self.pip_value * half_lot, 2)
+            pips     = self._calc_pips(trade.entry, trade.tp1, direction)
+            partial  = round(pips * self.pip_value * half_lot, 2)
             trade.partial_profit = partial
-            trade.remaining_lot = max(0.01, round(trade.lot - half_lot, 2))
-            trade.tp1_hit = True
+            trade.remaining_lot  = max(0.01, round(trade.lot - half_lot, 2))
+            trade.tp1_hit  = True
             trade.be_moved = True
-            trade.current_sl = trade.entry   # SL moved to exact breakeven
+            trade.current_sl = trade.entry   # MMXM: SL to exact BE
             logger.info(
                 f"[BT] 📊 TP1 Hit | {trade.pair} | "
                 f"Partial locked: {partial:+.2f} | SL → BE"
             )
-            # Not closed yet — continue monitoring for TP2
 
         return False
 
