@@ -753,6 +753,7 @@ class ScannerZGMT:
             "pair": pair,
             "session": session,
             "entry_leg": "A",
+            "entry_mode": "DIRECT",
             "timeframe_bias": best_ob["timeframe"],
             "timeframe_entry": best_ob["timeframe"],
             "direction": direction,

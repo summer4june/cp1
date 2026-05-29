@@ -343,7 +343,7 @@ class BacktestEngine:
                 # at the 00:00 bar and replay exit checks for the intervening bars.
                 # For other strategies: market-order fill at bar close (existing behaviour).
                 signal_entry = signal.get("entry_price", current_bar["close"])
-                is_zgmt_signal = (signal.get("strategy") == "ZGMT")
+                is_zgmt_signal = signal.get("strategy", "").startswith("ZGMT")
 
                 if is_zgmt_signal:
                     entry_price = signal_entry  # Fill at the exact 0 GMT price
