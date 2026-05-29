@@ -222,6 +222,14 @@ def load_from_csv(csv_dir: str, symbol: str,
 # REPORT GENERATION
 # ──────────────────────────────────────────────────────────────────────
 
+def _pip_size_for_pair(pair: str) -> float:
+    """Return correct pip size (0.01 for JPY/XAU, 0.0001 otherwise)."""
+    p = pair.upper()
+    if "JPY" in p or "XAU" in p:
+        return 0.01
+    return 0.0001
+
+
 def generate_report(all_trades: list, bt_config: dict) -> None:
     """Print summary and save CSV for all trades across all pairs."""
     date_from = bt_config["date_from"]
@@ -233,13 +241,34 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
         return
 
     df = pd.DataFrame(all_trades)
+
+    # ── Add pip-correct SL/TP distance columns ───────────────────────────
+    # The raw price columns (entry_price, sl_price, tp1_price, tp2_price)
+    # are already in to_dict(). Compute pip distances using correct pip size.
+    def _add_pip_cols(row):
+        ps    = _pip_size_for_pair(row["pair"])
+        entry = float(row.get("entry_price", row.get("entry", 0)))
+        sl    = float(row.get("sl_price",    row.get("sl",    0)))
+        tp1   = float(row.get("tp1_price",   row.get("tp1",   0)))
+        tp2   = float(row.get("tp2_price",   row.get("tp2",   0)))
+        return pd.Series({
+            "sl_pips":  round(abs(entry - sl)  / ps, 1),
+            "tp1_pips": round(abs(entry - tp1) / ps, 1),
+            "tp2_pips": round(abs(entry - tp2) / ps, 1),
+        })
+
+    pip_cols = df.apply(_add_pip_cols, axis=1)
+    df = pd.concat([df, pip_cols], axis=1)
+
+    # ── Aggregate stats ──────────────────────────────────────────────────
     total      = len(df)
     wins       = len(df[df["result"] == "WIN"])
     losses     = len(df[df["result"] == "LOSS"])
     breakevens = len(df[df["result"] == "BREAKEVEN"])
+    tp2_hits   = len(df[df["exit_reason"] == "TP2_HIT"])
     win_rate   = round(wins / total * 100, 1) if total else 0.0
     net_pnl    = round(df["profit_usd"].sum(), 2)
-    avg_win    = round(df[df["result"] == "WIN"]["profit_usd"].mean(), 2) if wins else 0.0
+    avg_win    = round(df[df["result"] == "WIN"]["profit_usd"].mean(),  2) if wins   else 0.0
     avg_loss   = round(df[df["result"] == "LOSS"]["profit_usd"].mean(), 2) if losses else 0.0
 
     gross_profit = df[df["profit_usd"] > 0]["profit_usd"].sum()
@@ -252,13 +281,13 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     pairs_tested = ", ".join(sorted(df["pair"].unique()))
 
     print()
-    print("=" * 65)
+    print("=" * 70)
     print(f"  VvE FxBOT — {strategy_label} BACKTEST REPORT")
     print(f"  Pairs  : {pairs_tested}")
     print(f"  Period : {date_from}  →  {date_to}")
-    print("=" * 65)
+    print("=" * 70)
     print(f"  Total Trades   : {total}")
-    print(f"  Wins           : {wins}  ({win_rate}%)")
+    print(f"  Wins (TP2 Hit) : {wins}  ({win_rate}%)  |  TP2 Hit: {tp2_hits}  ({round(tp2_hits/total*100,1) if total else 0}%)")
     print(f"  Losses         : {losses}")
     print(f"  Breakeven      : {breakevens}")
     print(f"  Net P&L        : ${net_pnl:+.2f}")
@@ -266,21 +295,28 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     print(f"  Avg Loss       : ${avg_loss:+.2f}")
     print(f"  Profit Factor  : {pf}")
     print(f"  Max Drawdown   : ${max_dd:.2f}")
-    print("=" * 65)
+    print("=" * 70)
     print()
 
-    # Per-pair breakdown
+    # Per-pair breakdown with TP2 hit rate
+    print(f"  {'Pair':<10}  {'Trades':>6}  {'Win%':>6}  {'TP2%':>6}  {'WIN':>5}  {'LOSS':>5}  {'BE':>5}  {'P&L':>9}  {'SL(pips)':>9}")
+    print("  " + "-" * 73)
     for pair, grp in df.groupby("pair"):
-        w = len(grp[grp["result"] == "WIN"])
-        l = len(grp[grp["result"] == "LOSS"])
+        n   = len(grp)
+        w   = len(grp[grp["result"] == "WIN"])
+        l   = len(grp[grp["result"] == "LOSS"])
+        be  = len(grp[grp["result"] == "BREAKEVEN"])
+        tp2 = len(grp[grp["exit_reason"] == "TP2_HIT"])
         pnl = round(grp["profit_usd"].sum(), 2)
-        wr  = round(w / len(grp) * 100, 1) if len(grp) else 0
-        print(f"  {pair:<10}  {len(grp):>3} trades | Win: {wr}% | P&L: ${pnl:+.2f}")
+        wr  = round(w  / n * 100, 1) if n else 0
+        tp2r = round(tp2 / n * 100, 1) if n else 0
+        sl_mean = round(grp["sl_pips"].mean(), 1) if "sl_pips" in grp else 0
+        print(f"  {pair:<10}  {n:>6}  {wr:>5.1f}%  {tp2r:>5.1f}%  {w:>5}  {l:>5}  {be:>5}  ${pnl:>+8.2f}  {sl_mean:>9.1f}")
     print()
 
     # Trade table
-    print(df[["open_time", "pair", "direction", "entry", "lot",
-               "exit_reason", "result", "profit_usd"]].to_string(index=False))
+    print(df[["open_time", "pair", "direction", "entry_price", "lot",
+               "sl_pips", "tp2_pips", "exit_reason", "result", "profit_usd"]].to_string(index=False))
     print()
 
     # Save CSV
@@ -290,6 +326,7 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     if bt_config.get("report", {}).get("save_csv", True):
         df.to_csv(out_path, index=False)
         print(f"  ✅ Full results saved: {out_path}\n")
+
 
 
 # ──────────────────────────────────────────────────────────────────────

@@ -44,18 +44,21 @@ def mock_config():
         google_creds_path="creds.json"
     )
 
-def create_dummy_ohlc(start_time, num_bars, freq):
-    """Creates a dummy DataFrame for testing."""
+def create_dummy_ohlc(start_time, num_bars, freq, base_price: float = 1.1000):
+    """Creates a dummy DataFrame for testing. base_price allows simulating different instruments."""
     times = [start_time + i * freq for i in range(num_bars)]
+    bp = base_price
+    spread = bp * 0.0005  # ~0.05% spread for realistic OHLC
     data = {
         "time": times,
-        "open": np.linspace(1.1000, 1.1100, num_bars),
-        "high": np.linspace(1.1005, 1.1105, num_bars),
-        "low": np.linspace(1.0995, 1.1095, num_bars),
-        "close": np.linspace(1.1001, 1.1101, num_bars),
+        "open":  np.linspace(bp,          bp + bp * 0.01, num_bars),
+        "high":  np.linspace(bp + spread, bp + bp * 0.01 + spread, num_bars),
+        "low":   np.linspace(bp - spread, bp + bp * 0.01 - spread, num_bars),
+        "close": np.linspace(bp,          bp + bp * 0.01, num_bars),
         "tick_volume": [100] * num_bars
     }
     return pd.DataFrame(data)
+
 
 def test_backtest_connector_initialization(mock_config):
     start = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -275,15 +278,35 @@ def test_backtest_engine_gold_initialization(mock_config):
     data = {"M1": m1_df, "M15": m1_df, "H1": m1_df}
     connector = BacktestConnector(mock_config, data, "XAUUSD")
     
-    # 1. Standard initialization with default 10.0 pip_value parameter (which should be overridden to 1.0)
+    # 1. Standard initialization with default 10.0 pip_value parameter (should be overridden to 1.0)
     engine = BacktestEngine(mock_config, connector, "XAUUSD")
-    assert engine.pip_size == 0.01
+    assert engine.pip_size  == 0.01
     assert engine.pip_value == 1.0
-    
-    # 2. Custom pip_value should not be overridden if it was passed specifically (e.g. non-default)
+
+    # 2. Gold pip_value is always forced to 1.0 (contract-fixed) regardless of argument
     engine_custom = BacktestEngine(mock_config, connector, "XAUUSD", pip_value=1.5)
-    assert engine_custom.pip_size == 0.01
-    assert engine_custom.pip_value == 1.5
+    assert engine_custom.pip_size  == 0.01
+    assert engine_custom.pip_value == 1.0   # always 1.0 for XAUUSD
+
+
+def test_backtest_engine_jpy_initialization(mock_config):
+    """Verifies that JPY pairs use pip_size=0.01 and dynamic pip_value (~1000/price)."""
+    # GBPJPY at ~190 → pip_value ≈ 1000/190 ≈ 5.26
+    start = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    m1_df = create_dummy_ohlc(start, 150, timedelta(minutes=1), base_price=190.0)
+    data = {"M1": m1_df, "M15": m1_df, "H1": m1_df}
+
+    for jpy_pair in ["GBPJPY", "USDJPY", "EURJPY"]:
+        connector = BacktestConnector(mock_config, data, jpy_pair)
+        engine = BacktestEngine(mock_config, connector, jpy_pair)
+
+        assert engine.pip_size == 0.01, f"{jpy_pair}: pip_size should be 0.01"
+        # pip_value should be ~1000/190 ≈ 5.26, definitely NOT 10.0
+        assert engine.pip_value != 10.0, f"{jpy_pair}: pip_value should not be default 10.0"
+        assert 3.0 < engine.pip_value < 15.0, (
+            f"{jpy_pair}: pip_value {engine.pip_value} out of realistic range (3-15) for price ~190"
+        )
+
 
 
 def test_backtest_engine_gold_trade_execution(mock_config):

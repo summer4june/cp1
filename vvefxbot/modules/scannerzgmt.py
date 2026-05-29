@@ -709,11 +709,13 @@ class ScannerZGMT:
         tp_pips = sl_pips * 2
 
         if direction == "BUY":
-            sl_price = entry_price - sl_distance
-            tp_price = entry_price + (sl_distance * 2)
+            sl_price  = entry_price - sl_distance
+            tp1_price = entry_price + sl_distance          # TP1 = 1R
+            tp_price  = entry_price + (sl_distance * 2)   # TP2 = 2R
         else:
-            sl_price = entry_price + sl_distance
-            tp_price = entry_price - (sl_distance * 2)
+            sl_price  = entry_price + sl_distance
+            tp1_price = entry_price - sl_distance          # TP1 = 1R
+            tp_price  = entry_price - (sl_distance * 2)   # TP2 = 2R
 
         spread_pips = self.mt5.get_current_spread(pair)
         denom = sl_pips + spread_pips
@@ -733,9 +735,9 @@ class ScannerZGMT:
                 f"{best_ob['timeframe']} | Zone: {zone_label} | ADR SL"
             ),
             "entry_price": round(entry_price, 5),
-            "sl_price": round(sl_price, 5),
-            "tp1_price": round(tp_price, 5),   # TP1 = TP2 (single 2R target, no split)
-            "tp2_price": round(tp_price, 5),
+            "sl_price":    round(sl_price,    5),
+            "tp1_price":   round(tp1_price,   5),   # TP1 = 1R (partial close here)
+            "tp2_price":   round(tp_price,    5),   # TP2 = 2R (runner target)
             "sl_pips": sl_pips,
             "tp_pips": tp_pips,
             "spread_pips": spread_pips,

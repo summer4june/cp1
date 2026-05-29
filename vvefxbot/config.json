@@ -4,7 +4,7 @@
   "trade_management": {
     "partial_tp_enabled": true,
     "partial_tp_fraction": 0.5,
-    "breakeven_buffer_pips": 30
+    "breakeven_buffer_pips": 5
   },
 
   "enabled_scanners": {

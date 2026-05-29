@@ -94,6 +94,10 @@ class SimulatedTrade:
             "signal_id": self.signal_id,
             "pair": self.pair,
             "direction": self.direction,
+            "entry_price": round(self.entry, 5),
+            "sl_price": round(self.sl, 5),
+            "tp1_price": round(self.tp1, 5),
+            "tp2_price": round(self.tp2, 5),
             "entry": round(self.entry, 5),
             "sl": round(self.sl, 5),
             "tp1": round(self.tp1, 5),
@@ -135,12 +139,41 @@ class BacktestEngine:
         self.config = config
         self.connector = connector
         self.pair = pair
-        
-        if "XAU" in pair.upper() and pip_value == 10.0:
-            pip_value = 1.0
-        self.pip_value = pip_value
 
-        self.pip_size = 0.01 if ("JPY" in pair.upper() or "XAU" in pair.upper()) else 0.0001
+        # ── Pip value: USD profit per pip per standard lot (100k units) ──────
+        # XAUUSD: 1 pip = 0.01 USD/oz, lot = 100 oz → $1.00/pip
+        # JPY pairs: 1 pip = 0.01 JPY, pip value = 1000/price USD/pip (approx)
+        # USD-quoted pairs: 1 pip = 0.0001, lot = 100k → $10.00/pip
+        pair_upper = pair.upper()
+        if "XAU" in pair_upper:
+            self.pip_value = 1.0
+        elif "JPY" in pair_upper:
+            # Dynamic: fetch current price for accurate per-pip USD value
+            try:
+                candles = connector.get_candles(pair, "M1", count=1)
+                if candles is not None and not candles.empty:
+                    price = float(candles.iloc[-1]["close"])
+                    self.pip_value = round(1000.0 / price, 4) if price else 9.2
+                else:
+                    self.pip_value = 9.2  # ~1000/109 fallback (USDJPY ~155 → ~6.45)
+            except Exception:
+                self.pip_value = 9.2
+        else:
+            self.pip_value = pip_value  # $10 default for USD-quoted pairs
+
+        self.pip_size = 0.01 if ("JPY" in pair_upper or "XAU" in pair_upper) else 0.0001
+
+        # Warn if breakeven buffer > TP1 distance (structural runner issue)
+        tm_cfg_init = getattr(config, "trade_management", {})
+        be_buf = float(tm_cfg_init.get("breakeven_buffer_pips", 30))
+        sl_fx  = float(getattr(config, "zgmt_scanner", {}).get("sl_pips_fx", 25))
+        if be_buf > sl_fx and "XAU" not in pair_upper:
+            logger.warning(
+                f"[BT] ⚠️  breakeven_buffer_pips ({be_buf:.0f}) > sl_pips_fx ({sl_fx:.0f}) for {pair}. "
+                f"Runner SL will be placed {be_buf - sl_fx:.0f} pips ABOVE TP1, "
+                f"causing almost all runners to stop immediately. "
+                f"Consider setting breakeven_buffer_pips <= {sl_fx:.0f} in config.json."
+            )
 
         # Create a minimal in-memory StateEngine for the scanner cooldown tracking
         self.state = StateEngine(":memory:")
