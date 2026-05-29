@@ -64,6 +64,12 @@ class CorrelationFilter:
             
         for trade in open_trades:
             open_pair = trade.get("pair")
+            
+            # Allow multiple legs on the exact same pair (e.g., ZGMT Leg A and Leg B).
+            # The 'max_trades_pair_day' and 'max_open_trades' config limits will handle same-pair caps.
+            if open_pair == pair:
+                continue
+                
             open_direction = trade.get("direction")
             open_group = self.get_group(open_pair)
             
