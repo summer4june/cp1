@@ -286,14 +286,14 @@ class ScannerZGMT:
             candle_low = float(row["low"])
             candle_high = float(row["high"])
 
-            # "Tested" = price came within threshold of zgmt_price
-            if abs(candle_high - zgmt_price) <= threshold_price or \
-               abs(candle_low - zgmt_price) <= threshold_price or \
-               (candle_low <= zgmt_price <= candle_high):
+            # "Tested" = price actually touched or crossed the 0GMT level.
+            # We do NOT use a proximity threshold because that wrongly invalidates setups
+            # where price passed nearby but never actually reached the level.
+            # A candle "tests" the level only if the 0GMT price sits within [low, high].
+            if candle_low <= zgmt_price <= candle_high:
                 logger.debug(
-                    f"[{pair}] ZGMT Step 2B: Level ALREADY TESTED. "
-                    f"Candle H={candle_high:.5f} L={candle_low:.5f} vs ZGMT={zgmt_price:.5f} "
-                    f"(threshold={threshold_price:.5f})"
+                    f"[{pair}] ZGMT Step 2B: Level ALREADY TESTED (price touched). "
+                    f"Candle H={candle_high:.5f} L={candle_low:.5f} vs ZGMT={zgmt_price:.5f}"
                 )
                 return True
 

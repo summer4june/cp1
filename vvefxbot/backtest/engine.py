@@ -387,6 +387,11 @@ class BacktestEngine:
                     bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
                     bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
 
+                    # Leg A (DIRECT/ZGMT) = market fill at 0GMT open (not a limit).
+                    # Leg B (FILTER/manipulation) = pending limit order above/below 0GMT.
+                    entry_mode = signal.get("entry_mode", "DIRECT").upper()
+                    is_limit_order = (entry_mode == "FILTER")
+
                     trade = SimulatedTrade(
                         trade_id=str(uuid.uuid4()),
                         signal_id=signal_id,
@@ -405,14 +410,15 @@ class BacktestEngine:
                         be_buffer_pips=bt_be_buffer_pips,
                         session=signal.get("session", ""),
                         entry_leg=signal.get("entry_leg", ""),
-                        is_limit=True,
+                        is_limit=is_limit_order,
                     )
 
+                    order_type = "Pending Limit" if is_limit_order else "Market Fill (0GMT)"
                     logger.info(
-                        f"[BT] Trade PLACED (Pending Limit) | {self.pair} {signal['direction']} | "
+                        f"[BT] Trade PLACED ({order_type}) | {self.pair} {signal['direction']} | "
                         f"FillBar {day_start_idx} (0GMT) | Entry: {entry_price:.5f} | "
                         f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
-                        f"Lot: {lot} | Score: {signal['score']}"
+                        f"Lot: {lot} | Score: {signal['score']} | Leg={entry_mode}"
                     )
 
                     # Retroactively replay exit checks for bars between 00:00 and now (inclusive)
