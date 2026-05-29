@@ -53,6 +53,8 @@ class SimulatedTrade:
         use_partial_tp: bool = False,
         partial_tp_fraction: float = 0.5,
         be_buffer_pips: float = 30.0,
+        session: str = "",
+        entry_leg: str = "",
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
@@ -68,6 +70,8 @@ class SimulatedTrade:
         self.open_time = bar_time
         self.close_bar: Optional[int] = None
         self.close_time: Optional[datetime] = None
+        self.session = session
+        self.entry_leg = entry_leg
 
         # use_partial_tp=True  (ZGMT): close partial_tp_fraction at TP1,
         #                              move SL to BE+buffer, close rest at TP2.
@@ -94,6 +98,9 @@ class SimulatedTrade:
             "signal_id": self.signal_id,
             "pair": self.pair,
             "direction": self.direction,
+            "year": self.open_time.year,
+            "session": self.session,
+            "entry_leg": self.entry_leg,
             "entry_price": round(self.entry, 5),
             "sl_price": round(self.sl, 5),
             "tp1_price": round(self.tp1, 5),
@@ -389,6 +396,8 @@ class BacktestEngine:
                         use_partial_tp=True,
                         partial_tp_fraction=bt_partial_tp_fraction,
                         be_buffer_pips=bt_be_buffer_pips,
+                        session=signal.get("session", ""),
+                        entry_leg=signal.get("entry_leg", ""),
                     )
 
                     logger.info(
@@ -431,6 +440,8 @@ class BacktestEngine:
                     lot=lot,
                     bar_index=idx,
                     bar_time=current_time,
+                    session=signal.get("session", ""),
+                    entry_leg=signal.get("entry_leg", ""),
                 )
                 self._open_trades.append(trade)
                 bars_since_signal = 0

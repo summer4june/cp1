@@ -315,7 +315,7 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     print()
 
     # Trade table
-    print(df[["open_time", "pair", "direction", "entry_price", "lot",
+    print(df[["open_time", "pair", "direction", "year", "session", "entry_leg", "entry_price", "lot",
                "sl_pips", "tp2_pips", "exit_reason", "result", "profit_usd"]].to_string(index=False))
     print()
 

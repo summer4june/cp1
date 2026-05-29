@@ -20,7 +20,7 @@ _SCOPES = [
 ]
 
 _HEADERS = [
-    "Date", "Time", "Pair", "Session", "Direction", "Entry", "SL", "TP1", "TP2",
+    "Year", "Date", "Time", "Pair", "Session", "Entry Leg", "Direction", "Entry", "SL", "TP1", "TP2",
     "Lot", "Risk%", "Spread", "Effective RR", "Result", "Profit/Loss", "Notes", "Signal Score"
 ]
 
@@ -63,7 +63,7 @@ class GoogleSheetReporter:
 
             # Check if header exists, if not auto-add it
             first_row = self.sheet.row_values(1)
-            if not first_row or first_row[0] != "Date":
+            if not first_row or first_row[0] not in ("Year", "Date"):
                 self.sheet.insert_row(_HEADERS, 1)
                 logger.info("Added header row to Google Sheet.")
 
@@ -122,10 +122,12 @@ class GoogleSheetReporter:
         notes = f"TradeID:{trade_id} | {bias_summary}"
 
         return [
+            now_ist.strftime("%Y"),
             now_ist.strftime("%Y-%m-%d"),
             now_ist.strftime("%H:%M:%S"),
-            trade.get("pair") or signal.get("pair", "") if signal else trade.get("pair", ""),
+            trade.get("pair") or (signal.get("pair", "") if signal else trade.get("pair", "")),
             signal.get("session", "") if signal else "",
+            signal.get("entry_leg", "") if signal else "",
             trade.get("direction") or (signal.get("direction", "") if signal else ""),
             trade.get("executed_price", 0.0),
             trade.get("sl", 0.0),
@@ -147,8 +149,8 @@ class GoogleSheetReporter:
         'TradeID:<trade_id>'. Returns -1 if not found.
         """
         try:
-            # Notes is the 16th column (index 15, 1-indexed col 16)
-            notes_col = self.sheet.col_values(16)
+            # Notes is the 18th column (index 17, 1-indexed col 18)
+            notes_col = self.sheet.col_values(18)
             for i, cell_val in enumerate(notes_col):
                 if f"TradeID:{trade_id}" in str(cell_val):
                     return i + 1  # 1-indexed
@@ -171,9 +173,9 @@ class GoogleSheetReporter:
                 # Try to find and update existing row
                 row_num = self._find_row_by_trade_id(trade_id)
                 if row_num > 0:
-                    # Update Result (col 14) and Profit (col 15) in the existing row
-                    self.sheet.update_cell(row_num, 14, trade.get("result", ""))
-                    self.sheet.update_cell(row_num, 15, trade.get("profit_usd", 0.0))
+                    # Update Result (col 16) and Profit (col 17) in the existing row
+                    self.sheet.update_cell(row_num, 16, trade.get("result", ""))
+                    self.sheet.update_cell(row_num, 17, trade.get("profit_usd", 0.0))
                     logger.info(f"Trade {trade_id} CLOSED — updated row {row_num} in Google Sheet.")
                     return True
                 else:
