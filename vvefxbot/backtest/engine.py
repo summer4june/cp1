@@ -519,9 +519,12 @@ class BacktestEngine:
         # ══════════════════════════════════════════════════════════════════
         if trade.status == "PENDING":
             triggered = False
-            if direction == "BUY" and bar_low <= trade.entry <= bar_high:
+            # For a BUY limit, it triggers if the market drops to or below the limit price.
+            if direction == "BUY" and bar_low <= trade.entry:
                 triggered = True
-            elif direction == "SELL" and bar_low <= trade.entry <= bar_high:
+                # If price gapped below entry, we get filled at the better open price (optional realism, but keeping original entry for now)
+            # For a SELL limit, it triggers if the market rises to or above the limit price.
+            elif direction == "SELL" and bar_high >= trade.entry:
                 triggered = True
                 
             if triggered:
