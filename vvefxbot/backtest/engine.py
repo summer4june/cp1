@@ -55,6 +55,7 @@ class SimulatedTrade:
         be_buffer_pips: float = 30.0,
         session: str = "",
         entry_leg: str = "",
+        is_limit: bool = False,
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
@@ -85,12 +86,13 @@ class SimulatedTrade:
         self.be_moved = False
         self.current_sl = sl
         self.remaining_lot = lot
-        self.status = "OPEN"    # OPEN | CLOSED
-        self.result = None      # WIN | LOSS | BREAKEVEN
+        self.is_limit = is_limit
+        self.status = "PENDING" if is_limit else "OPEN"    # PENDING | OPEN | CLOSED
+        self.result = None      # WIN | LOSS | BREAKEVEN | CANCELLED
         self.profit_usd = 0.0
         self.partial_profit = 0.0   # P&L locked at TP1 partial close
         self.exit_price = 0.0
-        self.exit_reason = ""   # TP1, TP2, SL, BE_SL
+        self.exit_reason = ""   # TP1, TP2, SL, BE_SL, EXPIRED
 
     def to_dict(self) -> dict:
         return {
@@ -304,8 +306,13 @@ class BacktestEngine:
 
                 # Risk checks
                 open_trade_dicts = [
-                    {"pair": t.pair, "direction": t.direction,
-                     "lot_total": t.lot, "risk_amount": self.config.trading_pool_size * self.config.risk_percent / 100}
+                    {
+                        "pair": t.pair,
+                        "direction": t.direction,
+                        "lot_total": t.lot,
+                        "executed_price": t.entry,
+                        "sl": t.sl
+                    }
                     for t in self._open_trades
                 ]
                 risk_result = self.risk_engine.run_all_checks(signal, open_trade_dicts)
@@ -398,10 +405,11 @@ class BacktestEngine:
                         be_buffer_pips=bt_be_buffer_pips,
                         session=signal.get("session", ""),
                         entry_leg=signal.get("entry_leg", ""),
+                        is_limit=True,
                     )
 
                     logger.info(
-                        f"[BT] Trade OPENED | {self.pair} {signal['direction']} | "
+                        f"[BT] Trade PLACED (Pending Limit) | {self.pair} {signal['direction']} | "
                         f"FillBar {day_start_idx} (0GMT) | Entry: {entry_price:.5f} | "
                         f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
                         f"Lot: {lot} | Score: {signal['score']}"
@@ -453,19 +461,29 @@ class BacktestEngine:
                     f"Lot: {lot} | Score: {signal['score']}"
                 )
 
-        # Force-close any remaining open trades at last bar close
+        # Force-close any remaining open or pending trades at last bar close
         last_bar = m1_data.iloc[-1]
         for trade in self._open_trades:
-            trade.status = "CLOSED"
-            trade.result = "EXPIRED"
-            trade.exit_reason = "SESSION_END"
-            trade.close_bar = total_bars - 1
-            trade.close_time = last_bar["time"]
-            trade.exit_price = last_bar["close"]
-            pips = self._calc_pips(trade.entry, last_bar["close"], trade.direction)
-            trade.profit_usd = round(pips * self.pip_value * trade.remaining_lot, 2)
-            self._closed_trades.append(trade)
-            logger.info(f"[BT] Trade EXPIRED at session end: {trade.trade_id}")
+            if trade.status == "PENDING":
+                trade.status = "CLOSED"
+                trade.result = "CANCELLED"
+                trade.exit_reason = "EXPIRED"
+                trade.close_bar = total_bars - 1
+                trade.close_time = last_bar["time"]
+                trade.exit_price = trade.entry
+                self._closed_trades.append(trade)
+                logger.info(f"[BT] Pending Trade CANCELLED at session end: {trade.trade_id}")
+            else:
+                trade.status = "CLOSED"
+                trade.result = "EXPIRED"
+                trade.exit_reason = "SESSION_END"
+                trade.close_bar = total_bars - 1
+                trade.close_time = last_bar["time"]
+                trade.exit_price = last_bar["close"]
+                pips = self._calc_pips(trade.entry, last_bar["close"], trade.direction)
+                trade.profit_usd = round(pips * self.pip_value * trade.remaining_lot, 2)
+                self._closed_trades.append(trade)
+                logger.info(f"[BT] Trade EXPIRED at session end: {trade.trade_id}")
 
         logger.info(
             f"[BT] Replay complete | Signals: {self._signals_fired} | "
@@ -495,6 +513,28 @@ class BacktestEngine:
         direction = trade.direction
         bar_high  = bar["high"]
         bar_low   = bar["low"]
+
+        # ══════════════════════════════════════════════════════════════════
+        # Limit Order Trigger Check
+        # ══════════════════════════════════════════════════════════════════
+        if trade.status == "PENDING":
+            triggered = False
+            if direction == "BUY" and bar_low <= trade.entry <= bar_high:
+                triggered = True
+            elif direction == "SELL" and bar_low <= trade.entry <= bar_high:
+                triggered = True
+                
+            if triggered:
+                trade.status = "OPEN"
+                trade.open_time = bar_time
+                trade.open_bar = bar_idx
+                logger.info(
+                    f"[BT] Limit Trade TRIGGERED | {trade.pair} {direction} | "
+                    f"Bar {bar_idx} | Entry: {trade.entry:.5f} | "
+                    f"SL: {trade.sl:.5f} | TP2: {trade.tp2:.5f} | Lot: {trade.lot}"
+                )
+            else:
+                return False  # Still pending, exit check early
 
         if direction == "BUY":
             sl_hit  = bar_low  <= trade.current_sl
