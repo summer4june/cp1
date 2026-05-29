@@ -579,6 +579,7 @@ class ScannerZGMT:
                 "pair": pair,
                 "session": session,
                 "entry_leg": "A" if leg_mode == "DIRECT" else "B",
+                "entry_mode": leg_mode,
                 "timeframe_bias": zgmt_cfg.get("timeframe_bias", "D1"),
                 "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
                 "direction": direction,
