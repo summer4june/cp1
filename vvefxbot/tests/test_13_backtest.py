@@ -809,3 +809,288 @@ def test_zgmt_bt_sell_full_win(mock_config):
 
 
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ZGMT Strategy Spec Alignment Tests (ICT 0-GMT Master Strategy)
+# Tests for: _is_metal(), pip_size(XAGUSD), filter pips, ADR SL/TP, SPLIT mode
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _make_scanner(mock_config, connector_mock):
+    """Helper: build a ScannerZGMT with a minimal mock connector."""
+    from modules.scannerzgmt import ScannerZGMT
+    from core.stateengine import StateEngine
+    state = StateEngine(":memory:")
+    return ScannerZGMT(mock_config, connector_mock, state)
+
+
+# ── Test 1: _is_metal() covers XAU and XAG, not FX ─────────────────────────
+def test_is_metal_pairs(mock_config):
+    """_is_metal() must return True for XAUUSD and XAGUSD; False for FX/JPY pairs."""
+    from unittest.mock import MagicMock
+    scanner = _make_scanner(mock_config, MagicMock())
+
+    assert scanner._is_metal("XAUUSD") is True,  "XAUUSD should be metal"
+    assert scanner._is_metal("XAGUSD") is True,  "XAGUSD should be metal"
+    assert scanner._is_metal("xauusd") is True,  "Case-insensitive"
+    assert scanner._is_metal("xagusd") is True,  "Case-insensitive"
+    assert scanner._is_metal("EURUSD") is False, "EURUSD is not a metal"
+    assert scanner._is_metal("GBPJPY") is False, "GBPJPY is not a metal"
+    assert scanner._is_metal("USDJPY") is False, "USDJPY is not a metal"
+    assert scanner._is_metal("XAGUAH") is True,  "Any XAG pair is metal"
+
+
+# ── Test 2: _pip_size() returns 0.01 for XAGUSD ─────────────────────────────
+def test_pip_size_silver(mock_config):
+    """_pip_size('XAGUSD') must return 0.01 (same as XAUUSD, not 0.0001)."""
+    from unittest.mock import MagicMock
+    scanner = _make_scanner(mock_config, MagicMock())
+
+    assert scanner._pip_size("XAGUSD") == 0.01, "Silver pip size must be 0.01"
+    assert scanner._pip_size("XAUUSD") == 0.01, "Gold pip size must be 0.01"
+    assert scanner._pip_size("EURUSD") == 0.0001
+    assert scanner._pip_size("GBPJPY") == 0.01  # JPY
+
+
+# ── Test 3: Filter pips are metal-vs-FX differentiated ──────────────────────
+def test_filter_pips_metal_vs_fx(mock_config):
+    """
+    _compute_entry_sl_tp() must use zgmt_filter_pips_metal (~95) for metals
+    and zgmt_filter_pips_fx (~25) for FX, not the legacy single zgmt_filter_pips.
+    """
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    # D1 candles for ADR: 7 bars, ADR(5) will be computed from completed ones
+    def make_d1(price_range):
+        return pd.DataFrame({
+            "high":  [100 + price_range] * 8,
+            "low":   [100.0] * 8,
+            "open":  [100.0] * 8,
+            "close": [100 + price_range] * 8,
+        })
+
+    connector = MagicMock()
+    connector.get_current_spread.return_value = 0.0
+
+    scanner = _make_scanner(mock_config, connector)
+    zgmt_price = 1.10000
+
+    # Shared config with both keys
+    zgmt_cfg = {
+        "zgmt_entry_mode": "FILTER",
+        "zgmt_filter_pips_fx": 25,
+        "zgmt_filter_pips_metal": 95,
+        "zgmt_sl_tp": {"sl_pips_fx": 25, "tp_pips_fx": 50,
+                       "sl_pips_gold": 95, "tp_pips_gold": 190},
+        "zgmt_adr_days": 5,
+    }
+
+    # FX pair: D1 candles giving ADR ≈ 60 pips (each daily range = 0.006)
+    connector.get_candles.return_value = make_d1(0.006)
+    result_fx = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", zgmt_price, {}, zgmt_cfg)
+    assert result_fx is not None
+    fx_filter = result_fx["filter_pips"]
+    assert fx_filter == 25, f"FX filter pips should be 25, got {fx_filter}"
+    # FILTER BUY: entry_price = zgmt_price - 25 pips = 1.10000 - 0.0025 = 1.09750
+    assert abs(result_fx["entry_price"] - (zgmt_price - 25 * 0.0001)) < 1e-5
+
+    # Metal pair: D1 candles giving ADR ≈ 200 pips (each daily range = 2.0)
+    connector.get_candles.return_value = make_d1(2.0)
+    result_gold = scanner._compute_entry_sl_tp("XAUUSD", "BULLISH", 2000.0, {}, zgmt_cfg)
+    assert result_gold is not None
+    metal_filter = result_gold["filter_pips"]
+    assert metal_filter == 95, f"Metal filter pips should be 95, got {metal_filter}"
+    # FILTER BUY: entry = 2000 - 95 pips = 2000 - 0.95 = 1999.05
+    assert abs(result_gold["entry_price"] - (2000.0 - 95 * 0.01)) < 1e-4
+
+    # Silver must behave identically to Gold for filter pips
+    result_silver = scanner._compute_entry_sl_tp("XAGUSD", "BULLISH", 30.0, {}, zgmt_cfg)
+    assert result_silver is not None
+    assert result_silver["filter_pips"] == 95, "XAGUSD must use metal filter pips"
+
+
+# ── Test 4: ADR-based SL/TP for FX pair ─────────────────────────────────────
+def test_adr_sl_tp_dynamic_fx(mock_config):
+    """
+    With D1 candles giving ADR(5) = 60 pips for EURUSD,
+    sl_pips must be ≈ 30 (ADR/2/pip_size) and tp_pips ≈ 60, NOT the fixed 25/50.
+    """
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    connector = MagicMock()
+    # 7 D1 bars: completed range = 0.006 each → ADR(5) = 0.006 → sl_dist = 0.003 → 30 pips
+    connector.get_candles.return_value = pd.DataFrame({
+        "high":  [1.1060] * 7,
+        "low":   [1.1000] * 7,
+        "open":  [1.1000] * 7,
+        "close": [1.1060] * 7,
+    })
+    connector.get_current_spread.return_value = 0.0
+
+    scanner = _make_scanner(mock_config, connector)
+    zgmt_cfg = {
+        "zgmt_entry_mode": "DIRECT",
+        "zgmt_filter_pips_fx": 25,
+        "zgmt_filter_pips_metal": 95,
+        "zgmt_adr_days": 5,
+        "zgmt_sl_tp": {"sl_pips_fx": 25, "tp_pips_fx": 50},
+    }
+    result = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", 1.1000, {}, zgmt_cfg)
+    assert result is not None
+
+    # ADR(5) = 0.006 → sl_dist = 0.003 → sl_pips = 0.003 / 0.0001 = 30
+    expected_sl_pips = 30.0
+    expected_tp_pips = 60.0
+    assert abs(result["sl_pips"] - expected_sl_pips) < 1.0, \
+        f"FX sl_pips should be ≈{expected_sl_pips}, got {result['sl_pips']}"
+    assert abs(result["tp_pips"] - expected_tp_pips) < 1.0, \
+        f"FX tp_pips should be ≈{expected_tp_pips}, got {result['tp_pips']}"
+
+    # Ensure TP = 2 × SL in price terms
+    sl_dist = result["entry_price"] - result["sl_price"]
+    tp2_dist = result["tp2_price"] - result["entry_price"]
+    assert abs(tp2_dist - sl_dist * 2) < 1e-5, "TP2 must be exactly 2× SL distance"
+
+
+# ── Test 5: ADR-based SL/TP for XAUUSD ──────────────────────────────────────
+def test_adr_sl_tp_dynamic_gold(mock_config):
+    """
+    With D1 candles giving ADR(5) = 200 pips for XAUUSD,
+    sl_pips must be ≈ 100 (ADR/2/0.01) and tp_pips ≈ 200, NOT the fixed 95/190.
+    """
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    connector = MagicMock()
+    # 7 D1 bars: daily range = 2.0 → ADR(5) = 2.0 → sl_dist = 1.0 → 100 pips (0.01 pip)
+    connector.get_candles.return_value = pd.DataFrame({
+        "high":  [2002.0] * 7,
+        "low":   [2000.0] * 7,
+        "open":  [2000.0] * 7,
+        "close": [2002.0] * 7,
+    })
+    connector.get_current_spread.return_value = 0.0
+
+    scanner = _make_scanner(mock_config, connector)
+    zgmt_cfg = {
+        "zgmt_entry_mode": "DIRECT",
+        "zgmt_filter_pips_fx": 25,
+        "zgmt_filter_pips_metal": 95,
+        "zgmt_adr_days": 5,
+        "zgmt_sl_tp": {"sl_pips_gold": 95, "tp_pips_gold": 190},
+    }
+    result = scanner._compute_entry_sl_tp("XAUUSD", "BULLISH", 2000.0, {}, zgmt_cfg)
+    assert result is not None
+
+    # ADR(5) = 2.0 → sl_dist = 1.0 → sl_pips = 1.0 / 0.01 = 100
+    expected_sl_pips = 100.0
+    expected_tp_pips = 200.0
+    assert abs(result["sl_pips"] - expected_sl_pips) < 2.0, \
+        f"Gold sl_pips should be ≈{expected_sl_pips}, got {result['sl_pips']}"
+    assert abs(result["tp_pips"] - expected_tp_pips) < 2.0, \
+        f"Gold tp_pips should be ≈{expected_tp_pips}, got {result['tp_pips']}"
+
+    # 1:2 RR check
+    sl_dist = result["entry_price"] - result["sl_price"]
+    tp2_dist = result["tp2_price"] - result["entry_price"]
+    assert abs(tp2_dist - sl_dist * 2) < 1e-3, "TP2 must be exactly 2× SL distance"
+
+    # Also verify XAGUSD behaves the same way
+    result_ag = scanner._compute_entry_sl_tp("XAGUSD", "BULLISH", 30.0, {}, zgmt_cfg)
+    assert result_ag is not None
+    assert abs(result_ag["sl_pips"] - 100.0) < 2.0, "XAGUSD sl_pips must match XAUUSD"
+
+
+# ── Test 6: ADR fallback to fixed pips when D1 candles are insufficient ──────
+def test_adr_sl_fallback_on_missing_data(mock_config):
+    """
+    When D1 candles are insufficient for ADR computation, the scanner must:
+    1. Log a WARNING (not crash).
+    2. Fall back to the fixed sl_pips_fx / sl_pips_gold from config.
+    """
+    import logging
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    connector = MagicMock()
+    # Only 2 D1 bars: insufficient for ADR(5)
+    connector.get_candles.return_value = pd.DataFrame({
+        "high":  [1.1060, 1.1050],
+        "low":   [1.1000, 1.0990],
+        "open":  [1.1000, 1.0990],
+        "close": [1.1060, 1.1050],
+    })
+    connector.get_current_spread.return_value = 0.0
+
+    scanner = _make_scanner(mock_config, connector)
+    zgmt_cfg = {
+        "zgmt_entry_mode": "DIRECT",
+        "zgmt_filter_pips_fx": 25,
+        "zgmt_filter_pips_metal": 95,
+        "zgmt_adr_days": 5,
+        "zgmt_sl_tp": {"sl_pips_fx": 25, "tp_pips_fx": 50,
+                       "sl_pips_gold": 95, "tp_pips_gold": 190},
+    }
+
+    # Ensure no exception is raised (ADR failure must be handled gracefully)
+    result = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", 1.1000, {}, zgmt_cfg)
+
+    assert result is not None, "Should return a result even on ADR failure"
+    # Must fall back to fixed 25 pips
+    assert result["sl_pips"] == 25.0, \
+        f"Fallback sl_pips should be 25 (fixed), got {result['sl_pips']}"
+    assert result["tp_pips"] == 50.0, \
+        f"Fallback tp_pips should be 50 (fixed), got {result['tp_pips']}"
+
+
+# ── Test 7: SPLIT mode emits filter leg with position_fraction=0.5 ───────────
+def test_split_mode_two_signals(mock_config):
+    """
+    SPLIT mode must:
+    1. Use the FILTER (manipulation zone) entry, not the DIRECT (0 GMT) entry.
+    2. Return position_fraction=0.5 in the signal dict.
+    3. Return a single dict (engine currently handles single signal per call).
+    Note: True two-signal dispatch requires engine refactoring (see module docstring).
+    """
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    connector = MagicMock()
+    # 7 D1 bars with range 0.006 → ADR OK
+    connector.get_candles.return_value = pd.DataFrame({
+        "high":  [1.1060] * 7,
+        "low":   [1.1000] * 7,
+        "open":  [1.1000] * 7,
+        "close": [1.1060] * 7,
+    })
+    connector.get_current_spread.return_value = 0.0
+
+    scanner = _make_scanner(mock_config, connector)
+    zgmt_price = 1.10000
+    zgmt_cfg = {
+        "zgmt_entry_mode": "SPLIT",
+        "zgmt_filter_pips_fx": 25,
+        "zgmt_filter_pips_metal": 95,
+        "zgmt_adr_days": 5,
+        "zgmt_sl_tp": {"sl_pips_fx": 25, "tp_pips_fx": 50},
+    }
+
+    # BUY SPLIT: should use filter leg (below 0 GMT)
+    result = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", zgmt_price, {}, zgmt_cfg)
+    assert result is not None
+    assert result["position_fraction"] == 0.5, \
+        "SPLIT mode must set position_fraction=0.5"
+    # Entry must be at filter zone (below 0 GMT for BUY), NOT at zgmt_price
+    expected_entry = zgmt_price - 25 * 0.0001
+    assert abs(result["entry_price"] - expected_entry) < 1e-5, \
+        f"SPLIT BUY entry must be at filter zone ({expected_entry:.5f}), got {result['entry_price']}"
+
+    # SELL SPLIT: should use filter leg (above 0 GMT)
+    result_sell = scanner._compute_entry_sl_tp("EURUSD", "BEARISH", zgmt_price, {}, zgmt_cfg)
+    assert result_sell is not None
+    assert result_sell["position_fraction"] == 0.5
+    expected_sell_entry = zgmt_price + 25 * 0.0001
+    assert abs(result_sell["entry_price"] - expected_sell_entry) < 1e-5, \
+        f"SPLIT SELL entry must be at filter zone ({expected_sell_entry:.5f}), got {result_sell['entry_price']}"

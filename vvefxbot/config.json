@@ -84,6 +84,8 @@
 
     "zgmt_entry_mode": "DIRECT",
     "zgmt_filter_pips": 20,
+    "zgmt_filter_pips_fx": 25,
+    "zgmt_filter_pips_metal": 95,
     "zgmt_test_threshold_pips": 5,
     "zgmt_test_exclude_first_mins": 15,
 
@@ -103,6 +105,7 @@
     "fixed_lot_size": 0.01,
 
     "skip_rr_check": true,
+    "use_adr_sl_for_zgmt": true,
 
     "magic_number": 202412,
 

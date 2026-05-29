@@ -2,14 +2,20 @@
 scannerzgmt.py — ICT 0-GMT Open Strategy Scanner (VvE FxBOT)
 
 Strategy Reference: ICT 0-GMT Open Master Strategy
-- 0 GMT = 5:30 AM IST — Daily reference open price
+- 0 GMT = 5:30 AM IST — Daily reference open price (IPDA True Day Open)
 - Midnight NY reference = 9:30 AM IST
+- Instruments: FX majors + XAUUSD, XAGUSD (both treated as metals)
 - Daily bias via PD Array Matrix (premium/discount zone)
 - Step 2B: 0 GMT level may only be respected ONCE (if already tested → skip)
-- Entry modes: DIRECT, FILTER (±20 pips), SPLIT
-- SL: XAUUSD = 95 pips | FX pairs = 25 pips
-- TP: XAUUSD = 190 pips | FX pairs = 50 pips
-- RR = 1:2 always
+- Entry modes: DIRECT | FILTER (FX ±25 pips, Metals ±95 pips) | SPLIT (filter-only, see below)
+- SL: ADR(5-day) ÷ 2 for ALL instruments (dynamic, day-by-day)
+  Fallback if ADR unavailable: XAUUSD/XAGUSD = 95 pips | FX = 25 pips
+- TP: 2 × SL distance → fixed 1:2 RR
+- SPLIT mode: per spec, half at 0 GMT direct + half at manipulation zone.
+  Current implementation emits the FILTER leg only (manipulation zone entry),
+  because the backtest engine expects a single signal dict per scanner call.
+  The direct leg is conceptually accounted for via position_fraction=0.5 in signal.
+  To enable true two-leg execution, refactor the engine's signal dispatch first.
 """
 
 import uuid
@@ -73,12 +79,16 @@ class ScannerZGMT:
         return dt_time(int(parts[0]), int(parts[1]))
 
     def _pip_size(self, pair: str) -> float:
-        """Returns pip size (0.01 for JPY, 0.01 for XAU, 0.0001 otherwise)."""
+        """Returns pip size per instrument convention.
+        - JPY pairs: 0.01 (1 pip = 0.01 JPY)
+        - XAUUSD / XAGUSD (metals): 0.01 (1 pip = $0.01/oz or per unit)
+        - All other FX pairs: 0.0001
+        """
         p = pair.upper()
         if "JPY" in p:
             return 0.01
-        if "XAU" in p:
-            return 0.01   # Gold: 1 pip = 0.01 USD/oz (MT5 broker convention)
+        if "XAU" in p or "XAG" in p:  # Gold AND Silver use 0.01
+            return 0.01
         return 0.0001
 
     def _pips_to_price(self, pair: str, pips: float) -> float:
@@ -93,8 +103,10 @@ class ScannerZGMT:
             return 0.0
         return abs(price_diff) / pip_size
 
-    def _is_gold(self, pair: str) -> bool:
-        return "XAU" in pair.upper()
+    def _is_metal(self, pair: str) -> bool:
+        """Returns True for XAUUSD and XAGUSD (both treated as metals per strategy spec)."""
+        p = pair.upper()
+        return "XAU" in p or "XAG" in p
 
     def _today_ist_str(self) -> str:
         return self._to_ist(self._utc_now()).strftime("%Y-%m-%d")
@@ -339,72 +351,115 @@ class ScannerZGMT:
         zgmt_cfg: dict,
     ) -> dict | None:
         """
-        Compute entry, SL, and TP based on config.
+        Compute entry, SL, and TP aligned with the ICT 0-GMT Master Strategy spec.
+
+        SL/TP sizing (Step 5/6):
+          Primary: SL = ADR(5-day) ÷ 2 (dynamic, day-by-day).
+          Fallback: fixed pips from zgmt_sl_tp config if ADR data unavailable.
+          TP = 2 × SL → guaranteed 1:2 RR.
+
+        Filter pips (manipulation range, Step 4):
+          Metals (XAUUSD/XAGUSD): zgmt_filter_pips_metal (default 95 — midpoint of 90–100 pips).
+          FX pairs:               zgmt_filter_pips_fx     (default 25 — midpoint of 20–30 pips).
+
+        Entry modes:
+          DIRECT: enter at 0 GMT price.
+          FILTER: enter at 0 GMT ± filter_pips (Judas Swing manipulation zone).
+          SPLIT:  per spec = half at 0 GMT direct + half at manipulation zone.
+                  Current implementation: emits only the FILTER (manipulation zone) leg,
+                  flagged with position_fraction=0.5. The DIRECT leg is skipped because the
+                  backtest engine expects a single dict per scan() call. Refactor the engine's
+                  signal dispatch to enable true two-signal SPLIT execution.
+
         Returns a dict with entry_price, sl_price, tp1_price, tp2_price,
-        sl_pips, tp_pips, or None on failure.
+        sl_pips, tp_pips, filter_pips, entry_mode, position_fraction.
         """
         entry_mode = zgmt_cfg.get("zgmt_entry_mode", "DIRECT").upper()
-        filter_pips = zgmt_cfg.get("zgmt_filter_pips", 20)
+
+        # ── Step 4: Manipulation zone filter pips (metal vs FX) ─────
+        if self._is_metal(pair):
+            filter_pips = zgmt_cfg.get("zgmt_filter_pips_metal", 95)
+        else:
+            filter_pips = zgmt_cfg.get("zgmt_filter_pips_fx", 25)
         filter_diff = self._pips_to_price(pair, filter_pips)
 
-        sl_tp_cfg = zgmt_cfg.get("zgmt_sl_tp", {})
-        if self._is_gold(pair):
-            sl_pips = float(sl_tp_cfg.get("sl_pips_gold", 95))
-            tp_pips = float(sl_tp_cfg.get("tp_pips_gold", 190))
+        # ── Steps 5/6: Dynamic ADR-based SL/TP ──────────────────────
+        # Primary: use previous 5-day ADR ÷ 2 as SL distance.
+        adr_sl_dist = self._calculate_adr_sl(pair)  # returns price-unit distance or None
+        if adr_sl_dist and adr_sl_dist > 0:
+            sl_dist_price = adr_sl_dist
+            tp_dist_price = adr_sl_dist * 2
+            sl_pips = sl_dist_price / self._pip_size(pair)
+            tp_pips = sl_pips * 2
         else:
-            sl_pips = float(sl_tp_cfg.get("sl_pips_fx", 25))
-            tp_pips = float(sl_tp_cfg.get("tp_pips_fx", 50))
+            # Fallback: use fixed pips from config when ADR data is insufficient
+            logger.warning(
+                f"[{pair}] ZGMT: ADR(5) unavailable — falling back to fixed SL/TP pips from config."
+            )
+            sl_tp_cfg = zgmt_cfg.get("zgmt_sl_tp", {})
+            if self._is_metal(pair):
+                sl_pips = float(sl_tp_cfg.get("sl_pips_gold", 95))
+                tp_pips = float(sl_tp_cfg.get("tp_pips_gold", 190))
+            else:
+                sl_pips = float(sl_tp_cfg.get("sl_pips_fx", 25))
+                tp_pips = float(sl_tp_cfg.get("tp_pips_fx", 50))
+            sl_dist_price = self._pips_to_price(pair, sl_pips)
+            tp_dist_price = self._pips_to_price(pair, tp_pips)
 
-        sl_diff = self._pips_to_price(pair, sl_pips)
-        tp_diff = self._pips_to_price(pair, tp_pips)
+        # ── Step 4: Entry price per mode ────────────────────────────
+        # SPLIT: emit the manipulation zone (FILTER) leg only.
+        # position_fraction=0.5 signals to the risk engine to use half lot.
+        position_fraction = 1.0
 
-        # ── Entry price ──────────────────────────────────────────────
         if bias == "BULLISH":
             if entry_mode == "DIRECT":
-                # Strategy Step 4 Option A: Buy exactly at the 5:30 AM IST open price.
-                # Use zgmt_price directly (the IPDA True Day Open), not the drifted market tick.
+                # Option A: Buy exactly at the 0 GMT open price (IPDA True Day Open)
                 entry_price = zgmt_price
             elif entry_mode == "FILTER":
-                # Strategy Step 4 Option B: Buy limit 10–20 pips BELOW 0 GMT open (Judas Swing filter)
+                # Option B: Buy limit zgmt_filter_pips_fx/metal BELOW 0 GMT open (Judas Swing)
                 entry_price = zgmt_price - filter_diff
             elif entry_mode == "SPLIT":
-                # Strategy Step 4 Option C: Primary half at 0 GMT open directly
-                entry_price = zgmt_price
+                # Option C spec: half at 0 GMT direct + half at manipulation zone.
+                # Implementation: filter leg only (see module docstring for rationale).
+                entry_price = zgmt_price - filter_diff
+                position_fraction = 0.5
             else:
                 logger.warning(f"[{pair}] ZGMT: Unknown entry_mode '{entry_mode}'. Defaulting to DIRECT.")
                 entry_price = zgmt_price
 
-            sl_price = entry_price - sl_diff
-            tp1_price = entry_price + sl_diff  # TP1 = 1R
-            tp2_price = entry_price + tp_diff  # TP2 = 2R
+            sl_price  = entry_price - sl_dist_price
+            tp1_price = entry_price + sl_dist_price   # TP1 = 1R
+            tp2_price = entry_price + tp_dist_price   # TP2 = 2R
 
         else:  # BEARISH
             if entry_mode == "DIRECT":
-                # Strategy Step 10: Sell directly at 5:30 AM IST open price — no filter, no adjustment.
+                # Option A: Sell directly at 0 GMT open price
                 entry_price = zgmt_price
             elif entry_mode == "FILTER":
-                # Strategy Step 9: Sell limit at 0 GMT + 20 pips above the open
+                # Option B: Sell limit zgmt_filter_pips_fx/metal ABOVE 0 GMT open
                 entry_price = zgmt_price + filter_diff
             elif entry_mode == "SPLIT":
-                # Strategy Step 4 Option C: Primary half at 0 GMT open directly
-                entry_price = zgmt_price
+                # Option C spec: filter leg only (see module docstring for rationale)
+                entry_price = zgmt_price + filter_diff
+                position_fraction = 0.5
             else:
                 logger.warning(f"[{pair}] ZGMT: Unknown entry_mode '{entry_mode}'. Defaulting to DIRECT.")
                 entry_price = zgmt_price
 
-            sl_price = entry_price + sl_diff
-            tp1_price = entry_price - sl_diff  # TP1 = 1R
-            tp2_price = entry_price - tp_diff  # TP2 = 2R
+            sl_price  = entry_price + sl_dist_price
+            tp1_price = entry_price - sl_dist_price   # TP1 = 1R
+            tp2_price = entry_price - tp_dist_price   # TP2 = 2R
 
         return {
-            "entry_price": round(entry_price, 5),
-            "sl_price": round(sl_price, 5),
-            "tp1_price": round(tp1_price, 5),
-            "tp2_price": round(tp2_price, 5),
-            "sl_pips": sl_pips,
-            "tp_pips": tp_pips,
-            "entry_mode": entry_mode,
-            "filter_pips": filter_pips,
+            "entry_price":      round(entry_price, 5),
+            "sl_price":         round(sl_price, 5),
+            "tp1_price":        round(tp1_price, 5),
+            "tp2_price":        round(tp2_price, 5),
+            "sl_pips":          round(sl_pips, 2),
+            "tp_pips":          round(tp_pips, 2),
+            "entry_mode":       entry_mode,
+            "filter_pips":      filter_pips,
+            "position_fraction": position_fraction,
         }
 
     # ──────────────────────────────────────────────────────────────────
@@ -618,7 +673,10 @@ class ScannerZGMT:
             "fixed_lot_size": fixed_lot,
             # Skip global effective_rr_min check — ZGMT enforces its own 1:2 RR by design
             "skip_rr_check": skip_rr_check,
+            # SPLIT mode: 0.5 to signal risk engine to use half lot; 1.0 for full lot
+            "position_fraction": levels.get("position_fraction", 1.0),
         }
+
 
     # ══════════════════════════════════════════════════════════════════
     # HTF Order Block Exception — private methods
