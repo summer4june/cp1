@@ -377,8 +377,8 @@ class BacktestEngine:
                             break
 
                     # Fetch live BE buffer and partial TP ratio from global config
-                    bt_be_buffer_pips = self.config.be_buffer_pips
-                    bt_partial_tp_fraction = self.config.partial_tp_fraction
+                    bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
+                    bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
 
                     trade = SimulatedTrade(
                         trade_id=str(uuid.uuid4()),
