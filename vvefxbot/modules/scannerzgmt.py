@@ -343,20 +343,10 @@ class ScannerZGMT:
     # ──────────────────────────────────────────────────────────────────
 
     def _compute_entry_sl_tp(
-        self,
-        pair: str,
-        bias: str,
-        zgmt_price: float,
-        tick: dict,
-        zgmt_cfg: dict,
+        self, pair: str, bias: str, zgmt_price: float, tick: dict, zgmt_cfg: dict, override_entry_mode: str = None
     ) -> dict | None:
         """
-        Compute entry, SL, and TP aligned with the ICT 0-GMT Master Strategy spec.
-
-        SL/TP sizing (Step 5/6):
-          Primary: SL = ADR(5-day) ÷ 2 (dynamic, day-by-day).
-          Fallback: fixed pips from zgmt_sl_tp config if ADR data unavailable.
-          TP = 2 × SL → guaranteed 1:2 RR.
+        Calculates the entry, SL, and TP prices for ZGMT using dynamic ADR(5).
 
         Filter pips (manipulation range, Step 4):
           Metals (XAUUSD/XAGUSD): zgmt_filter_pips_metal (default 95 — midpoint of 90–100 pips).
@@ -365,16 +355,12 @@ class ScannerZGMT:
         Entry modes:
           DIRECT: enter at 0 GMT price.
           FILTER: enter at 0 GMT ± filter_pips (Judas Swing manipulation zone).
-          SPLIT:  per spec = half at 0 GMT direct + half at manipulation zone.
-                  Current implementation: emits only the FILTER (manipulation zone) leg,
-                  flagged with position_fraction=0.5. The DIRECT leg is skipped because the
-                  backtest engine expects a single dict per scan() call. Refactor the engine's
-                  signal dispatch to enable true two-signal SPLIT execution.
+          SPLIT:  half at 0 GMT direct + half at manipulation zone.
 
         Returns a dict with entry_price, sl_price, tp1_price, tp2_price,
-        sl_pips, tp_pips, filter_pips, entry_mode, position_fraction.
+        sl_pips, tp_pips, filter_pips, entry_mode.
         """
-        entry_mode = zgmt_cfg.get("zgmt_entry_mode", "DIRECT").upper()
+        entry_mode = (override_entry_mode or zgmt_cfg.get("zgmt_entry_mode", "DIRECT")).upper()
 
         # ── Step 4: Manipulation zone filter pips (metal vs FX) ─────
         if self._is_metal(pair):
@@ -407,9 +393,6 @@ class ScannerZGMT:
             tp_dist_price = self._pips_to_price(pair, tp_pips)
 
         # ── Step 4: Entry price per mode ────────────────────────────
-        # SPLIT: emit the manipulation zone (FILTER) leg only.
-        # position_fraction=0.5 signals to the risk engine to use half lot.
-        position_fraction = 1.0
 
         if bias == "BULLISH":
             if entry_mode == "DIRECT":
@@ -418,14 +401,10 @@ class ScannerZGMT:
             elif entry_mode == "FILTER":
                 # Option B: Buy limit zgmt_filter_pips_fx/metal BELOW 0 GMT open (Judas Swing)
                 entry_price = zgmt_price - filter_diff
-            elif entry_mode == "SPLIT":
-                # Option C spec: half at 0 GMT direct + half at manipulation zone.
-                # Implementation: filter leg only (see module docstring for rationale).
-                entry_price = zgmt_price - filter_diff
-                position_fraction = 0.5
             else:
                 logger.warning(f"[{pair}] ZGMT: Unknown entry_mode '{entry_mode}'. Defaulting to DIRECT.")
                 entry_price = zgmt_price
+                entry_mode = "DIRECT"
 
             sl_price  = entry_price - sl_dist_price
             tp1_price = entry_price + sl_dist_price   # TP1 = 1R
@@ -438,13 +417,10 @@ class ScannerZGMT:
             elif entry_mode == "FILTER":
                 # Option B: Sell limit zgmt_filter_pips_fx/metal ABOVE 0 GMT open
                 entry_price = zgmt_price + filter_diff
-            elif entry_mode == "SPLIT":
-                # Option C spec: filter leg only (see module docstring for rationale)
-                entry_price = zgmt_price + filter_diff
-                position_fraction = 0.5
             else:
                 logger.warning(f"[{pair}] ZGMT: Unknown entry_mode '{entry_mode}'. Defaulting to DIRECT.")
                 entry_price = zgmt_price
+                entry_mode = "DIRECT"
 
             sl_price  = entry_price + sl_dist_price
             tp1_price = entry_price - sl_dist_price   # TP1 = 1R
@@ -459,17 +435,16 @@ class ScannerZGMT:
             "tp_pips":          round(tp_pips, 2),
             "entry_mode":       entry_mode,
             "filter_pips":      filter_pips,
-            "position_fraction": position_fraction,
         }
 
     # ──────────────────────────────────────────────────────────────────
     # Main scan method
     # ──────────────────────────────────────────────────────────────────
 
-    def scan(self, pair: str, session: str, killzone: str) -> dict | None:
+    def scan(self, pair: str, session: str, killzone: str) -> dict | list | None:
         """
         Execute the ZGMT scan for a single pair.
-        Returns a signal dict on success, None otherwise.
+        Returns a signal dict (or list of dicts for SPLIT) on success, None otherwise.
         """
         # ── Check if already finalized/invalidated today ─────────────
         if self._is_daily_finalized(pair):
@@ -478,25 +453,10 @@ class ScannerZGMT:
         logger.debug(f"[{pair}] ZGMT: Scan started | Session={session} | KZ={killzone}")
 
         # ── 0. Config gate ───────────────────────────────────────────
-        zgmt_cfg = getattr(self.config, "zgmt_scanner", {})
-        if not zgmt_cfg.get("enabled", False):
-            logger.debug(f"[{pair}] ZGMT: Scanner disabled in config.")
-            return None
-
-        # ── 0a. Allow buy/sell flags ─────────────────────────────────
+        zgmt_cfg = self.config.zgmt_scanner
         allow_buy = zgmt_cfg.get("allow_buy", True)
         allow_sell = zgmt_cfg.get("allow_sell", True)
-
-        # ── 0b. State: cooldown guard ────────────────────────────────
-        if self.state.is_pair_on_cooldown(pair):
-            logger.debug(f"[{pair}] ZGMT: Pair on cooldown — skipping.")
-            return None
-
-        # ── 0c. Daily trade cap ──────────────────────────────────────
-        max_daily = zgmt_cfg.get("max_daily_trades", 2)
-        if self._get_daily_count(pair) >= max_daily:
-            logger.debug(f"[{pair}] ZGMT: Daily trade cap ({max_daily}) reached.")
-            self._mark_daily_finalized(pair)
+        if not allow_buy and not allow_sell:
             return None
 
         # ── 0d. Scanner-level cooldown (minutes since last signal) ───
@@ -592,90 +552,95 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT: No live tick data — skipping.")
             return None
 
-        # ── Steps 4–6: Entry / SL / TP ───────────────────────────────
-        levels = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg)
-        if levels is None:
-            return None
-
-        spread_pips = self.mt5.get_current_spread(pair)
-        sl_pips = levels["sl_pips"]
-        tp_pips = levels["tp_pips"]
-
-        # Spread-aware effective RR
-        denom = sl_pips + spread_pips
-        effective_rr = (tp_pips - spread_pips) / denom if denom > 0 else 0.0
-
+        # ── Signal Construction ───────────────────────────────────────
         direction = "BUY" if bias == "BULLISH" else "SELL"
-        entry_mode = levels["entry_mode"]
-        filter_note = f" ±{levels['filter_pips']}pips" if entry_mode in ("FILTER", "SPLIT") else ""
-
-        pd_zone = "DISCOUNT" if bias == "BULLISH" else "PREMIUM"
-        bias_summary = (
-            f"ZGMT | PD: {pd_zone} | Entry: {entry_mode}{filter_note} | "
-            f"0GMT={zgmt_price:.5f}"
-        )
-
-        score = float(zgmt_cfg.get("score", 70.0))
-        signal_id = str(uuid.uuid4())
-        now_iso = self._utc_now().isoformat()
-
-        # Fixed lot size override (optional — 0 or missing means use risk engine)
-        fixed_lot = float(zgmt_cfg.get("fixed_lot_size", 0.0))
-
-        # ── Register signal ───────────────────────────────────────────
-        self._last_signal_time[pair] = self._utc_now()
-        self._increment_daily_count(pair)
-
-        logger.info(
-            f"[{pair}] ZGMT Signal ✅ {direction} | "
-            f"Entry={levels['entry_price']:.5f} SL={levels['sl_price']:.5f} "
-            f"TP2={levels['tp2_price']:.5f} | 0GMT={zgmt_price:.5f} | "
-            f"Bias={bias} | Mode={entry_mode} | RR={effective_rr:.2f} | Score={score}"
-        )
-
-        self._mark_daily_finalized(pair)
-
-        # ZGMT uses a fixed 1:2 RR defined by the strategy — skip the global spread-penalised
-        # effective_rr_min check so the correct strategy RR is honoured in the risk engine.
-        skip_rr_check = bool(zgmt_cfg.get("skip_rr_check", True))
-
-        # ── HTF OB Exception Override ─────────────────────────────────────
-        # Runs just before returning the 0-GMT signal.
-        # If a valid unmitigated HTF OB is active it takes institutional priority.
+        entry_mode_cfg = zgmt_cfg.get("zgmt_entry_mode", "DIRECT").upper()
+        
+        # Determine HTF OB Exception leg
+        ob_signal = None
         if zgmt_cfg.get("zgmt_exception_enabled", False):
             ob_signal = self._check_htf_ob_exception(pair, session, killzone)
             if ob_signal is not None:
-                logger.info(f"[{pair}] ZGMT-EXCEPTION: HTF OB overrides 0-GMT entry.")
-                return ob_signal
-            # ob_signal is None → no HTF OB conflict → fall through to 0-GMT signal
+                logger.info(f"[{pair}] ZGMT-EXCEPTION: HTF OB condition overrides Direct 0-GMT entry.")
 
-        return {
-            "signal_id": signal_id,
-            "pair": pair,
-            "session": session,
-            "timeframe_bias": zgmt_cfg.get("timeframe_bias", "D1"),
-            "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
-            "direction": direction,
-            "bias_summary": bias_summary,
-            "entry_price": levels["entry_price"],
-            "sl_price": levels["sl_price"],
-            "tp1_price": levels["tp1_price"],
-            "tp2_price": levels["tp2_price"],
-            "sl_pips": sl_pips,
-            "tp_pips": tp_pips,
-            "spread_pips": spread_pips,
-            "effective_rr": round(effective_rr, 3),
-            "score": score,
-            "detected_time": now_iso,
-            "strategy": "ZGMT",
-            "setup_type": "ZGMT",
-            # fixed_lot_size: 0.0 means "use risk engine"; > 0 means override
-            "fixed_lot_size": fixed_lot,
-            # Skip global effective_rr_min check — ZGMT enforces its own 1:2 RR by design
-            "skip_rr_check": skip_rr_check,
-            # SPLIT mode: 0.5 to signal risk engine to use half lot; 1.0 for full lot
-            "position_fraction": levels.get("position_fraction", 1.0),
-        }
+        signals_to_emit = []
+        base_signal_id = str(uuid.uuid4())
+
+        def build_signal_dict(levs: dict, leg_mode: str, leg_id: str) -> dict:
+            spr = self.mt5.get_current_spread(pair)
+            den = levs["sl_pips"] + spr
+            eff_rr = (levs["tp_pips"] - spr) / den if den > 0 else 0.0
+            pd_zone = "DISCOUNT" if bias == "BULLISH" else "PREMIUM"
+            filt_note = f" ±{levs['filter_pips']}pips" if leg_mode == "FILTER" else ""
+            summary = f"ZGMT | PD: {pd_zone} | Entry: {leg_mode}{filt_note} | 0GMT={zgmt_price:.5f}"
+            
+            return {
+                "signal_id": leg_id,
+                "pair": pair,
+                "session": session,
+                "timeframe_bias": zgmt_cfg.get("timeframe_bias", "D1"),
+                "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
+                "direction": direction,
+                "bias_summary": summary,
+                "entry_price": levs["entry_price"],
+                "sl_price": levs["sl_price"],
+                "tp1_price": levs["tp1_price"],
+                "tp2_price": levs["tp2_price"],
+                "sl_pips": levs["sl_pips"],
+                "tp_pips": levs["tp_pips"],
+                "spread_pips": spr,
+                "effective_rr": round(eff_rr, 3),
+                "score": float(zgmt_cfg.get("score", 70.0)),
+                "detected_time": self._utc_now().isoformat(),
+                "strategy": "ZGMT",
+                "setup_type": "ZGMT",
+                "fixed_lot_size": float(zgmt_cfg.get("fixed_lot_size", 0.0)),
+                "skip_rr_check": bool(zgmt_cfg.get("skip_rr_check", True)),
+                "position_fraction": 0.5 if entry_mode_cfg == "SPLIT" else 1.0,
+            }
+
+        # Leg A: Direct or Exception
+        if entry_mode_cfg in ("DIRECT", "SPLIT"):
+            if ob_signal is not None:
+                leg_a = ob_signal.copy()
+                if entry_mode_cfg == "SPLIT":
+                    leg_a["position_fraction"] = 0.5
+                else:
+                    leg_a["position_fraction"] = 1.0
+                leg_a["signal_id"] = base_signal_id
+                signals_to_emit.append(leg_a)
+            else:
+                levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
+                if levs_direct:
+                    leg_a = build_signal_dict(levs_direct, "DIRECT", base_signal_id)
+                    signals_to_emit.append(leg_a)
+
+        # Leg B: Filter (Manipulation Entry)
+        if entry_mode_cfg in ("FILTER", "SPLIT"):
+            levs_filter = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="FILTER")
+            if levs_filter:
+                leg_id = str(uuid.uuid4()) if signals_to_emit else base_signal_id
+                leg_b = build_signal_dict(levs_filter, "FILTER", leg_id)
+                signals_to_emit.append(leg_b)
+
+        if not signals_to_emit:
+            return None
+
+        # ── Register signals ───────────────────────────────────────────
+        self._last_signal_time[pair] = self._utc_now()
+        self._increment_daily_count(pair)
+
+        for s in signals_to_emit:
+            logger.info(
+                f"[{pair}] ZGMT Signal ✅ {s['direction']} | "
+                f"Entry={s['entry_price']:.5f} SL={s['sl_price']:.5f} "
+                f"TP2={s['tp2_price']:.5f} | 0GMT={zgmt_price:.5f} | "
+                f"Mode={s.get('setup_type', 'ZGMT')} | Score={s['score']}"
+            )
+
+        self._mark_daily_finalized(pair)
+
+        return signals_to_emit if len(signals_to_emit) > 1 else signals_to_emit[0]
 
 
     # ══════════════════════════════════════════════════════════════════

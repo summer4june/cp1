@@ -284,90 +284,141 @@ class BacktestEngine:
                 continue
 
             # ── Run scanner ────────────────────────────────────────────
-            signal = self.scanner.scan(self.pair, session or "London", killzone)
-            if signal is None:
+            signals_raw = self.scanner.scan(self.pair, session or "London", killzone)
+            if not signals_raw:
                 continue
 
-            self._signals_fired += 1
-            signal_id = signal["signal_id"]
-            spread_pips = signal.get("spread_pips", 0.0)
+            signals_list = signals_raw if isinstance(signals_raw, list) else [signals_raw]
 
-            # Risk checks
-            open_trade_dicts = [
-                {"pair": t.pair, "direction": t.direction,
-                 "lot_total": t.lot, "risk_amount": self.config.trading_pool_size * self.config.risk_percent / 100}
-                for t in self._open_trades
-            ]
-            risk_result = self.risk_engine.run_all_checks(signal, open_trade_dicts)
-            if not risk_result["pass"]:
-                logger.debug(f"[BT] Signal blocked by risk: {risk_result['failed_check']}")
-                continue
+            for signal in signals_list:
+                self._signals_fired += 1
+                signal_id = signal["signal_id"]
+                spread_pips = signal.get("spread_pips", 0.0)
 
-            # Correlation check
-            allowed, reason = self.corr_filter.can_trade(
-                self.pair, open_trade_dicts, signal["direction"]
-            )
-            if not allowed:
-                logger.debug(f"[BT] Signal blocked by correlation: {reason}")
-                continue
+                # Risk checks
+                open_trade_dicts = [
+                    {"pair": t.pair, "direction": t.direction,
+                     "lot_total": t.lot, "risk_amount": self.config.trading_pool_size * self.config.risk_percent / 100}
+                    for t in self._open_trades
+                ]
+                risk_result = self.risk_engine.run_all_checks(signal, open_trade_dicts)
+                if not risk_result["pass"]:
+                    logger.debug(f"[BT] Signal blocked by risk: {risk_result['failed_check']}")
+                    continue
 
-            # ── Lot size ────────────────────────────────────────────────
-            lot = risk_result["lot_size"]
-            # Respect strategy-level fixed lot override if set in signal
-            fixed_lot = signal.get("fixed_lot_size", 0.0)
-            if fixed_lot and fixed_lot > 0.0:
-                lot = round(fixed_lot, 2)
+                # Correlation check
+                allowed, reason = self.corr_filter.can_trade(
+                    self.pair, open_trade_dicts, signal["direction"]
+                )
+                if not allowed:
+                    logger.debug(f"[BT] Signal blocked by correlation: {reason}")
+                    continue
 
-            # ── Determine fill price ────────────────────────────────────
-            # For ZGMT: the strategy places a limit order AT the 0 GMT open price.
-            # The M1 bar at 00:00 UTC always includes the 0 GMT price in its range
-            # (it opens at that price), so the fill is guaranteed at 00:00.
-            # The scanner fires at 00:15 to confirm the setup. We retroactively fill
-            # at the 00:00 bar and replay exit checks for the intervening bars.
-            # For other strategies: market-order fill at bar close (existing behaviour).
-            signal_entry = signal.get("entry_price", current_bar["close"])
-            is_zgmt_signal = (signal.get("strategy") == "ZGMT")
+                # ── Lot size ────────────────────────────────────────────────
+                lot = risk_result["lot_size"]
+                # Respect strategy-level fixed lot override if set in signal
+                fixed_lot = signal.get("fixed_lot_size", 0.0)
+                if fixed_lot and fixed_lot > 0.0:
+                    lot = round(fixed_lot, 2)
 
-            if is_zgmt_signal:
-                entry_price = signal_entry  # Fill at the exact 0 GMT price
+                # ── Determine fill price ────────────────────────────────────
+                # For ZGMT: the strategy places a limit order AT the 0 GMT open price.
+                # The M1 bar at 00:00 UTC always includes the 0 GMT price in its range
+                # (it opens at that price), so the fill is guaranteed at 00:00.
+                # The scanner fires at 00:15 to confirm the setup. We retroactively fill
+                # at the 00:00 bar and replay exit checks for the intervening bars.
+                # For other strategies: market-order fill at bar close (existing behaviour).
+                signal_entry = signal.get("entry_price", current_bar["close"])
+                is_zgmt_signal = (signal.get("strategy") == "ZGMT")
 
-                # Compute SL/TP from the fill price using pip distances
-                sl_pips = signal["sl_pips"]
-                tp_pips = signal["tp_pips"]
-                pip_size = self.pip_size
-                sl_diff = sl_pips * pip_size
-                tp_diff = tp_pips * pip_size
-                if signal["direction"] == "BUY":
-                    sl_price  = round(entry_price - sl_diff, 5)
-                    tp1_price = round(entry_price + sl_diff, 5)   # TP1 = 1R
-                    tp2_price = round(entry_price + tp_diff, 5)   # TP2 = 2R
-                else:
-                    sl_price  = round(entry_price + sl_diff, 5)
-                    tp1_price = round(entry_price - sl_diff, 5)
-                    tp2_price = round(entry_price - tp_diff, 5)
+                if is_zgmt_signal:
+                    entry_price = signal_entry  # Fill at the exact 0 GMT price
 
-                # Find the 00:00 UTC bar for today (scan back ≤ 25 bars)
-                if current_time.tzinfo is None:
-                    cur_utc = current_time.replace(tzinfo=timezone.utc)
-                else:
-                    cur_utc = current_time.astimezone(timezone.utc)
-                today_midnight = cur_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-
-                day_start_idx = idx  # fallback: no retroactive fill
-                for search_i in range(idx - 1, max(_WARMUP_BARS - 1, idx - 30), -1):
-                    bar_t = m1_data.iloc[search_i]["time"]
-                    if bar_t.tzinfo is None:
-                        bar_t = bar_t.replace(tzinfo=timezone.utc)
+                    # Compute SL/TP from the fill price using pip distances
+                    sl_pips = signal["sl_pips"]
+                    tp_pips = signal["tp_pips"]
+                    pip_size = self.pip_size
+                    sl_diff = sl_pips * pip_size
+                    tp_diff = tp_pips * pip_size
+                    if signal["direction"] == "BUY":
+                        sl_price  = round(entry_price - sl_diff, 5)
+                        tp1_price = round(entry_price + sl_diff, 5)   # TP1 = 1R
+                        tp2_price = round(entry_price + tp_diff, 5)   # TP2 = 2R
                     else:
-                        bar_t = bar_t.astimezone(timezone.utc)
-                    if bar_t < today_midnight:
-                        day_start_idx = search_i + 1  # first bar of today
-                        break
+                        sl_price  = round(entry_price + sl_diff, 5)
+                        tp1_price = round(entry_price - sl_diff, 5)
+                        tp2_price = round(entry_price - tp_diff, 5)
 
-                fill_bar = m1_data.iloc[day_start_idx]
-                fill_time = fill_bar["time"]
+                    # Find the 00:00 UTC bar for today (scan back ≤ 25 bars)
+                    if current_time.tzinfo is None:
+                        current_time_utc = current_time.replace(tzinfo=timezone.utc)
+                    else:
+                        current_time_utc = current_time.astimezone(timezone.utc)
 
-                # Strategy: close partial_tp_fraction at TP1, move SL to BE+buffer, rest to TP2
+                    target_0gmt = current_time_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+                    if target_0gmt.tzinfo is not None:
+                        target_0gmt = target_0gmt.replace(tzinfo=None)  # m1_data is naive UTC
+
+                    day_start_idx = idx
+                    fill_time = current_bar["time"]
+
+                    for lookback_i in range(idx, max(-1, idx - 25), -1):
+                        bar_t = m1_data.iloc[lookback_i]["time"]
+                        if bar_t == target_0gmt:
+                            day_start_idx = lookback_i
+                            fill_time = bar_t
+                            break
+
+                    # Fetch live BE buffer and partial TP ratio from global config
+                    bt_be_buffer_pips = self.config.be_buffer_pips
+                    bt_partial_tp_fraction = self.config.partial_tp_fraction
+
+                    trade = SimulatedTrade(
+                        trade_id=str(uuid.uuid4()),
+                        signal_id=signal_id,
+                        pair=self.pair,
+                        direction=signal["direction"],
+                        entry=entry_price,
+                        sl=sl_price,
+                        tp1=tp1_price,
+                        tp2=tp2_price,
+                        lot=lot,
+                        bar_index=day_start_idx,
+                        bar_time=fill_time,
+                        pip_size=self.pip_size,
+                        use_partial_tp=True,
+                        partial_tp_fraction=bt_partial_tp_fraction,
+                        be_buffer_pips=bt_be_buffer_pips,
+                    )
+
+                    logger.info(
+                        f"[BT] Trade OPENED | {self.pair} {signal['direction']} | "
+                        f"FillBar {day_start_idx} (0GMT) | Entry: {entry_price:.5f} | "
+                        f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
+                        f"Lot: {lot} | Score: {signal['score']}"
+                    )
+
+                    # Retroactively replay exit checks for bars between 00:00 and now (inclusive)
+                    trade_closed_early = False
+                    for replay_i in range(day_start_idx, idx + 1):
+                        replay_bar = m1_data.iloc[replay_i]
+                        replay_t = replay_bar["time"]
+                        if self._check_exits(trade, replay_bar, replay_i, replay_t):
+                            trade_closed_early = True
+                            break
+
+                    if not trade_closed_early:
+                        self._open_trades.append(trade)
+
+                    bars_since_signal = 0
+                    continue  # Skip the generic trade creation below
+
+                else:
+                    entry_price = current_bar["close"]  # Market order at bar close
+                    sl_price  = signal["sl_price"]
+                    tp1_price = signal["tp1_price"]
+                    tp2_price = signal["tp2_price"]
+
                 trade = SimulatedTrade(
                     trade_id=str(uuid.uuid4()),
                     signal_id=signal_id,
@@ -378,64 +429,18 @@ class BacktestEngine:
                     tp1=tp1_price,
                     tp2=tp2_price,
                     lot=lot,
-                    bar_index=day_start_idx,
-                    bar_time=fill_time,
-                    pip_size=self.pip_size,
-                    use_partial_tp=True,
-                    partial_tp_fraction=bt_partial_tp_fraction,
-                    be_buffer_pips=bt_be_buffer_pips,
+                    bar_index=idx,
+                    bar_time=current_time,
                 )
+                self._open_trades.append(trade)
+                bars_since_signal = 0
 
                 logger.info(
                     f"[BT] Trade OPENED | {self.pair} {signal['direction']} | "
-                    f"FillBar {day_start_idx} (0GMT) | Entry: {entry_price:.5f} | "
-                    f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
+                    f"Bar {idx} | Entry: {entry_price:.5f} | "
+                    f"SL: {trade.sl:.5f} | TP1: {trade.tp1:.5f} | TP2: {trade.tp2:.5f} | "
                     f"Lot: {lot} | Score: {signal['score']}"
                 )
-
-                # Retroactively replay exit checks for bars between 00:00 and now (inclusive)
-                trade_closed_early = False
-                for replay_i in range(day_start_idx, idx + 1):
-                    replay_bar = m1_data.iloc[replay_i]
-                    replay_t = replay_bar["time"]
-                    if self._check_exits(trade, replay_bar, replay_i, replay_t):
-                        trade_closed_early = True
-                        break
-
-                if not trade_closed_early:
-                    self._open_trades.append(trade)
-
-                bars_since_signal = 0
-                continue  # Skip the generic trade creation below
-
-            else:
-                entry_price = current_bar["close"]  # Market order at bar close
-                sl_price  = signal["sl_price"]
-                tp1_price = signal["tp1_price"]
-                tp2_price = signal["tp2_price"]
-
-            trade = SimulatedTrade(
-                trade_id=str(uuid.uuid4()),
-                signal_id=signal_id,
-                pair=self.pair,
-                direction=signal["direction"],
-                entry=entry_price,
-                sl=sl_price,
-                tp1=tp1_price,
-                tp2=tp2_price,
-                lot=lot,
-                bar_index=idx,
-                bar_time=current_time,
-            )
-            self._open_trades.append(trade)
-            bars_since_signal = 0
-
-            logger.info(
-                f"[BT] Trade OPENED | {self.pair} {signal['direction']} | "
-                f"Bar {idx} | Entry: {entry_price:.5f} | "
-                f"SL: {trade.sl:.5f} | TP1: {trade.tp1:.5f} | TP2: {trade.tp2:.5f} | "
-                f"Lot: {lot} | Score: {signal['score']}"
-            )
 
         # Force-close any remaining open trades at last bar close
         last_bar = m1_data.iloc[-1]

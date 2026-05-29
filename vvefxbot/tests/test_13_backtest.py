@@ -1045,17 +1045,16 @@ def test_adr_sl_fallback_on_missing_data(mock_config):
         f"Fallback tp_pips should be 50 (fixed), got {result['tp_pips']}"
 
 
-# ── Test 7: SPLIT mode emits filter leg with position_fraction=0.5 ───────────
+# ── Test 7: SPLIT mode emits two signals ───────────
 def test_split_mode_two_signals(mock_config):
     """
     SPLIT mode must:
-    1. Use the FILTER (manipulation zone) entry, not the DIRECT (0 GMT) entry.
-    2. Return position_fraction=0.5 in the signal dict.
-    3. Return a single dict (engine currently handles single signal per call).
-    Note: True two-signal dispatch requires engine refactoring (see module docstring).
+    1. Emit two signals (Leg A: Direct, Leg B: Filter)
+    2. Both must have position_fraction=0.5
     """
     from unittest.mock import MagicMock
     import pandas as pd
+    from datetime import datetime, timezone
 
     connector = MagicMock()
     # 7 D1 bars with range 0.006 → ADR OK
@@ -1066,31 +1065,48 @@ def test_split_mode_two_signals(mock_config):
         "close": [1.1060] * 7,
     })
     connector.get_current_spread.return_value = 0.0
+    # Simulate valid tick
+    connector.get_tick.return_value = {"bid": 1.10050, "ask": 1.10050}
+    # Simulate time inside window
+    connector.current_time.return_value = datetime(2025, 1, 1, 1, 0, 0, tzinfo=timezone.utc) # 6:30 IST
 
-    scanner = _make_scanner(mock_config, connector)
-    zgmt_price = 1.10000
-    zgmt_cfg = {
+    mock_config.zgmt_scanner = {
         "zgmt_entry_mode": "SPLIT",
         "zgmt_filter_pips_fx": 25,
         "zgmt_filter_pips_metal": 95,
         "zgmt_adr_days": 5,
         "zgmt_sl_tp": {"sl_pips_fx": 25, "tp_pips_fx": 50},
+        "zgmt_window_start_ist": "05:30",
+        "zgmt_window_end_ist": "08:00",
+        "allow_buy": True,
+        "allow_sell": True,
+        "require_pd_array_check": False,
+        "require_power_of_three": False,
     }
 
-    # BUY SPLIT: should use filter leg (below 0 GMT)
-    result = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", zgmt_price, {}, zgmt_cfg)
-    assert result is not None
-    assert result["position_fraction"] == 0.5, \
-        "SPLIT mode must set position_fraction=0.5"
-    # Entry must be at filter zone (below 0 GMT for BUY), NOT at zgmt_price
-    expected_entry = zgmt_price - 25 * 0.0001
-    assert abs(result["entry_price"] - expected_entry) < 1e-5, \
-        f"SPLIT BUY entry must be at filter zone ({expected_entry:.5f}), got {result['entry_price']}"
+    scanner = _make_scanner(mock_config, connector)
+    zgmt_price = 1.10000
+    # Override the _get_zgmt_price mock
+    scanner._get_zgmt_price = MagicMock(return_value=(zgmt_price, False))
+    # Override _is_zgmt_level_tested
+    scanner._is_zgmt_level_tested = MagicMock(return_value=False)
 
-    # SELL SPLIT: should use filter leg (above 0 GMT)
-    result_sell = scanner._compute_entry_sl_tp("EURUSD", "BEARISH", zgmt_price, {}, zgmt_cfg)
-    assert result_sell is not None
-    assert result_sell["position_fraction"] == 0.5
-    expected_sell_entry = zgmt_price + 25 * 0.0001
-    assert abs(result_sell["entry_price"] - expected_sell_entry) < 1e-5, \
-        f"SPLIT SELL entry must be at filter zone ({expected_sell_entry:.5f}), got {result_sell['entry_price']}"
+    # Call scan
+    result = scanner.scan("EURUSD", "LONDON", "OPEN")
+    
+    # Should be a list of two signals
+    assert result is not None
+    assert isinstance(result, list)
+    assert len(result) == 2
+
+    leg_a, leg_b = result
+    
+    assert leg_a["position_fraction"] == 0.5
+    assert leg_b["position_fraction"] == 0.5
+
+    # Entry A must be direct
+    assert abs(leg_a["entry_price"] - zgmt_price) < 1e-5
+
+    # Entry B must be at filter zone (below 0 GMT for BUY since tick bid > 0)
+    expected_entry_b = zgmt_price - 25 * 0.0001
+    assert abs(leg_b["entry_price"] - expected_entry_b) < 1e-5
