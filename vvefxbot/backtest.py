@@ -223,9 +223,9 @@ def load_from_csv(csv_dir: str, symbol: str,
 # ──────────────────────────────────────────────────────────────────────
 
 def _pip_size_for_pair(pair: str) -> float:
-    """Return correct pip size (0.01 for JPY/XAU, 0.0001 otherwise)."""
+    """Return correct pip size (0.01 for JPY/XAU/XAG, 0.0001 otherwise)."""
     p = pair.upper()
-    if "JPY" in p or "XAU" in p:
+    if "JPY" in p or "XAU" in p or "XAG" in p:
         return 0.01
     return 0.0001
 

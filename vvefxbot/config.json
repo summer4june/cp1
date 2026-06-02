@@ -96,6 +96,10 @@
       "tp_pips_fx": 50
     },
 
+    "_comment_sl_cap": "Hard cap on ADR-based SL — prevents 500-1200 pip runaway SLs",
+    "max_sl_pips_fx": 50,
+    "max_sl_pips_metal": 150,
+
     "score": 70.0,
     "cooldown_minutes": 60,
     "max_daily_trades": 2,

@@ -392,6 +392,21 @@ class ScannerZGMT:
             sl_dist_price = self._pips_to_price(pair, sl_pips)
             tp_dist_price = self._pips_to_price(pair, tp_pips)
 
+        # ── Cap SL at configurable maximum ──────────────────────────
+        # Prevents runaway ADR-based SL (e.g. 500-1200 pips on JPY cross days)
+        if self._is_metal(pair):
+            max_sl_pips = float(zgmt_cfg.get("max_sl_pips_metal", 150))
+        else:
+            max_sl_pips = float(zgmt_cfg.get("max_sl_pips_fx", 50))
+        if sl_pips > max_sl_pips:
+            logger.debug(
+                f"[{pair}] ZGMT: ADR SL ({sl_pips:.1f} pips) exceeds cap ({max_sl_pips} pips). Capping."
+            )
+            sl_pips      = max_sl_pips
+            tp_pips      = sl_pips * 2
+            sl_dist_price = self._pips_to_price(pair, sl_pips)
+            tp_dist_price = self._pips_to_price(pair, tp_pips)
+
         # ── Step 4: Entry price per mode ────────────────────────────
 
         if bias == "BULLISH":
@@ -732,6 +747,20 @@ class ScannerZGMT:
 
         sl_pips = sl_distance / symbol_point
         tp_pips = sl_pips * 2
+
+        # Cap SL at configurable maximum (same cap as standard ZGMT entries)
+        if self._is_metal(pair):
+            max_sl_pips = float(zgmt_cfg.get("max_sl_pips_metal", 150))
+        else:
+            max_sl_pips = float(zgmt_cfg.get("max_sl_pips_fx", 50))
+        if sl_pips > max_sl_pips:
+            logger.debug(
+                f"[{pair}] ZGMT-EXCEPTION: ADR SL ({sl_pips:.1f} pips) exceeds cap "
+                f"({max_sl_pips} pips). Capping."
+            )
+            sl_pips   = max_sl_pips
+            tp_pips   = sl_pips * 2
+            sl_distance = self._pips_to_price(pair, sl_pips)
 
         if direction == "BUY":
             sl_price  = entry_price - sl_distance

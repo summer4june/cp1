@@ -156,6 +156,8 @@ class BacktestEngine:
         pair_upper = pair.upper()
         if "XAU" in pair_upper:
             self.pip_value = 1.0
+        elif "XAG" in pair_upper:
+            self.pip_value = 50.0
         elif "JPY" in pair_upper:
             # Dynamic: fetch current price for accurate per-pip USD value
             try:
@@ -170,7 +172,7 @@ class BacktestEngine:
         else:
             self.pip_value = pip_value  # $10 default for USD-quoted pairs
 
-        self.pip_size = 0.01 if ("JPY" in pair_upper or "XAU" in pair_upper) else 0.0001
+        self.pip_size = 0.01 if ("JPY" in pair_upper or "XAU" in pair_upper or "XAG" in pair_upper) else 0.0001
 
         # Warn if breakeven buffer > TP1 distance (structural runner issue)
         tm_cfg_init = getattr(config, "trade_management", {})
@@ -260,6 +262,31 @@ class BacktestEngine:
                 if not closed:
                     still_open.append(trade)
             self._open_trades = still_open
+
+            # ── Daily expiry: cancel PENDING orders that never triggered ───
+            # At 22:00 UTC (NY close) expire all unfilled limit orders (Leg B).
+            # This prevents pending orders from spanning multiple days.
+            bar_hour = current_time.hour if current_time.tzinfo is None else \
+                current_time.astimezone(timezone.utc).hour
+            if bar_hour == 22:
+                still_open_after_expiry = []
+                for trade in self._open_trades:
+                    if trade.status == "PENDING":
+                        trade.status = "CLOSED"
+                        trade.result = "CANCELLED"
+                        trade.exit_reason = "EXPIRED_DAY_END"
+                        trade.close_bar = idx
+                        trade.close_time = current_time
+                        trade.exit_price = trade.entry
+                        trade.profit_usd = 0.0
+                        self._closed_trades.append(trade)
+                        logger.debug(
+                            f"[BT] Pending EXPIRED (day end 22:00 UTC) | "
+                            f"{trade.pair} {trade.direction} | Entry: {trade.entry:.5f}"
+                        )
+                    else:
+                        still_open_after_expiry.append(trade)
+                self._open_trades = still_open_after_expiry
 
             bars_since_signal += 1
 
