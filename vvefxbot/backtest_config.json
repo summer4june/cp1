@@ -1,23 +1,28 @@
 {
-  "_comment": "VvE FxBOT Backtest Configuration",
+  "_comment": "VvE FxBOT — ZGMT Strategy Backtest Configuration",
 
-  "_comment_strategy": "Choose which strategy to backtest: MMXM | OTE | ZGMT",
+  "_comment_strategy": "Strategy to backtest: MMXM | OTE | ZGMT",
   "strategy": "ZGMT",
+
+  "_comment_timezone": "Set to 3 for EET (MT5 default broker server time offset from UTC)",
   "broker_timezone_offset_hours": 3.0,
 
-  "pairs": ["XAUUSD"],
+  "_comment_pairs": "All pairs including metals. Must match config.json pairs list",
+  "pairs": ["EURUSD", "GBPUSD", "USDJPY", "GBPJPY", "EURJPY", "USDCAD", "XAUUSD", "XAGUSD"],
 
-  "date_from": "2024-01-01",
-  "date_to":   "2024-12-31",
+  "_comment_dates": "Full backtest range",
+  "date_from": "2022-01-01",
+  "date_to":   "2025-12-31",
 
-  "initial_balance": 1000.0,
-  "risk_percent":    1.0,
+  "_comment_balance": "Initial balance and risk — risk is overridden in config.json (set high for backtesting)",
+  "initial_balance": 10000.0,
+  "risk_percent":    100.0,
 
   "data_source": {
-    "_comment_mode": "Set mode to 'mt5' for automatic fetch or 'csv' for manual CSV files",
+    "_comment_mode": "Set mode to 'mt5' to auto-fetch from MetaTrader 5 (must be open)",
     "mode": "mt5",
 
-    "_comment_csv": "Used only when mode = csv. Put CSV files in this folder named like: EURUSD_M1.csv, EURUSD_M15.csv, EURUSD_H1.csv",
+    "_comment_csv": "Used only when mode=csv. Put CSV files here named: EURUSD_M1.csv etc.",
     "csv_dir": "backtest/data"
   },
 
