@@ -208,6 +208,25 @@ class BacktestEngine:
     # MAIN RUN
     # ------------------------------------------------------------------
 
+    def _get_session_for_time(self, current_time: datetime) -> Optional[str]:
+        if current_time.tzinfo is None:
+            _bar_utc = current_time.replace(tzinfo=timezone.utc)
+        else:
+            _bar_utc = current_time.astimezone(timezone.utc)
+        _bar_ist = (_bar_utc + timedelta(hours=5, minutes=30)).time()
+
+        def _in_range(t, start_str, end_str):
+            from datetime import time as dt_time
+            s = dt_time(*map(int, start_str.split(":")))
+            e = dt_time(*map(int, end_str.split(":")))
+            return (t >= s and t < e) if s <= e else (t >= s or t < e)
+
+        return next(
+            (name for name, timings in self.config.session_timings.items()
+             if _in_range(_bar_ist, timings["start"], timings["end"])),
+            None
+        )
+
     def run(self) -> List[dict]:
         """
         Execute the full backtest replay.
@@ -308,6 +327,8 @@ class BacktestEngine:
             # ── Derive session & killzone from replay BAR time (not live clock) ──
             # session_engine.get_active_session() uses datetime.now() which is always
             # the real-world clock time — wrong for backtesting. Compute from bar.
+            session = self._get_session_for_time(current_time)
+
             if current_time.tzinfo is None:
                 _bar_utc = current_time.replace(tzinfo=timezone.utc)
             else:
@@ -320,11 +341,6 @@ class BacktestEngine:
                 e = dt_time(*map(int, end_str.split(":")))
                 return (t >= s and t < e) if s <= e else (t >= s or t < e)
 
-            session  = next(
-                (name for name, timings in self.config.session_timings.items()
-                 if _in_range(_bar_ist, timings["start"], timings["end"])),
-                None
-            )
             killzone = next(
                 (name for name, timings in self.config.killzone_timings.items()
                  if _in_range(_bar_ist, timings["start"], timings["end"])),
@@ -586,6 +602,12 @@ class BacktestEngine:
                 trade.status = "OPEN"
                 trade.open_time = bar_time
                 trade.open_bar = bar_idx
+                
+                # Update session to the actual time the limit order triggered
+                triggered_session = self._get_session_for_time(bar_time)
+                if triggered_session:
+                    trade.session = triggered_session
+                    
                 logger.info(
                     f"[BT] Limit Trade TRIGGERED | {trade.pair} {direction} | "
                     f"Bar {bar_idx} | Entry: {trade.entry:.5f} | "
