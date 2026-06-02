@@ -305,9 +305,31 @@ class BacktestEngine:
                 if not (w_start <= current_ist_time <= w_end):
                     continue
 
-            # ── Skip scanning if outside session / killzone ────────────
-            session = self.session_engine.get_active_session()
-            killzone = self.session_engine.get_active_killzone()
+            # ── Derive session & killzone from replay BAR time (not live clock) ──
+            # session_engine.get_active_session() uses datetime.now() which is always
+            # the real-world clock time — wrong for backtesting. Compute from bar.
+            if current_time.tzinfo is None:
+                _bar_utc = current_time.replace(tzinfo=timezone.utc)
+            else:
+                _bar_utc = current_time.astimezone(timezone.utc)
+            _bar_ist = (_bar_utc + timedelta(hours=5, minutes=30)).time()
+
+            def _in_range(t, start_str, end_str):
+                from datetime import time as dt_time
+                s = dt_time(*map(int, start_str.split(":")))
+                e = dt_time(*map(int, end_str.split(":")))
+                return (t >= s and t < e) if s <= e else (t >= s or t < e)
+
+            session  = next(
+                (name for name, timings in self.config.session_timings.items()
+                 if _in_range(_bar_ist, timings["start"], timings["end"])),
+                None
+            )
+            killzone = next(
+                (name for name, timings in self.config.killzone_timings.items()
+                 if _in_range(_bar_ist, timings["start"], timings["end"])),
+                None
+            )
             if not is_zgmt and not killzone:
                 continue
 
