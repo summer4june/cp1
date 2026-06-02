@@ -27,28 +27,31 @@
     "LondonClose": {"start": "19:30", "end": "21:30"}
   },
 
-  "_comment_risk": "Risk / trade-count limits relaxed for backtesting — increase later for live",
-  "risk_percent":          100.0,
-  "max_trades_day":        999,
-  "max_trades_pair_day":   999,
-  "max_open_trades":       999,
-  "max_open_risk_percent": 100.0,
+  "risk_percent": 1.0,
+  "max_trades_day": 10,
+  "max_trades_pair_day": 2,
+  "max_open_trades": 2,
+  "max_open_risk_percent": 6.0,
 
   "spread_limits": {
-    "EURUSD": 99.0, "GBPUSD": 99.0, "USDJPY": 99.0,
-    "GBPJPY": 99.0, "EURJPY": 99.0, "USDCAD": 99.0,
-    "XAUUSD": 999.0, "XAGUSD": 999.0
+    "EURUSD": 1.5, "GBPUSD": 2.0, "USDJPY": 2.0,
+    "GBPJPY": 3.0, "EURJPY": 3.0, "USDCAD": 2.5,
+    "XAUUSD": 30.0, "XAGUSD": 45.0
   },
 
-  "effective_rr_min":       0.0,
-  "aplus_threshold":        0.0,
-  "slippage_max_pips":     99.0,
+  "effective_rr_min": 1.9,
+  "aplus_threshold": 85.0,
+  "slippage_max_pips": 2.0,
   "scan_frequency_seconds": 10,
 
-  "correlation_groups": {},
+  "correlation_groups": {
+    "A": ["EURUSD", "GBPUSD"],
+    "B": ["USDJPY", "EURJPY", "GBPJPY"],
+    "C": ["USDCAD"]
+  },
 
   "demo_mode": true,
-  "trading_pool_size": 100000.0,
+  "trading_pool_size": 1000.0,
 
   "zgmt_scanner": {
     "enabled": true,
