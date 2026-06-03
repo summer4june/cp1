@@ -1,118 +1,124 @@
 {
   "strategy_mode": "ZGMT",
-
   "trade_management": {
     "partial_tp_enabled": true,
     "partial_tp_fraction": 0.5,
     "breakeven_buffer_pips": 5
   },
-
   "enabled_scanners": {
     "mmxm": false,
-    "ote":  false,
+    "ote": false,
     "zgmt": true
   },
-
-  "pairs": ["EURUSD", "GBPUSD", "USDJPY", "GBPJPY", "EURJPY", "USDCAD", "XAUUSD", "XAGUSD"],
-
+  "pairs": [
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY",
+    "GBPJPY",
+    "EURJPY",
+    "USDCAD",
+    "XAUUSD",
+    "XAGUSD"
+  ],
   "session_timings": {
-    "Asia":    {"start": "02:30", "end": "08:30"},
-    "London":  {"start": "12:30", "end": "21:30"},
-    "NewYork": {"start": "17:30", "end": "00:30"}
+    "Asia": {
+      "start": "02:30",
+      "end": "08:30"
+    },
+    "London": {
+      "start": "12:30",
+      "end": "21:30"
+    },
+    "NewYork": {
+      "start": "17:30",
+      "end": "00:30"
+    }
   },
   "killzone_timings": {
-    "Asia":        {"start": "05:30", "end": "07:30"},
-    "London":      {"start": "11:30", "end": "14:30"},
-    "NewYork":     {"start": "16:30", "end": "19:30"},
-    "LondonClose": {"start": "19:30", "end": "21:30"}
+    "Asia": {
+      "start": "05:30",
+      "end": "07:30"
+    },
+    "London": {
+      "start": "11:30",
+      "end": "14:30"
+    },
+    "NewYork": {
+      "start": "16:30",
+      "end": "19:30"
+    },
+    "LondonClose": {
+      "start": "19:30",
+      "end": "21:30"
+    }
   },
-
-  "risk_percent": 1.0,
-  "max_trades_day": 10,
-  "max_trades_pair_day": 2,
-  "max_open_trades": 2,
-  "max_open_risk_percent": 6.0,
-
+  "_comment_risk": "Risk / trade-count limits relaxed for backtesting — increase later for live",
+  "risk_percent": 100.0,
+  "max_trades_day": 999,
+  "max_trades_pair_day": 999,
+  "max_open_trades": 999,
+  "max_open_risk_percent": 100.0,
   "spread_limits": {
-    "EURUSD": 1.5, "GBPUSD": 2.0, "USDJPY": 2.0,
-    "GBPJPY": 3.0, "EURJPY": 3.0, "USDCAD": 2.5,
-    "XAUUSD": 30.0, "XAGUSD": 45.0
+    "EURUSD": 99.0,
+    "GBPUSD": 99.0,
+    "USDJPY": 99.0,
+    "GBPJPY": 99.0,
+    "EURJPY": 99.0,
+    "USDCAD": 99.0,
+    "XAUUSD": 999.0,
+    "XAGUSD": 999.0
   },
-
-  "effective_rr_min": 1.9,
-  "aplus_threshold": 85.0,
-  "slippage_max_pips": 2.0,
+  "effective_rr_min": 0.0,
+  "aplus_threshold": 0.0,
+  "slippage_max_pips": 99.0,
   "scan_frequency_seconds": 10,
-
-  "correlation_groups": {
-    "A": ["EURUSD", "GBPUSD"],
-    "B": ["USDJPY", "EURJPY", "GBPJPY"],
-    "C": ["USDCAD"]
-  },
-
+  "correlation_groups": {},
   "demo_mode": true,
-  "trading_pool_size": 1000.0,
-
+  "trading_pool_size": 100000.0,
   "zgmt_scanner": {
     "enabled": true,
-
-    "timeframe_bias":  "D1",
+    "timeframe_bias": "D1",
     "timeframe_entry": "H1",
     "d1_candles_for_range": 20,
-
     "zgmt_window_start_ist": "05:30",
-    "zgmt_window_end_ist":   "08:00",
-    "zgmt_ny_midnight_ist":  "09:30",
-
-    "require_pd_array_check":  true,
-    "require_power_of_three":  false,
-
+    "zgmt_window_end_ist": "08:00",
+    "zgmt_ny_midnight_ist": "09:30",
+    "require_pd_array_check": true,
+    "require_power_of_three": false,
     "_comment_entry_mode": "SPLIT = Leg A (market at 0GMT) + Leg B (pending limit) both active",
-    "zgmt_entry_mode":          "SPLIT",
-    "zgmt_filter_pips":         20,
-    "zgmt_filter_pips_fx":      25,
-    "zgmt_filter_pips_metal":   95,
+    "zgmt_entry_mode": "SPLIT",
+    "zgmt_filter_pips": 20,
+    "zgmt_filter_pips_fx": 25,
+    "zgmt_filter_pips_metal": 95,
     "zgmt_test_threshold_pips": 5,
     "zgmt_test_exclude_first_mins": 15,
-
     "zgmt_sl_tp": {
-      "sl_pips_gold":  95,
-      "tp_pips_gold":  190,
-      "sl_pips_fx":    25,
-      "tp_pips_fx":    50
+      "sl_pips_gold": 95,
+      "tp_pips_gold": 190,
+      "sl_pips_fx": 25,
+      "tp_pips_fx": 50
     },
-
     "_comment_sl_cap": "Hard cap on ADR-based SL — prevents 500-1200 pip runaway SLs",
-    "max_sl_pips_fx":    50,
+    "max_sl_pips_fx": 50,
     "max_sl_pips_metal": 150,
-
-    "score":            70.0,
-    "cooldown_minutes":  0,
-    "max_daily_trades":  999,
-    "allow_buy":  true,
+    "score": 70.0,
+    "cooldown_minutes": 0,
+    "max_daily_trades": 999,
+    "allow_buy": true,
     "allow_sell": true,
-
     "fixed_lot_size": 0.01,
-
-    "skip_rr_check":       true,
+    "skip_rr_check": true,
     "use_adr_sl_for_zgmt": true,
-
     "magic_number": 202412,
-
     "_comment_exception": "─── HTF OB Exception ─── overrides Leg A with HTF OB entry when valid",
     "zgmt_exception_enabled": true,
-    "zgmt_exception_score":   68.0,
-
+    "zgmt_exception_score": 68.0,
     "zgmt_ob_candles_4h": 50,
     "zgmt_ob_candles_1h": 100,
-
     "zgmt_ob_tap_threshold_pips": 5,
-
     "zgmt_ob_fib_min": 0.50,
     "zgmt_ob_fib_max": 0.618,
-
     "zgmt_swing_lookback": 3,
-
     "zgmt_adr_days": 5
   }
 }
