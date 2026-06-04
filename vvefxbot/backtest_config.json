@@ -6,7 +6,14 @@
   "broker_timezone_offset_hours": 3.0,
   "_comment_pairs": "All pairs including metals. Must match config.json pairs list",
   "pairs": [
-    "GBPJPY"
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY",
+    "GBPJPY",
+    "EURJPY",
+    "USDCAD",
+    "XAUUSD",
+    "XAGUSD"
   ],
   "_comment_dates": "Full backtest range",
   "date_from": "2024-01-01",
