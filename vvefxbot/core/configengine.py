@@ -91,9 +91,10 @@ class ConfigEngine:
         # trade_management — backward-compatible default
         if "trade_management" not in json_data:
             json_data["trade_management"] = {
-                "partial_tp_enabled": True,
+                "rr_format": "1:2",
+                "partial_tp_enabled": False,
                 "partial_tp_fraction": 0.5,
-                "breakeven_buffer_pips": 30,
+                "breakeven_buffer_pips": 5.0
             }
 
         # Required config.json keys

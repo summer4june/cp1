@@ -129,7 +129,7 @@ def test_backtest_engine_force_close_at_end(mock_config):
     from backtest.engine import SimulatedTrade
     open_trade = SimulatedTrade(
         trade_id="test_id", signal_id="sig_id", pair="EURUSD", direction="BUY",
-        entry=1.10, sl=1.09, tp1=1.11, tp2=1.12, lot=0.1,
+        entry=1.10, sl=1.09, tp1=1.11, tp2=1.12, tp3=0.0, lot=0.1,
         bar_index=150, bar_time=m1_df.iloc[150]["time"]
     )
     engine._open_trades.append(open_trade)
@@ -695,7 +695,7 @@ def _make_zgmt_trade(SimulatedTrade, direction="BUY", lot=0.02):
     return SimulatedTrade(
         trade_id="T1", signal_id="S1", pair="XAUUSD",
         direction=direction, entry=entry,
-        sl=sl, tp1=tp1, tp2=tp2,
+        sl=sl, tp1=tp1, tp2=tp2, tp3=0.0,
         lot=lot, bar_index=0,
         bar_time=datetime(2026, 5, 1, tzinfo=timezone.utc),
         pip_size=pip_size,

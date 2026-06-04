@@ -402,10 +402,15 @@ class ScannerZGMT:
             logger.debug(
                 f"[{pair}] ZGMT: ADR SL ({sl_pips:.1f} pips) exceeds cap ({max_sl_pips} pips). Capping."
             )
-            sl_pips      = max_sl_pips
-            tp_pips      = sl_pips * 2
+            sl_pips       = max_sl_pips
+            tp_pips       = sl_pips * 2
+            tp3_pips      = sl_pips * 3
             sl_dist_price = self._pips_to_price(pair, sl_pips)
             tp_dist_price = self._pips_to_price(pair, tp_pips)
+            tp3_dist_price= self._pips_to_price(pair, tp3_pips)
+        else:
+            tp3_pips      = sl_pips * 3
+            tp3_dist_price= self._pips_to_price(pair, tp3_pips)
 
         # ── Step 4: Entry price per mode ────────────────────────────
 
@@ -424,6 +429,7 @@ class ScannerZGMT:
             sl_price  = entry_price - sl_dist_price
             tp1_price = entry_price + sl_dist_price   # TP1 = 1R
             tp2_price = entry_price + tp_dist_price   # TP2 = 2R
+            tp3_price = entry_price + tp3_dist_price  # TP3 = 3R
 
         else:  # BEARISH
             if entry_mode == "DIRECT":
@@ -440,14 +446,17 @@ class ScannerZGMT:
             sl_price  = entry_price + sl_dist_price
             tp1_price = entry_price - sl_dist_price   # TP1 = 1R
             tp2_price = entry_price - tp_dist_price   # TP2 = 2R
+            tp3_price = entry_price - tp3_dist_price  # TP3 = 3R
 
         return {
             "entry_price":      round(entry_price, 5),
             "sl_price":         round(sl_price, 5),
             "tp1_price":        round(tp1_price, 5),
             "tp2_price":        round(tp2_price, 5),
+            "tp3_price":        round(tp3_price, 5),
             "sl_pips":          round(sl_pips, 2),
             "tp_pips":          round(tp_pips, 2),
+            "tp3_pips":         round(tp3_pips, 2),
             "entry_mode":       entry_mode,
             "filter_pips":      filter_pips,
         }

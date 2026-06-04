@@ -1,9 +1,10 @@
 {
   "strategy_mode": "ZGMT",
   "trade_management": {
+    "rr_format": "1:3",
     "partial_tp_enabled": true,
     "partial_tp_fraction": 0.5,
-    "breakeven_buffer_pips": 5
+    "breakeven_buffer_pips": 30
   },
   "enabled_scanners": {
     "mmxm": false,
