@@ -612,8 +612,10 @@ class ScannerZGMT:
                 "sl_price": levs["sl_price"],
                 "tp1_price": levs["tp1_price"],
                 "tp2_price": levs["tp2_price"],
+                "tp3_price": levs.get("tp3_price", 0.0),
                 "sl_pips": levs["sl_pips"],
                 "tp_pips": levs["tp_pips"],
+                "tp3_pips": levs.get("tp3_pips", 0.0),
                 "spread_pips": spr,
                 "effective_rr": round(eff_rr, 3),
                 "score": float(zgmt_cfg.get("score", 70.0)),
@@ -769,16 +771,21 @@ class ScannerZGMT:
             )
             sl_pips   = max_sl_pips
             tp_pips   = sl_pips * 2
+            tp3_pips  = sl_pips * 3
             sl_distance = self._pips_to_price(pair, sl_pips)
+        else:
+            tp3_pips  = sl_pips * 3
 
         if direction == "BUY":
             sl_price  = entry_price - sl_distance
             tp1_price = entry_price + sl_distance          # TP1 = 1R
-            tp_price  = entry_price + (sl_distance * 2)   # TP2 = 2R
+            tp_price  = entry_price + (sl_distance * 2)    # TP2 = 2R
+            tp3_price = entry_price + (sl_distance * 3)    # TP3 = 3R
         else:
             sl_price  = entry_price + sl_distance
             tp1_price = entry_price - sl_distance          # TP1 = 1R
-            tp_price  = entry_price - (sl_distance * 2)   # TP2 = 2R
+            tp_price  = entry_price - (sl_distance * 2)    # TP2 = 2R
+            tp3_price = entry_price - (sl_distance * 3)    # TP3 = 3R
 
         spread_pips = self.mt5.get_current_spread(pair)
         denom = sl_pips + spread_pips
@@ -803,8 +810,10 @@ class ScannerZGMT:
             "sl_price":    round(sl_price,    5),
             "tp1_price":   round(tp1_price,   5),   # TP1 = 1R (partial close here)
             "tp2_price":   round(tp_price,    5),   # TP2 = 2R (runner target)
+            "tp3_price":   round(tp3_price,   5),   # TP3 = 3R
             "sl_pips": sl_pips,
             "tp_pips": tp_pips,
+            "tp3_pips": round(tp3_pips, 2),
             "spread_pips": spread_pips,
             "effective_rr": round(effective_rr, 3),
             "score": float(zgmt_cfg.get("zgmt_exception_score", 68.0)),
