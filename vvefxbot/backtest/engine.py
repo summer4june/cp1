@@ -129,7 +129,7 @@ class SimulatedTrade:
             "profit_usd": round(self.profit_usd, 2),
             "exit_price": round(self.exit_price, 5),
             "exit_reason": self.exit_reason,
-            "margin_used": round((self.lot * 100000) / 500, 2),  # Approx at 1:500 leverage
+            "margin_used": round((self.lot * 100000) / 200, 2),  # Approx at 1:200 leverage
             "entry_amount": round((self.lot * 100000), 2),
             "monetary_loss_at_sl": 0.0, # Will be filled by report logic if needed or calculated post
             "monetary_profit_at_tp": 0.0,
