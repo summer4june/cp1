@@ -181,25 +181,24 @@ class BacktestEngine:
         # JPY pairs: 1 pip = 0.01 JPY, pip value = 1000/price USD/pip (approx)
         # USD-quoted pairs: 1 pip = 0.0001, lot = 100k → $10.00/pip
         pair_upper = pair.upper()
-        if "XAU" in pair_upper:
-            self.pip_value = 1.0
-        elif "XAG" in pair_upper:
-            self.pip_value = 50.0
-        elif "JPY" in pair_upper:
-            # Dynamic: fetch current price for accurate per-pip USD value
-            try:
-                candles = connector.get_candles(pair, "M1", count=1)
-                if candles is not None and not candles.empty:
-                    price = float(candles.iloc[-1]["close"])
-                    self.pip_value = round(1000.0 / price, 4) if price else 9.2
-                else:
-                    self.pip_value = 9.2  # ~1000/109 fallback (USDJPY ~155 → ~6.45)
-            except Exception:
-                self.pip_value = 9.2
-        else:
-            self.pip_value = pip_value  # $10 default for USD-quoted pairs
-
+        self.pair_upper = pair_upper
         self.pip_size = 0.01 if ("JPY" in pair_upper or "XAU" in pair_upper or "XAG" in pair_upper) else 0.0001
+
+        # pip_value is now computed PER-TRADE dynamically via _get_pip_value(entry_price).
+        # Storing a fixed one for the JPY snapshot fallback only (used in the BE-buffer warning).
+        if "XAU" in pair_upper:
+            # XAU: 1 std lot = 100 oz. 1 pip = $0.01/oz. pip_value = 100 × 0.01 = $1/pip/lot
+            self._base_pip_value = 1.0
+        elif "XAG" in pair_upper:
+            # XAG: 1 std lot = 5000 oz. 1 pip = $0.01/oz. pip_value = 5000 × 0.01 = $50/pip/lot
+            self._base_pip_value = 50.0
+        elif "JPY" in pair_upper:
+            # Dynamic — computed per trade. Store a rough fallback only.
+            self._base_pip_value = None   # signals "compute dynamically"
+        else:
+            # USD-quoted FX (EURUSD, GBPUSD, USDCAD, etc.)
+            # 1 std lot = 100,000 units. 1 pip = 0.0001. pip_value = 100k × 0.0001 = $10/pip/lot
+            self._base_pip_value = 10.0
 
         # Warn if breakeven buffer > TP1 distance (structural runner issue)
         tm_cfg_init = getattr(config, "trade_management", {})
@@ -589,7 +588,7 @@ class BacktestEngine:
                 trade.close_time = last_bar["time"]
                 trade.exit_price = last_bar["close"]
                 pips = self._calc_pips(trade.entry, last_bar["close"], trade.direction)
-                trade.profit_usd = round(pips * self.pip_value * trade.remaining_lot, 2)
+                trade.profit_usd = round(pips * self._get_pip_value(trade.entry) * trade.remaining_lot, 2)
                 self._closed_trades.append(trade)
                 logger.info(f"[BT] Trade EXPIRED at session end: {trade.trade_id}")
 
@@ -656,8 +655,7 @@ class BacktestEngine:
                 # Stage 3: TP2 already hit, waiting for TP3 or SL(at TP1)
                 if trade.tp2_hit:
                     if tp3_hit:
-                        pips = self._calc_pips(trade.entry, trade.tp3, direction)
-                        tp3_pnl = round(pips * self.pip_value * trade.remaining_lot, 2)
+                        tp3_pnl = self._calc_pnl(trade.entry, trade.tp3, direction, trade.remaining_lot)
                         total_pnl = trade.partial_profit + tp3_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN"
@@ -670,8 +668,7 @@ class BacktestEngine:
                         logger.info(f"[BT] ✅ TP3 Hit | {trade.pair} | Total P&L: {total_pnl:+.2f}")
                         return True
                     if sl_hit:
-                        pips = self._calc_pips(trade.entry, trade.current_sl, direction)
-                        sl_pnl = round(pips * self.pip_value * trade.remaining_lot, 2)
+                        sl_pnl = self._calc_pnl(trade.entry, trade.current_sl, direction, trade.remaining_lot)
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN" # Technically still a win since SL is at TP1
@@ -690,8 +687,7 @@ class BacktestEngine:
                     if tp2_hit:
                         partial_lot = round(trade.remaining_lot * 0.5, 8)
                         remainder_lot = round(trade.remaining_lot - partial_lot, 8)
-                        pips = self._calc_pips(trade.entry, trade.tp2, direction)
-                        tp2_pnl = round(pips * self.pip_value * partial_lot, 2)
+                        tp2_pnl = self._calc_pnl(trade.entry, trade.tp2, direction, partial_lot)
                         trade.partial_profit += tp2_pnl
                         trade.remaining_lot = max(round(remainder_lot, 8), 0.0)
                         trade.tp2_hit = True
@@ -700,8 +696,7 @@ class BacktestEngine:
                         logger.info(f"[BT] ✅ TP2 Hit (1:3 mode) | {trade.pair} | SL → TP1")
                         
                         if tp3_hit: # Same bar
-                            pips3 = self._calc_pips(trade.entry, trade.tp3, direction)
-                            tp3_pnl = round(pips3 * self.pip_value * trade.remaining_lot, 2)
+                            tp3_pnl = self._calc_pnl(trade.entry, trade.tp3, direction, trade.remaining_lot)
                             total_pnl = trade.partial_profit + tp3_pnl
                             trade.status = "CLOSED"
                             trade.result = "WIN"
@@ -715,8 +710,7 @@ class BacktestEngine:
                             return True
                         return False
                     if sl_hit:
-                        pips = self._calc_pips(trade.entry, trade.current_sl, direction)
-                        sl_pnl = round(pips * self.pip_value * trade.remaining_lot, 2)
+                        sl_pnl = self._calc_pnl(trade.entry, trade.current_sl, direction, trade.remaining_lot)
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "BREAKEVEN"
@@ -732,8 +726,7 @@ class BacktestEngine:
 
                 # Stage 1: Pre-TP1
                 if sl_hit:
-                    pips = self._calc_pips(trade.entry, trade.current_sl, direction)
-                    loss = round(pips * self.pip_value * trade.remaining_lot, 2)
+                    loss = self._calc_pnl(trade.entry, trade.current_sl, direction, trade.remaining_lot)
                     trade.status = "CLOSED"
                     trade.result = "LOSS"
                     trade.exit_reason = "SL_HIT"
@@ -748,8 +741,7 @@ class BacktestEngine:
                 if tp1_hit:
                     partial_lot = round(trade.lot * trade.partial_tp_fraction, 8)
                     remainder_lot = round(trade.lot - partial_lot, 8)
-                    pips_tp1 = self._calc_pips(trade.entry, trade.tp1, direction)
-                    partial_pnl = round(pips_tp1 * self.pip_value * partial_lot, 2)
+                    partial_pnl = self._calc_pnl(trade.entry, trade.tp1, direction, partial_lot)
                     trade.partial_profit = partial_pnl
                     trade.remaining_lot = max(round(remainder_lot, 8), 0.0)
                     trade.tp1_hit = True
@@ -766,8 +758,7 @@ class BacktestEngine:
                     if tp2_hit:
                         partial_lot2 = round(trade.remaining_lot * 0.5, 8)
                         remainder_lot2 = round(trade.remaining_lot - partial_lot2, 8)
-                        pips2 = self._calc_pips(trade.entry, trade.tp2, direction)
-                        tp2_pnl = round(pips2 * self.pip_value * partial_lot2, 2)
+                        tp2_pnl = self._calc_pnl(trade.entry, trade.tp2, direction, partial_lot2)
                         trade.partial_profit += tp2_pnl
                         trade.remaining_lot = max(round(remainder_lot2, 8), 0.0)
                         trade.tp2_hit = True
@@ -775,8 +766,7 @@ class BacktestEngine:
                         logger.info(f"[BT] ✅ TP2 (Same bar) | {trade.pair} | SL → TP1")
 
                         if tp3_hit:
-                            pips3 = self._calc_pips(trade.entry, trade.tp3, direction)
-                            tp3_pnl = round(pips3 * self.pip_value * trade.remaining_lot, 2)
+                            tp3_pnl = self._calc_pnl(trade.entry, trade.tp3, direction, trade.remaining_lot)
                             total_pnl = trade.partial_profit + tp3_pnl
                             trade.status = "CLOSED"
                             trade.result = "WIN"
@@ -797,8 +787,7 @@ class BacktestEngine:
             else:
                 if trade.tp1_hit:
                     if tp2_hit:
-                        pips = self._calc_pips(trade.entry, trade.tp2, direction)
-                        tp2_pnl = round(pips * self.pip_value * trade.remaining_lot, 2)
+                        tp2_pnl = self._calc_pnl(trade.entry, trade.tp2, direction, trade.remaining_lot)
                         total_pnl = trade.partial_profit + tp2_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN"
@@ -811,8 +800,7 @@ class BacktestEngine:
                         logger.info(f"[BT] ✅ TP2 Hit | {trade.pair} | Total P&L: {total_pnl:+.2f}")
                         return True
                     if sl_hit:
-                        pips = self._calc_pips(trade.entry, trade.current_sl, direction)
-                        sl_pnl = round(pips * self.pip_value * trade.remaining_lot, 2)
+                        sl_pnl = self._calc_pnl(trade.entry, trade.current_sl, direction, trade.remaining_lot)
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "BREAKEVEN"
@@ -827,8 +815,7 @@ class BacktestEngine:
                     return False
 
                 if sl_hit:
-                    pips = self._calc_pips(trade.entry, trade.current_sl, direction)
-                    loss = round(pips * self.pip_value * trade.remaining_lot, 2)
+                    loss = self._calc_pnl(trade.entry, trade.current_sl, direction, trade.remaining_lot)
                     trade.status = "CLOSED"
                     trade.result = "LOSS"
                     trade.exit_reason = "SL_HIT"
@@ -843,8 +830,7 @@ class BacktestEngine:
                 if tp1_hit:
                     partial_lot = round(trade.lot * trade.partial_tp_fraction, 8)
                     remainder_lot = round(trade.lot - partial_lot, 8)
-                    pips_tp1 = self._calc_pips(trade.entry, trade.tp1, direction)
-                    partial_pnl = round(pips_tp1 * self.pip_value * partial_lot, 2)
+                    partial_pnl = self._calc_pnl(trade.entry, trade.tp1, direction, partial_lot)
                     trade.partial_profit = partial_pnl
                     trade.remaining_lot = max(round(remainder_lot, 8), 0.0)
                     trade.tp1_hit = True
@@ -859,8 +845,7 @@ class BacktestEngine:
                     logger.info(f"[BT] 📊 TP1 Hit | {trade.pair} | P&L locked: {partial_pnl:+.2f} | SL → BE+{trade.be_buffer_pips:.0f}pips")
 
                     if tp2_hit:
-                        pips_tp2 = self._calc_pips(trade.entry, trade.tp2, direction)
-                        tp2_pnl = round(pips_tp2 * self.pip_value * trade.remaining_lot, 2)
+                        tp2_pnl = self._calc_pnl(trade.entry, trade.tp2, direction, trade.remaining_lot)
                         total_pnl = trade.partial_profit + tp2_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN"
@@ -878,8 +863,7 @@ class BacktestEngine:
         # Legacy MMXM split mode: SL always takes priority (conservative)
         # ══════════════════════════════════════════════════════════════════
         if sl_hit:
-            pips      = self._calc_pips(trade.entry, trade.current_sl, direction)
-            loss      = round(pips * self.pip_value * trade.remaining_lot, 2)
+            loss      = self._calc_pnl(trade.entry, trade.current_sl, direction, trade.remaining_lot)
             total_pnl = trade.partial_profit + loss
             trade.status      = "CLOSED"
             trade.result      = "BREAKEVEN" if trade.be_moved else "LOSS"
@@ -897,8 +881,7 @@ class BacktestEngine:
 
         # MMXM: TP2 hit (after TP1 already hit)
         if tp2_hit and trade.tp1_hit:
-            pips      = self._calc_pips(trade.entry, trade.tp2, direction)
-            tp2_pnl   = round(pips * self.pip_value * trade.remaining_lot, 2)
+            tp2_pnl   = self._calc_pnl(trade.entry, trade.tp2, direction, trade.remaining_lot)
             total_pnl = trade.partial_profit + tp2_pnl
             trade.status      = "CLOSED"
             trade.result      = "WIN"
@@ -916,8 +899,7 @@ class BacktestEngine:
         # MMXM: TP1 hit (first time)
         if tp1_hit and not trade.tp1_hit:
             half_lot = max(0.01, round(trade.lot / 2, 2))
-            pips     = self._calc_pips(trade.entry, trade.tp1, direction)
-            partial  = round(pips * self.pip_value * half_lot, 2)
+            partial  = self._calc_pnl(trade.entry, trade.tp1, direction, half_lot)
             trade.partial_profit = partial
             trade.remaining_lot  = max(0.01, round(trade.lot - half_lot, 2))
             trade.tp1_hit  = True
@@ -934,9 +916,38 @@ class BacktestEngine:
     # HELPERS
     # ------------------------------------------------------------------
 
+    def _get_pip_value(self, entry_price: float) -> float:
+        """
+        Return USD value per pip per STANDARD LOT for this pair.
+        For JPY crosses the value depends on the entry price, so it is
+        computed dynamically rather than snapshotted once at startup.
+
+        Formulae:
+          XAU  : 100 oz/lot × $0.01/pip  = $1.00 / pip / lot
+          XAG  : 5000 oz/lot × $0.01/pip = $50.00 / pip / lot
+          JPY  : 100,000 units, 1 pip = 0.01 JPY
+                 pip_value = (100,000 × 0.01) / price_USD = 1,000 / price
+          FX   : 100,000 units × 0.0001 = $10.00 / pip / lot
+        """
+        if self._base_pip_value is not None:
+            return self._base_pip_value
+        # JPY crosses: dynamic
+        if entry_price and entry_price > 0:
+            return round(1000.0 / entry_price, 6)
+        return 9.2  # safe fallback
+
     def _calc_pips(self, entry: float, exit_price: float, direction: str) -> float:
-        """Calculate pips P&L. Positive = profit, negative = loss."""
+        """Calculate raw pip distance. Positive = profit direction, negative = loss."""
         if direction == "BUY":
             return (exit_price - entry) / self.pip_size
         else:
             return (entry - exit_price) / self.pip_size
+
+    def _calc_pnl(self, entry: float, exit_price: float, direction: str, lot: float) -> float:
+        """
+        Calculate P&L in USD for a given price move.
+        Uses the entry price to derive the correct pip_value (critical for JPY pairs).
+        """
+        pips = self._calc_pips(entry, exit_price, direction)
+        pip_value = self._get_pip_value(entry)
+        return round(pips * pip_value * lot, 2)
