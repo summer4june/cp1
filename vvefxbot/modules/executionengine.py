@@ -148,9 +148,7 @@ class ExecutionEngine:
         lot_size = risk_result["lot_size"]
         risk_amount = self.config.trading_pool_size * (self.config.risk_percent / 100.0)
 
-        # Strategy-level fixed lot override (e.g. zgmt_scanner.fixed_lot_size)
-        # If the signal carries a positive fixed_lot_size, use it instead of the
-        # risk-formula result. All risk/spread/RR checks above still run normally.
+        # Strategy-level fixed lot override
         fixed_lot = float(signal.get("fixed_lot_size", 0.0) or 0.0)
         if fixed_lot > 0.0:
             logger.info(
@@ -159,12 +157,16 @@ class ExecutionEngine:
             )
             lot_size = round(fixed_lot, 2)
 
+        # Check config to determine final TP for MT5
+        rr_format = self.config.trade_management.get("rr_format", "1:2")
+        mt5_tp = signal.get("tp3_price") if rr_format == "1:3" and signal.get("tp3_price") else signal.get("tp2_price", 0.0)
+
         order_result = self.mt5.place_order(
             symbol=pair,
             order_type=direction,
             lot=lot_size,
             sl=signal["sl_price"],
-            tp=signal["tp2_price"],
+            tp=mt5_tp,
             comment="VvE"
         )
 
@@ -205,7 +207,8 @@ class ExecutionEngine:
             "executed_price": executed_price,
             "sl": signal["sl_price"],
             "tp1": signal["tp1_price"],
-            "tp2": signal["tp2_price"],
+            "tp2": signal.get("tp2_price", 0.0),
+            "tp3": signal.get("tp3_price", 0.0),
             "lot_total": lot_size,
             "risk_amount": risk_amount,
             "execution_time": now_utc,

@@ -1,0 +1,17 @@
+{
+  "strategy": "ZGMT",
+  "broker_timezone_offset_hours": 3.0,
+  "pairs": ["EURUSD"],
+  "date_from": "2024-01-01",
+  "date_to": "2024-01-31",
+  "initial_balance": 10000.0,
+  "risk_percent": 100.0,
+  "data_source": {
+    "mode": "csv",
+    "csv_dir": "backtest/data"
+  },
+  "report": {
+    "save_csv": false,
+    "output_dir": "backtest/results"
+  }
+}
