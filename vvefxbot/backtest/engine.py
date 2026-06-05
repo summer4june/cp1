@@ -101,6 +101,20 @@ class SimulatedTrade:
         self.exit_reason = ""   # TP1, TP2, SL, BE_SL, EXPIRED
 
     def to_dict(self) -> dict:
+        # Contract sizes
+        if "XAU" in self.pair:
+            contract_size = 100
+            margin_used = ((self.lot * contract_size) * self.entry) / 200
+        elif "XAG" in self.pair:
+            contract_size = 5000
+            margin_used = ((self.lot * contract_size) * self.entry) / 200
+        else:
+            contract_size = 100000
+            # Approx margin for FX assuming USD base equivalent
+            margin_used = (self.lot * contract_size) / 200
+
+        entry_amount = self.lot * contract_size
+
         return {
             "trade_id": self.trade_id,
             "signal_id": self.signal_id,
@@ -129,12 +143,12 @@ class SimulatedTrade:
             "profit_usd": round(self.profit_usd, 2),
             "exit_price": round(self.exit_price, 5),
             "exit_reason": self.exit_reason,
-            "margin_used": round((self.lot * 100000) / 200, 2),  # Approx at 1:200 leverage
-            "entry_amount": round((self.lot * 100000), 2),
-            "monetary_loss_at_sl": 0.0, # Will be filled by report logic if needed or calculated post
+            "margin_used": round(margin_used, 2),
+            "entry_amount": round(entry_amount, 2),
+            "monetary_loss_at_sl": 0.0,
             "monetary_profit_at_tp": 0.0,
             "rr_ratio": self.rr_format,
-            "tp3_pips": 0.0, # Added in next step if pips stored
+            "tp3_pips": 0.0,
         }
 
 
