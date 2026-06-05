@@ -251,10 +251,12 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
         sl    = float(row.get("sl_price",    row.get("sl",    0)))
         tp1   = float(row.get("tp1_price",   row.get("tp1",   0)))
         tp2   = float(row.get("tp2_price",   row.get("tp2",   0)))
+        tp3   = float(row.get("tp3_price",   row.get("tp3",   0)))
         return pd.Series({
             "sl_pips":  round(abs(entry - sl)  / ps, 1),
             "tp1_pips": round(abs(entry - tp1) / ps, 1),
             "tp2_pips": round(abs(entry - tp2) / ps, 1),
+            "tp3_pips": round(abs(entry - tp3) / ps, 1) if tp3 else 0.0,
         })
 
     pip_cols = df.apply(_add_pip_cols, axis=1)
