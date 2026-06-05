@@ -52,7 +52,7 @@ class SimulatedTrade:
         pip_size: float = 0.0001,
         use_partial_tp: bool = False,
         partial_tp_fraction: float = 0.5,
-        be_buffer_pips: float = 30.0,
+        be_buffer_pips: float = 2.0,
         session: str = "",
         entry_leg: str = "",
         is_limit: bool = False,
@@ -148,7 +148,6 @@ class SimulatedTrade:
             "monetary_loss_at_sl": 0.0,
             "monetary_profit_at_tp": 0.0,
             "rr_ratio": self.rr_format,
-            "tp3_pips": 0.0,
         }
 
 
@@ -445,17 +444,21 @@ class BacktestEngine:
                     # Compute SL/TP from the fill price using pip distances
                     sl_pips = signal["sl_pips"]
                     tp_pips = signal["tp_pips"]
+                    tp3_pips = signal.get("tp3_pips", sl_pips * 3)
                     pip_size = self.pip_size
                     sl_diff = sl_pips * pip_size
                     tp_diff = tp_pips * pip_size
+                    tp3_diff = tp3_pips * pip_size
                     if signal["direction"] == "BUY":
                         sl_price  = round(entry_price - sl_diff, 5)
                         tp1_price = round(entry_price + sl_diff, 5)   # TP1 = 1R
                         tp2_price = round(entry_price + tp_diff, 5)   # TP2 = 2R
+                        tp3_price = round(entry_price + tp3_diff, 5)  # TP3 = 3R
                     else:
                         sl_price  = round(entry_price + sl_diff, 5)
                         tp1_price = round(entry_price - sl_diff, 5)
                         tp2_price = round(entry_price - tp_diff, 5)
+                        tp3_price = round(entry_price - tp3_diff, 5)
 
                     # Find the 00:00 UTC bar for today (scan back ≤ 25 bars)
                     if current_time.tzinfo is None:
@@ -493,9 +496,9 @@ class BacktestEngine:
                         direction=signal["direction"],
                         entry=entry_price,
                         sl=sl_price,
-                        tp1=tp1_price,
-                        tp2=tp2_price,
-                        tp3=signal.get("tp3_price", 0.0),
+                        tp1=tp1_price if is_zgmt_signal else signal.get("tp1_price", 0.0),
+                        tp2=tp2_price if is_zgmt_signal else signal.get("tp2_price", 0.0),
+                        tp3=tp3_price if is_zgmt_signal else signal.get("tp3_price", 0.0),
                         lot=lot,
                         bar_index=day_start_idx,
                         bar_time=fill_time,

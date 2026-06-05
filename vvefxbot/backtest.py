@@ -259,6 +259,11 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
             "tp3_pips": round(abs(entry - tp3) / ps, 1) if tp3 else 0.0,
         })
 
+    # Drop pre-existing pip cols so concat doesn't create tp3_pips / tp3_pips.1 duplicates
+    for col in ["sl_pips", "tp1_pips", "tp2_pips", "tp3_pips"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+
     pip_cols = df.apply(_add_pip_cols, axis=1)
     df = pd.concat([df, pip_cols], axis=1)
 
@@ -267,7 +272,10 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     wins       = len(df[df["result"] == "WIN"])
     losses     = len(df[df["result"] == "LOSS"])
     breakevens = len(df[df["result"] == "BREAKEVEN"])
+    cancelled  = len(df[df["result"] == "CANCELLED"])
+    tp1_hits   = len(df[df["exit_reason"] == "TP1_HIT"]) if "exit_reason" in df.columns else 0
     tp2_hits   = len(df[df["exit_reason"] == "TP2_HIT"])
+    tp3_hits   = len(df[df["exit_reason"] == "TP3_HIT"])
     win_rate   = round(wins / total * 100, 1) if total else 0.0
     net_pnl    = round(df["profit_usd"].sum(), 2)
     avg_win    = round(df[df["result"] == "WIN"]["profit_usd"].mean(),  2) if wins   else 0.0
@@ -289,9 +297,12 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     print(f"  Period : {date_from}  →  {date_to}")
     print("=" * 70)
     print(f"  Total Trades   : {total}")
-    print(f"  Wins (TP2 Hit) : {wins}  ({win_rate}%)  |  TP2 Hit: {tp2_hits}  ({round(tp2_hits/total*100,1) if total else 0}%)")
+    print(f"  Wins           : {wins}  ({win_rate}%)")
+    print(f"    → TP2 Hit    : {tp2_hits}  ({round(tp2_hits/total*100,1) if total else 0}%)")
+    print(f"    → TP3 Hit    : {tp3_hits}  ({round(tp3_hits/total*100,1) if total else 0}%)")
     print(f"  Losses         : {losses}")
     print(f"  Breakeven      : {breakevens}")
+    print(f"  Cancelled      : {cancelled}")
     print(f"  Net P&L        : ${net_pnl:+.2f}")
     print(f"  Avg Win        : ${avg_win:+.2f}")
     print(f"  Avg Loss       : ${avg_loss:+.2f}")
@@ -321,7 +332,8 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
                "sl_pips", "tp2_pips", "exit_reason", "result", "profit_usd"]].to_string(index=False))
     print()
 
-    # Save CSV
+    # Save CSV — drop any .1 duplicate columns before writing
+    df = df.loc[:, ~df.columns.str.endswith(".1")]
     out_dir = bt_config.get("report", {}).get("output_dir", "backtest/results")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"backtest_{date_from}_{date_to}.csv")
