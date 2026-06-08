@@ -15,7 +15,8 @@ class Config:
     trade_management: Dict[str, Any]   # partial TP, BE buffer, etc.
     pairs: List[str]
     session_timings: Dict[str, Dict[str, str]]
-    killzone_timings: Dict[str, Dict[str, str]]
+    killzone_timings_summer: Dict[str, Dict[str, str]]
+    killzone_timings_winter: Dict[str, Dict[str, str]]
     risk_percent: float
     max_trades_day: int
     max_trades_pair_day: int
@@ -100,7 +101,7 @@ class ConfigEngine:
         # Required config.json keys
         json_keys = [
             "strategy_mode", "enabled_scanners", "ote_scanner", "zgmt_scanner",
-            "pairs", "session_timings", "killzone_timings", "risk_percent", 
+            "pairs", "session_timings", "killzone_timings_summer", "killzone_timings_winter", "risk_percent", 
             "max_trades_day", "max_trades_pair_day", "max_open_trades", 
             "max_open_risk_percent", "spread_limits", "effective_rr_min", 
             "aplus_threshold", "slippage_max_pips", "scan_frequency_seconds", 
@@ -131,7 +132,7 @@ class ConfigEngine:
             elif key == "pairs":
                 if not isinstance(json_data[key], list):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
-            elif key in ["session_timings", "killzone_timings", "spread_limits", "correlation_groups", "enabled_scanners", "ote_scanner", "zgmt_scanner"]:
+            elif key in ["session_timings", "killzone_timings_summer", "killzone_timings_winter", "spread_limits", "correlation_groups", "enabled_scanners", "ote_scanner", "zgmt_scanner"]:
                 if not isinstance(json_data[key], dict):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
             elif key == "strategy_mode":
@@ -219,7 +220,8 @@ class ConfigEngine:
             trade_management=json_data["trade_management"],
             pairs=json_data["pairs"],
             session_timings=json_data["session_timings"],
-            killzone_timings=json_data["killzone_timings"],
+            killzone_timings_summer=json_data["killzone_timings_summer"],
+            killzone_timings_winter=json_data["killzone_timings_winter"],
             risk_percent=float(json_data["risk_percent"]),
             max_trades_day=int(json_data["max_trades_day"]),
             max_trades_pair_day=int(json_data["max_trades_pair_day"]),

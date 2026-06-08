@@ -35,7 +35,7 @@
       "end": "00:30"
     }
   },
-  "killzone_timings": {
+  "killzone_timings_summer": {
     "Asia": {
       "start": "05:30",
       "end": "07:30"
@@ -51,6 +51,24 @@
     "LondonClose": {
       "start": "19:30",
       "end": "21:30"
+    }
+  },
+  "killzone_timings_winter": {
+    "Asia": {
+      "start": "06:30",
+      "end": "08:30"
+    },
+    "London": {
+      "start": "12:30",
+      "end": "15:30"
+    },
+    "NewYork": {
+      "start": "17:30",
+      "end": "20:30"
+    },
+    "LondonClose": {
+      "start": "20:30",
+      "end": "22:30"
     }
   },
   "_comment_risk": "Risk / trade-count limits relaxed for backtesting — increase later for live",
@@ -80,14 +98,15 @@
     "enabled": true,
     "timeframe_bias": "D1",
     "timeframe_entry": "H1",
-    "d1_candles_for_range": 20,
+    "d1_candles_for_range": 2,
     "zgmt_window_start_ist": "05:30",
     "zgmt_window_end_ist": "08:00",
     "zgmt_ny_midnight_ist": "09:30",
     "require_pd_array_check": true,
     "require_power_of_three": false,
-    "_comment_entry_mode": "SPLIT = Leg A (market at 0GMT) + Leg B (pending limit) both active",
-    "zgmt_entry_mode": "SPLIT",
+    "strategy_a_enabled": true,
+    "strategy_b_enabled": true,
+    "strategy_c_enabled": true,
     "zgmt_filter_pips": 20,
     "zgmt_filter_pips_fx": 25,
     "zgmt_filter_pips_metal": 95,
@@ -111,11 +130,9 @@
     "skip_rr_check": true,
     "use_adr_sl_for_zgmt": true,
     "magic_number": 202412,
-    "_comment_exception": "─── HTF OB Exception ─── overrides Leg A with HTF OB entry when valid",
-    "zgmt_exception_enabled": true,
     "zgmt_exception_score": 68.0,
-    "zgmt_ob_candles_4h": 50,
-    "zgmt_ob_candles_1h": 100,
+    "zgmt_ob_candles_4h": 126,
+    "zgmt_ob_candles_1h": 504,
     "zgmt_ob_tap_threshold_pips": 5,
     "zgmt_ob_fib_min": 0.50,
     "zgmt_ob_fib_max": 0.618,

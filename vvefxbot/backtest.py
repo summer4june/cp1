@@ -338,7 +338,29 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"backtest_{date_from}_{date_to}.csv")
     if bt_config.get("report", {}).get("save_csv", True):
-        df.to_csv(out_path, index=False)
+        # Convert timestamps from UTC to IST
+        for col in ["open_time", "close_time"]:
+            if col in df.columns:
+                try:
+                    df[col] = pd.to_datetime(df[col]).dt.tz_convert("Asia/Kolkata").dt.strftime("%Y-%m-%d %H:%M:%S IST")
+                except Exception:
+                    pass
+        
+        export_columns = [
+            "trade_id", "pair", "direction", "year", "session", "entry_leg", 
+            "entry_price", "sl_price", "tp1_price", "tp2_price", "tp3_price",
+            "entry", "sl_usd", "tp1_usd", "tp2_usd", "tp3_usd", "lot", 
+            "open_bar", "open_time", "close_bar", "close_time", "status", 
+            "result", "profit_usd", "exit_price", "exit_reason", "sl_pips", 
+            "tp1_pips", "tp2_pips", "tp3_pips", "month", "week_no", "margin_used"
+        ]
+        
+        for col in export_columns:
+            if col not in df.columns:
+                df[col] = ""
+                
+        df_export = df[export_columns]
+        df_export.to_csv(out_path, index=False)
         print(f"  ✅ Full results saved: {out_path}\n")
 
 

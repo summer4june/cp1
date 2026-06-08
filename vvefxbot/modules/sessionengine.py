@@ -27,9 +27,16 @@ class SessionEngine:
                 "end": datetime.strptime(timings["end"], "%H:%M").time(),
             }
 
-        self._parsed_killzones = {}
-        for kz, timings in self.config.killzone_timings.items():
-            self._parsed_killzones[kz] = {
+        self._parsed_killzones_summer = {}
+        for kz, timings in self.config.killzone_timings_summer.items():
+            self._parsed_killzones_summer[kz] = {
+                "start": datetime.strptime(timings["start"], "%H:%M").time(),
+                "end": datetime.strptime(timings["end"], "%H:%M").time(),
+            }
+
+        self._parsed_killzones_winter = {}
+        for kz, timings in self.config.killzone_timings_winter.items():
+            self._parsed_killzones_winter[kz] = {
                 "start": datetime.strptime(timings["start"], "%H:%M").time(),
                 "end": datetime.strptime(timings["end"], "%H:%M").time(),
             }
@@ -83,15 +90,35 @@ class SessionEngine:
                 return session
         return None
 
+    def _is_summer_session(self, current_dt: datetime) -> bool:
+        """
+        Summer session: March 9 to October 31.
+        Winter session: November 1 to March 8.
+        """
+        m = current_dt.month
+        d = current_dt.day
+        if 3 < m < 11:
+            return True
+        if m == 3 and d >= 9:
+            return True
+        return False
+
     def get_active_killzone(self) -> Optional[str]:
         """
-        Return the name of the currently active killzone.
+        Return the name of the currently active killzone, accounting for summer/winter.
         
         Returns:
             str | None: "Asia", "London", "NewYork", "LondonClose", or None.
         """
-        now_ist = self.get_current_ist_time().time()
-        for kz, timings in self._parsed_killzones.items():
+        now_ist_dt = self.get_current_ist_time()
+        now_ist = now_ist_dt.time()
+        
+        if self._is_summer_session(now_ist_dt):
+            active_timings = self._parsed_killzones_summer
+        else:
+            active_timings = self._parsed_killzones_winter
+            
+        for kz, timings in active_timings.items():
             if self._is_time_in_range_parsed(now_ist, timings["start"], timings["end"]):
                 return kz
         return None

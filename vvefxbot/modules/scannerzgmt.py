@@ -160,9 +160,8 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT: Insufficient D1 candles for PD bias ({len(candles)}/{n}).")
             return None, True
 
-        # Use completed candles only (exclude current open candle)
-        df = candles.iloc[:-1] if len(candles) > n else candles
-        df = df.tail(n)
+        # Use completed candles and current open candle
+        df = candles.tail(n)
 
         range_high = df["high"].max()
         range_low = df["low"].min()
@@ -577,33 +576,32 @@ class ScannerZGMT:
             return None
 
         # ── Signal Construction ───────────────────────────────────────
-        direction = "BUY" if bias == "BULLISH" else "SELL"
-        entry_mode_cfg = zgmt_cfg.get("zgmt_entry_mode", "DIRECT").upper()
-        
-        # Determine HTF OB Exception leg
+        # Strategy B: HTF OB Exception
         ob_signal = None
-        if zgmt_cfg.get("zgmt_exception_enabled", False):
+        if zgmt_cfg.get("strategy_b_enabled", False):
             ob_signal = self._check_htf_ob_exception(pair, session, killzone)
             if ob_signal is not None:
-                logger.info(f"[{pair}] ZGMT-EXCEPTION: HTF OB condition overrides Direct 0-GMT entry.")
+                ob_signal["setup_type"] = "ZGMT-B"
+                ob_signal["strategy"] = "ZGMT-B"
+                ob_signal["bias_summary"] = ob_signal["bias_summary"].replace("ZGMT-EXCEPTION", "ZGMT-B")
+                logger.info(f"[{pair}] ZGMT-B: HTF OB condition met.")
 
         signals_to_emit = []
-        base_signal_id = str(uuid.uuid4())
 
-        def build_signal_dict(levs: dict, leg_mode: str, leg_id: str) -> dict:
+        def build_signal_dict(levs: dict, strat_id: str) -> dict:
             spr = self.mt5.get_current_spread(pair)
             den = levs["sl_pips"] + spr
             eff_rr = (levs["tp_pips"] - spr) / den if den > 0 else 0.0
             pd_zone = "DISCOUNT" if bias == "BULLISH" else "PREMIUM"
-            filt_note = f" ±{levs['filter_pips']}pips" if leg_mode == "FILTER" else ""
-            summary = f"ZGMT | PD: {pd_zone} | Entry: {leg_mode}{filt_note} | 0GMT={zgmt_price:.5f}"
+            filt_note = f" ±{levs['filter_pips']}pips" if strat_id == "ZGMT-C" else ""
+            summary = f"{strat_id} | PD: {pd_zone} | {filt_note} | 0GMT={zgmt_price:.5f}"
             
             return {
-                "signal_id": leg_id,
+                "signal_id": str(uuid.uuid4()),
                 "pair": pair,
                 "session": session,
-                "entry_leg": "A" if leg_mode == "DIRECT" else "B",
-                "entry_mode": leg_mode,
+                "entry_leg": "A" if strat_id == "ZGMT-A" else "B",
+                "entry_mode": "DIRECT" if strat_id == "ZGMT-A" else "FILTER",
                 "timeframe_bias": zgmt_cfg.get("timeframe_bias", "D1"),
                 "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
                 "direction": direction,
@@ -620,36 +618,28 @@ class ScannerZGMT:
                 "effective_rr": round(eff_rr, 3),
                 "score": float(zgmt_cfg.get("score", 70.0)),
                 "detected_time": self._utc_now().isoformat(),
-                "strategy": "ZGMT",
-                "setup_type": "ZGMT",
+                "strategy": strat_id,
+                "setup_type": strat_id,
                 "fixed_lot_size": float(zgmt_cfg.get("fixed_lot_size", 0.0)),
                 "skip_rr_check": bool(zgmt_cfg.get("skip_rr_check", True)),
-                "position_fraction": 0.5 if entry_mode_cfg == "SPLIT" else 1.0,
+                "position_fraction": 1.0,
             }
 
-        # Leg A: Direct or Exception
-        if entry_mode_cfg in ("DIRECT", "SPLIT"):
-            if ob_signal is not None:
-                leg_a = ob_signal.copy()
-                if entry_mode_cfg == "SPLIT":
-                    leg_a["position_fraction"] = 0.5
-                else:
-                    leg_a["position_fraction"] = 1.0
-                leg_a["signal_id"] = base_signal_id
-                signals_to_emit.append(leg_a)
-            else:
-                levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
-                if levs_direct:
-                    leg_a = build_signal_dict(levs_direct, "DIRECT", base_signal_id)
-                    signals_to_emit.append(leg_a)
+        # Strategy A (0 GMT Liquidity)
+        if zgmt_cfg.get("strategy_a_enabled", False):
+            levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
+            if levs_direct:
+                signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
 
-        # Leg B: Filter (Manipulation Entry)
-        if entry_mode_cfg in ("FILTER", "SPLIT"):
+        # Strategy B (0 GMT + OB Model)
+        if ob_signal is not None:
+            signals_to_emit.append(ob_signal)
+
+        # Strategy C (Manipulation / Judas Swing)
+        if zgmt_cfg.get("strategy_c_enabled", False):
             levs_filter = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="FILTER")
             if levs_filter:
-                leg_id = str(uuid.uuid4()) if signals_to_emit else base_signal_id
-                leg_b = build_signal_dict(levs_filter, "FILTER", leg_id)
-                signals_to_emit.append(leg_b)
+                signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C"))
 
         if not signals_to_emit:
             return None

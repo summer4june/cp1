@@ -100,24 +100,30 @@ class SimulatedTrade:
         self.exit_price = 0.0
         self.exit_reason = ""   # TP1, TP2, SL, BE_SL, EXPIRED
 
-    def to_dict(self) -> dict:
-        # Contract sizes
-        if "XAU" in self.pair:
+    def to_dict(self):
+        pip_size = getattr(self, 'pip_size', 0.0001)
+        if "XAU" in self.pair or "GOLD" in self.pair:
             contract_size = 100
-            margin_used = ((self.lot * contract_size) * self.entry) / 200
-        elif "XAG" in self.pair:
-            contract_size = 5000
             margin_used = ((self.lot * contract_size) * self.entry) / 200
         else:
             contract_size = 100000
-            # Approx margin for FX assuming USD base equivalent
             margin_used = (self.lot * contract_size) / 200
 
         entry_amount = self.lot * contract_size
+        pip_value = contract_size * pip_size
+
+        sl_pips = round(abs(self.entry - self.sl) / pip_size, 1)
+        tp1_pips = round(abs(self.entry - self.tp1) / pip_size, 1) if self.tp1 else 0.0
+        tp2_pips = round(abs(self.entry - self.tp2) / pip_size, 1) if self.tp2 else 0.0
+        tp3_pips = round(abs(self.entry - self.tp3) / pip_size, 1) if self.tp3 else 0.0
+
+        sl_usd = round(sl_pips * pip_value * self.lot * -1, 2)
+        tp1_usd = round(tp1_pips * pip_value * self.lot, 2)
+        tp2_usd = round(tp2_pips * pip_value * self.lot, 2)
+        tp3_usd = round(tp3_pips * pip_value * self.lot, 2)
 
         return {
             "trade_id": self.trade_id,
-            "signal_id": self.signal_id,
             "pair": self.pair,
             "direction": self.direction,
             "year": self.open_time.year,
@@ -129,10 +135,10 @@ class SimulatedTrade:
             "tp2_price": round(self.tp2, 5),
             "tp3_price": round(self.tp3, 5),
             "entry": round(self.entry, 5),
-            "sl": round(self.sl, 5),
-            "tp1": round(self.tp1, 5),
-            "tp2": round(self.tp2, 5),
-            "tp3": round(self.tp3, 5),
+            "sl_usd": sl_usd,
+            "tp1_usd": tp1_usd,
+            "tp2_usd": tp2_usd,
+            "tp3_usd": tp3_usd,
             "lot": self.lot,
             "open_bar": self.open_bar,
             "open_time": str(self.open_time),
@@ -143,10 +149,15 @@ class SimulatedTrade:
             "profit_usd": round(self.profit_usd, 2),
             "exit_price": round(self.exit_price, 5),
             "exit_reason": self.exit_reason,
+            "sl_pips": sl_pips,
+            "tp1_pips": tp1_pips,
+            "tp2_pips": tp2_pips,
+            "month": self.open_time.month,
+            "week_no": self.open_time.isocalendar()[1],
+            # Included for backwards compatibility and safety
+            "signal_id": self.signal_id,
             "margin_used": round(margin_used, 2),
             "entry_amount": round(entry_amount, 2),
-            "monetary_loss_at_sl": 0.0,
-            "monetary_profit_at_tp": 0.0,
             "rr_ratio": self.rr_format,
         }
 
@@ -317,17 +328,17 @@ class BacktestEngine:
             if bar_hour == 22:
                 still_open_after_expiry = []
                 for trade in self._open_trades:
-                    if trade.status == "PENDING":
+                    if trade.status == "PENDING" and current_time.date() > trade.open_time.date():
                         trade.status = "CLOSED"
                         trade.result = "CANCELLED"
-                        trade.exit_reason = "EXPIRED_DAY_END"
+                        trade.exit_reason = "EXPIRED_2_DAYS"
                         trade.close_bar = idx
                         trade.close_time = current_time
                         trade.exit_price = trade.entry
                         trade.profit_usd = 0.0
                         self._closed_trades.append(trade)
                         logger.debug(
-                            f"[BT] Pending EXPIRED (day end 22:00 UTC) | "
+                            f"[BT] Pending EXPIRED (2-day wait) | "
                             f"{trade.pair} {trade.direction} | Entry: {trade.entry:.5f}"
                         )
                     else:
