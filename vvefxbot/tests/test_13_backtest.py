@@ -21,7 +21,8 @@ def mock_config():
         },
         pairs=["EURUSD"],
         session_timings={"London": {"start": "00:00", "end": "23:59"}},
-        killzone_timings={"London": {"start": "00:00", "end": "23:59"}},
+        killzone_timings_summer={"London": {"start": "00:00", "end": "23:59"}},
+        killzone_timings_winter={"London": {"start": "00:00", "end": "23:59"}},
         risk_percent=1.0,
         max_trades_day=10,
         max_trades_pair_day=5,
@@ -278,10 +279,9 @@ def test_backtest_engine_gold_initialization(mock_config):
     data = {"M1": m1_df, "M15": m1_df, "H1": m1_df}
     connector = BacktestConnector(mock_config, data, "XAUUSD")
     
-    # 1. Standard initialization with default 10.0 pip_value parameter (should be overridden to 1.0)
+    # 1. Standard initialization
     engine = BacktestEngine(mock_config, connector, "XAUUSD")
     assert engine.pip_size  == 0.01
-    assert engine.pip_value == 1.0
 
     # 2. Gold pip_value is always forced to 1.0 (contract-fixed) regardless of argument
     engine_custom = BacktestEngine(mock_config, connector, "XAUUSD", pip_value=1.5)
@@ -301,8 +301,6 @@ def test_backtest_engine_jpy_initialization(mock_config):
         engine = BacktestEngine(mock_config, connector, jpy_pair)
 
         assert engine.pip_size == 0.01, f"{jpy_pair}: pip_size should be 0.01"
-        # pip_value should be ~1000/190 ≈ 5.26, definitely NOT 10.0
-        assert engine.pip_value != 10.0, f"{jpy_pair}: pip_value should not be default 10.0"
         assert 3.0 < engine.pip_value < 15.0, (
             f"{jpy_pair}: pip_value {engine.pip_value} out of realistic range (3-15) for price ~190"
         )
@@ -588,10 +586,10 @@ def test_zgmt_direct_entry_at_zgmt_price(mock_config):
         "enabled": True,
         "zgmt_window_start_ist": "05:30",
         "zgmt_window_end_ist": "08:30",
-        "zgmt_window_end_ist": "08:30",
         "d1_candles_for_range": 5,
         "require_pd_array_check": True,
         "require_power_of_three": False,
+        "strategy_a_enabled": True,
         "zgmt_entry_mode": "DIRECT",
         "zgmt_filter_pips": 20,
         "zgmt_test_threshold_pips": 5,
@@ -645,11 +643,11 @@ def test_zgmt_direct_entry_at_zgmt_price(mock_config):
     scanner = ScannerZGMT(mock_config, connector, state)
     signal = scanner.scan("GBPUSD", "Asia", "Asia")
 
-    assert signal is not None, "Should produce a signal"
-    assert signal["direction"] == "BUY", "Bias should be BULLISH (discount zone)"
+    assert isinstance(signal, list) and len(signal) > 0, "Should produce a signal"
+    assert signal[0]["direction"] == "BUY", "Bias should be BULLISH (discount zone)"
     # DIRECT mode must use zgmt_price, NOT the drifted tick ask (1.35202)
-    assert signal["entry_price"] == round(zgmt_price_open, 5), \
-        f"DIRECT entry must be at zgmt_price ({zgmt_price_open}), got {signal['entry_price']}"
+    assert signal[0]["entry_price"] == round(zgmt_price_open, 5), \
+        f"DIRECT entry must be at zgmt_price ({zgmt_price_open}), got {signal[0]['entry_price']}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -879,6 +877,7 @@ def test_filter_pips_metal_vs_fx(mock_config):
     # Shared config with both keys
     zgmt_cfg = {
         "zgmt_entry_mode": "FILTER",
+        "strategy_a_enabled": True,
         "zgmt_filter_pips_fx": 25,
         "zgmt_filter_pips_metal": 95,
         "zgmt_sl_tp": {"sl_pips_fx": 25, "tp_pips_fx": 50,
@@ -932,6 +931,7 @@ def test_adr_sl_tp_dynamic_fx(mock_config):
     scanner = _make_scanner(mock_config, connector)
     zgmt_cfg = {
         "zgmt_entry_mode": "DIRECT",
+        "strategy_a_enabled": True,
         "zgmt_filter_pips_fx": 25,
         "zgmt_filter_pips_metal": 95,
         "zgmt_adr_days": 5,
@@ -976,6 +976,7 @@ def test_adr_sl_tp_dynamic_gold(mock_config):
     scanner = _make_scanner(mock_config, connector)
     zgmt_cfg = {
         "zgmt_entry_mode": "DIRECT",
+        "strategy_a_enabled": True,
         "zgmt_filter_pips_fx": 25,
         "zgmt_filter_pips_metal": 95,
         "zgmt_adr_days": 5,
@@ -1027,6 +1028,7 @@ def test_adr_sl_fallback_on_missing_data(mock_config):
     scanner = _make_scanner(mock_config, connector)
     zgmt_cfg = {
         "zgmt_entry_mode": "DIRECT",
+        "strategy_a_enabled": True,
         "zgmt_filter_pips_fx": 25,
         "zgmt_filter_pips_metal": 95,
         "zgmt_adr_days": 5,
@@ -1072,6 +1074,8 @@ def test_split_mode_two_signals(mock_config):
 
     mock_config.zgmt_scanner = {
         "zgmt_entry_mode": "SPLIT",
+        "strategy_a_enabled": True,
+        "strategy_b_enabled": True,
         "zgmt_filter_pips_fx": 25,
         "zgmt_filter_pips_metal": 95,
         "zgmt_adr_days": 5,

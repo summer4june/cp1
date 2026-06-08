@@ -604,7 +604,7 @@ class ScannerZGMT:
                 "entry_mode": "DIRECT" if strat_id == "ZGMT-A" else "FILTER",
                 "timeframe_bias": zgmt_cfg.get("timeframe_bias", "D1"),
                 "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
-                "direction": direction,
+                "direction": "BUY" if bias == "BULLISH" else "SELL",
                 "bias_summary": summary,
                 "entry_price": levs["entry_price"],
                 "sl_price": levs["sl_price"],

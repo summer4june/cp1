@@ -71,12 +71,18 @@ class StateEngine:
                 CREATE TABLE IF NOT EXISTS trades_executed (
                     trade_id TEXT PRIMARY KEY, signal_id TEXT, ticket_id INTEGER,
                     pair TEXT, direction TEXT,
-                    executed_price REAL, sl REAL, tp1 REAL, tp2 REAL,
+                    executed_price REAL, sl REAL, tp1 REAL, tp2 REAL, tp3 REAL,
                     lot_total REAL, risk_amount REAL, execution_time TEXT,
                     status TEXT, result TEXT, profit_usd REAL,
                     tp1_hit INTEGER DEFAULT 0, be_moved INTEGER DEFAULT 0
                 )
                 """)
+
+                # Migration: add 'tp3' column to trades_executed if it doesn't exist
+                cursor.execute("PRAGMA table_info(trades_executed)")
+                cols = [info[1] for info in cursor.fetchall()]
+                if cols and "tp3" not in cols:
+                    cursor.execute("ALTER TABLE trades_executed ADD COLUMN tp3 REAL")
 
                 # 3. trades_skipped
                 cursor.execute("""

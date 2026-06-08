@@ -15,7 +15,9 @@ def test_config_loads_defaults(monkeypatch, tmp_path):
     
     config_data = {
         "pairs": ["EURUSD"], "risk_percent": 1.0, "trading_pool_size": 1000.0,
-        "session_timings": {}, "killzone_timings": {},
+        "session_timings": {}, 
+        "killzone_timings_summer": {},
+        "killzone_timings_winter": {},
         "correlation_groups": {}, "spread_limits": {},
         "aplus_threshold": 85.0, "effective_rr_min": 2.0, "max_open_trades": 5,
         "max_trades_day": 10, "max_trades_pair_day": 3, "scan_frequency_seconds": 10,

@@ -44,7 +44,13 @@ def config_mock():
         "London": {"start": "12:30", "end": "18:30"},
         "NewYork": {"start": "18:30", "end": "02:30"}
     }
-    config.killzone_timings = {
+    config.killzone_timings_summer = {
+        "Asia": {"start": "06:30", "end": "09:30"},
+        "London": {"start": "13:30", "end": "16:30"},
+        "NewYork": {"start": "18:30", "end": "21:30"},
+        "LondonClose": {"start": "21:30", "end": "23:30"}
+    }
+    config.killzone_timings_winter = {
         "Asia": {"start": "06:30", "end": "09:30"},
         "London": {"start": "13:30", "end": "16:30"},
         "NewYork": {"start": "18:30", "end": "21:30"},
