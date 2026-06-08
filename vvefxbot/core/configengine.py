@@ -194,8 +194,6 @@ class ConfigEngine:
                 raise ValueError("CONFIG ERROR: ZGMT cooldown_minutes must be >= 0")
             if zgmt.get("max_daily_trades", 0) <= 0:
                 raise ValueError("CONFIG ERROR: ZGMT max_daily_trades must be > 0")
-            if zgmt.get("zgmt_entry_mode", "").upper() not in ["DIRECT", "FILTER", "SPLIT"]:
-                raise ValueError("CONFIG ERROR: ZGMT zgmt_entry_mode must be DIRECT, FILTER, or SPLIT")
 
         # Validate .env keys
         env_values = {}
