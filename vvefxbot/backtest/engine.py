@@ -57,6 +57,7 @@ class SimulatedTrade:
         entry_leg: str = "",
         is_limit: bool = False,
         rr_format: str = "1:2",
+        score: float = 0.0,
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
@@ -75,6 +76,7 @@ class SimulatedTrade:
         self.close_time: Optional[datetime] = None
         self.session = session
         self.entry_leg = entry_leg
+        self.score = score
 
         # use_partial_tp=True  (ZGMT): close partial_tp_fraction at TP1,
         #                              move SL to BE+buffer, close rest at TP2.
@@ -159,6 +161,7 @@ class SimulatedTrade:
             "margin_used": round(margin_used, 2),
             "entry_amount": round(entry_amount, 2),
             "rr_ratio": self.rr_format,
+            "score": self.score,
         }
 
 
@@ -520,6 +523,7 @@ class BacktestEngine:
                         entry_leg=signal.get("entry_leg", ""),
                         is_limit=is_limit_order,
                         rr_format=bt_rr_format,
+                        score=signal.get("score", 0.0),
                     )
 
                     order_type = "Pending Limit" if is_limit_order else "Market Fill (0GMT)"
