@@ -374,7 +374,8 @@ class BacktestEngine:
                 _bar_utc = current_time.replace(tzinfo=timezone.utc)
             else:
                 _bar_utc = current_time.astimezone(timezone.utc)
-            _bar_ist = (_bar_utc + timedelta(hours=5, minutes=30)).time()
+            _bar_ist_dt = _bar_utc + timedelta(hours=5, minutes=30)
+            _bar_ist = _bar_ist_dt.time()
 
             def _in_range(t, start_str, end_str):
                 from datetime import time as dt_time
@@ -382,8 +383,15 @@ class BacktestEngine:
                 e = dt_time(*map(int, end_str.split(":")))
                 return (t >= s and t < e) if s <= e else (t >= s or t < e)
 
+            # Summer/Winter rule: March 9 to October 31 is Summer.
+            m = _bar_ist_dt.month
+            d = _bar_ist_dt.day
+            is_summer = (3 < m < 11) or (m == 3 and d >= 9)
+            
+            active_kz = self.config.killzone_timings_summer if is_summer else self.config.killzone_timings_winter
+
             killzone = next(
-                (name for name, timings in self.config.killzone_timings.items()
+                (name for name, timings in active_kz.items()
                  if _in_range(_bar_ist, timings["start"], timings["end"])),
                 None
             )
