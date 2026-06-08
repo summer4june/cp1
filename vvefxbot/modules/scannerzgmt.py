@@ -833,13 +833,13 @@ class ScannerZGMT:
         obs = []
         for i in range(len(df) - 4):
             candle = df.iloc[i]
-            body_high = max(float(candle['open']), float(candle['close']))
-            body_low  = min(float(candle['open']), float(candle['close']))
+            body_high = float(candle['high'])
+            body_low  = float(candle['low'])
             body_mid  = (body_high + body_low) / 2
 
             # Bullish Normal OB: bearish candle followed by strong upward displacement
             if candle['close'] < candle['open']:
-                for j in range(i + 1, min(i + 4, len(df))):
+                for j in range(i + 1, min(i + 6, len(df))):
                     if df.iloc[j]['close'] > candle['high']:
                         is_mitigated = self._check_mitigated(df, i, "BUY", body_low)
                         obs.append({
@@ -856,7 +856,7 @@ class ScannerZGMT:
 
             # Bearish Normal OB: bullish candle followed by strong downward displacement
             elif candle['close'] > candle['open']:
-                for j in range(i + 1, min(i + 4, len(df))):
+                for j in range(i + 1, min(i + 6, len(df))):
                     if df.iloc[j]['close'] < candle['low']:
                         is_mitigated = self._check_mitigated(df, i, "SELL", body_high)
                         obs.append({
@@ -897,8 +897,8 @@ class ScannerZGMT:
 
                 # Bullish mitigation: bullish move, retraced below midpoint
                 if move_range > 0 and float(retrace['low']) < midpoint:
-                    body_high = max(float(move_start['open']), float(move_start['close']))
-                    body_low  = min(float(move_start['open']), float(move_start['close']))
+                    body_high = float(move_start['high'])
+                    body_low  = float(move_start['low'])
                     body_mid  = (body_high + body_low) / 2
                     obs.append({
                         "ob_type": "MITIGATION",
@@ -914,8 +914,8 @@ class ScannerZGMT:
 
                 # Bearish mitigation: bearish move, retraced above midpoint
                 elif move_range < 0 and float(retrace['high']) > midpoint:
-                    body_high = max(float(move_start['open']), float(move_start['close']))
-                    body_low  = min(float(move_start['open']), float(move_start['close']))
+                    body_high = float(move_start['high'])
+                    body_low  = float(move_start['low'])
                     body_mid  = (body_high + body_low) / 2
                     obs.append({
                         "ob_type": "MITIGATION",
