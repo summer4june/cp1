@@ -104,14 +104,17 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
 
 
 def fetch_all_timeframes(symbol: str, date_from: datetime, date_to: datetime, offset_hours: float = 0.0) -> dict:
-    """Fetch M1, M15, H1, D1 from MT5 for one symbol."""
+    """Fetch M1, M15, H1, H4, D1 from MT5 for one symbol."""
     from datetime import timedelta
-    # Fetch D1 starting 60 days before date_from to ensure enough history for D1 bias range
+    # Fetch D1 starting 60 days before for daily bias
     d1_start = date_from - timedelta(days=60)
+    # Fetch H4 and H1 starting 30 days before for historical HTF order blocks
+    htf_start = date_from - timedelta(days=30)
     return {
         "M1":  _fetch_from_mt5(symbol, "M1",  date_from, date_to, offset_hours),
         "M15": _fetch_from_mt5(symbol, "M15", date_from, date_to, offset_hours),
-        "H1":  _fetch_from_mt5(symbol, "H1",  date_from, date_to, offset_hours),
+        "H1":  _fetch_from_mt5(symbol, "H1",  htf_start, date_to, offset_hours),
+        "H4":  _fetch_from_mt5(symbol, "H4",  htf_start, date_to, offset_hours),
         "D1":  _fetch_from_mt5(symbol, "D1",  d1_start, date_to, offset_hours),
     }
 
@@ -193,6 +196,7 @@ def load_from_csv(csv_dir: str, symbol: str,
 
     m15 = _load("M15")
     h1  = _load("H1")
+    h4  = _load("H4")
     d1  = _load("D1")
 
     if m15.empty:
@@ -201,21 +205,28 @@ def load_from_csv(csv_dir: str, symbol: str,
     if h1.empty:
         logger.warning(f"{symbol} H1 CSV not found — deriving from M1.")
         h1 = _resample(m1, "1h")
+    if h4.empty:
+        logger.warning(f"{symbol} H4 CSV not found — deriving from M1.")
+        h4 = _resample(m1, "4h")
     if d1.empty:
         logger.warning(f"{symbol} D1 CSV not found — deriving from M1.")
         d1 = _resample(m1, "1D")
 
-    # Filter M1, M15, H1 to requested date range
+    # Filter M1 and M15 to requested date range exactly
     m1_filtered  = m1[(m1["time"] >= date_from)  & (m1["time"] <= date_to)].reset_index(drop=True)
     m15_filtered = m15[(m15["time"] >= date_from) & (m15["time"] <= date_to)].reset_index(drop=True)
-    h1_filtered  = h1[(h1["time"] >= date_from)  & (h1["time"] <= date_to)].reset_index(drop=True)
+    
+    # Filter H1 and H4 starting 30 days before date_from to allow historical Order Block scanning
+    htf_start = date_from - timedelta(days=30)
+    h1_filtered  = h1[(h1["time"] >= htf_start)  & (h1["time"] <= date_to)].reset_index(drop=True)
+    h4_filtered  = h4[(h4["time"] >= htf_start)  & (h4["time"] <= date_to)].reset_index(drop=True)
 
     # Filter D1 starting 60 days before date_from to ensure historical range bias checks succeed
     d1_start = date_from - timedelta(days=60)
     d1_filtered  = d1[(d1["time"] >= d1_start) & (d1["time"] <= date_to)].reset_index(drop=True)
 
-    logger.info(f"{symbol} CSV loaded: M1={len(m1_filtered)} | M15={len(m15_filtered)} | H1={len(h1_filtered)} | D1={len(d1_filtered)} bars")
-    return {"M1": m1_filtered, "M15": m15_filtered, "H1": h1_filtered, "D1": d1_filtered}
+    logger.info(f"{symbol} CSV loaded: M1={len(m1_filtered)} | M15={len(m15_filtered)} | H1={len(h1_filtered)} | H4={len(h4_filtered)} | D1={len(d1_filtered)} bars")
+    return {"M1": m1_filtered, "M15": m15_filtered, "H1": h1_filtered, "H4": h4_filtered, "D1": d1_filtered}
 
 
 # ──────────────────────────────────────────────────────────────────────
