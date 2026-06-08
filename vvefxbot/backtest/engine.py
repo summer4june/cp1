@@ -104,15 +104,22 @@ class SimulatedTrade:
 
     def to_dict(self):
         pip_size = getattr(self, 'pip_size', 0.0001)
-        if "XAU" in self.pair or "GOLD" in self.pair:
+        pair_upper = self.pair.upper()
+        if "XAU" in pair_upper or "GOLD" in pair_upper:
             contract_size = 100
             margin_used = ((self.lot * contract_size) * self.entry) / 200
+            pip_value = 1.0  # $1/pip/lot
+        elif "XAG" in pair_upper or "SILVER" in pair_upper:
+            contract_size = 5000
+            margin_used = ((self.lot * contract_size) * self.entry) / 200
+            pip_value = 50.0  # $50/pip/lot
         else:
             contract_size = 100000
             margin_used = (self.lot * contract_size) / 200
-
-        entry_amount = self.lot * contract_size
-        pip_value = contract_size * pip_size
+            if "JPY" in pair_upper:
+                pip_value = round(1000.0 / self.entry, 6) if self.entry > 0 else 9.2
+            else:
+                pip_value = 10.0  # $10/pip/lot
 
         sl_pips = round(abs(self.entry - self.sl) / pip_size, 1)
         tp1_pips = round(abs(self.entry - self.tp1) / pip_size, 1) if self.tp1 else 0.0
