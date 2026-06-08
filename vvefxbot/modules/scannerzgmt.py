@@ -698,9 +698,12 @@ class ScannerZGMT:
 
         if not all_obs:
             return None
+            
+        logger.debug(f"[{pair}] _check_htf_ob_exception: Found {len(all_obs)} total OBs across H4/H1")
 
         # Filter 1: unmitigated only
         valid_obs = [ob for ob in all_obs if not ob["is_mitigated"]]
+        logger.debug(f"[{pair}] _check_htf_ob_exception: {len(valid_obs)} OBs survived unmitigated filter")
         if not valid_obs:
             return None
 
@@ -709,8 +712,12 @@ class ScannerZGMT:
             ob for ob in valid_obs
             if (ob["body_low"] - tap_threshold) <= current_price <= (ob["body_high"] + tap_threshold)
         ]
+        if len(valid_obs) > 0 and len(tapping_obs) == 0:
+            # Just log periodically so it doesn't spam every minute
+            pass
         if not tapping_obs:
             return None
+        logger.debug(f"[{pair}] _check_htf_ob_exception: {len(tapping_obs)} OBs tapping current price {current_price}")
 
         # Filter 3: OB must sit inside the correct Fibonacci premium / discount zone
         fib_min = zgmt_cfg.get("zgmt_ob_fib_min", 0.50)
@@ -726,6 +733,7 @@ class ScannerZGMT:
             if self._is_ob_in_fib_zone(df, ob, swing_lookback, fib_min, fib_max):
                 fib_valid_obs.append(ob)
 
+        logger.debug(f"[{pair}] _check_htf_ob_exception: {len(fib_valid_obs)} OBs survived Fib Filter")
         if not fib_valid_obs:
             return None
 

@@ -704,7 +704,7 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN" # Technically still a win since SL is at TP1
-                        trade.exit_reason = "SL_HIT"
+                        trade.exit_reason = "STOPPED_AT_TP1"
                         trade.exit_price = trade.current_sl
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
@@ -746,7 +746,7 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "BREAKEVEN"
-                        trade.exit_reason = "SL_HIT"
+                        trade.exit_reason = "BREAKEVEN"
                         trade.exit_price = trade.current_sl
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
@@ -836,7 +836,7 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "BREAKEVEN"
-                        trade.exit_reason = "SL_HIT"
+                        trade.exit_reason = "BREAKEVEN"
                         trade.exit_price = trade.current_sl
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
