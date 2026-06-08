@@ -121,6 +121,8 @@ class SimulatedTrade:
             else:
                 pip_value = 10.0  # $10/pip/lot
 
+        entry_amount = self.lot * contract_size
+
         sl_pips = round(abs(self.entry - self.sl) / pip_size, 1)
         tp1_pips = round(abs(self.entry - self.tp1) / pip_size, 1) if self.tp1 else 0.0
         tp2_pips = round(abs(self.entry - self.tp2) / pip_size, 1) if self.tp2 else 0.0
