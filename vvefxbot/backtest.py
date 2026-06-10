@@ -254,6 +254,11 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
 
     df = pd.DataFrame(all_trades)
 
+    # ── Continuous week_no override ──────────────────────────────────────
+    start_date = pd.to_datetime(bt_config["date_from"], utc=True)
+    open_times = pd.to_datetime(df["open_time"], utc=True)
+    df["week_no"] = ((open_times - start_date).dt.days // 7) + 1
+
     # ── Add pip-correct SL/TP distance columns ───────────────────────────
     # The raw price columns (entry_price, sl_price, tp1_price, tp2_price)
     # are already in to_dict(). Compute pip distances using correct pip size.
