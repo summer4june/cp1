@@ -101,6 +101,7 @@ class SimulatedTrade:
         self.partial_profit = 0.0   # P&L locked at TP1 partial close
         self.exit_price = 0.0
         self.exit_reason = ""   # TP1, TP2, SL, BE_SL, EXPIRED
+        self.max_level_reached = ""
 
     def to_dict(self):
         pip_size = getattr(self, 'pip_size', 0.0001)
@@ -160,6 +161,7 @@ class SimulatedTrade:
             "profit_usd": round(self.profit_usd, 2),
             "exit_price": round(self.exit_price, 5),
             "exit_reason": self.exit_reason,
+            "max_level_reached": self.max_level_reached or "none",
             "sl_pips": sl_pips,
             "tp1_pips": tp1_pips,
             "tp2_pips": tp2_pips,
@@ -276,7 +278,32 @@ class BacktestEngine:
             None
         )
 
-    def run(self) -> List[dict]:
+    def _get_killzone_for_time(self, t: datetime) -> str | None:
+        if t.tzinfo is None:
+            _bar_utc = t.replace(tzinfo=timezone.utc)
+        else:
+            _bar_utc = t.astimezone(timezone.utc)
+        _bar_ist_dt = _bar_utc + timedelta(hours=5, minutes=30)
+        _bar_ist = _bar_ist_dt.time()
+
+        def _in_range(time_val, start_str, end_str):
+            from datetime import time as dt_time
+            s = dt_time(*map(int, start_str.split(":")))
+            e = dt_time(*map(int, end_str.split(":")))
+            return (time_val >= s and time_val < e) if s <= e else (time_val >= s or time_val < e)
+
+        m = _bar_ist_dt.month
+        d = _bar_ist_dt.day
+        is_summer = (3 < m < 11) or (m == 3 and d >= 9)
+        active_kz = self.config.killzone_timings_summer if is_summer else self.config.killzone_timings_winter
+
+        return next(
+            (name for name, timings in active_kz.items()
+             if _in_range(_bar_ist, timings["start"], timings["end"])),
+            None
+        )
+
+    def run(self) -> list[dict]:
         """
         Execute the full backtest replay.
 
@@ -343,7 +370,7 @@ class BacktestEngine:
                     if trade.status == "PENDING" and current_time.date() > trade.open_time.date():
                         trade.status = "CLOSED"
                         trade.result = "CANCELLED"
-                        trade.exit_reason = "EXPIRED_2_DAYS"
+                        trade.exit_reason = "expired_2_days"
                         trade.close_bar = idx
                         trade.close_time = current_time
                         trade.exit_price = trade.entry
@@ -378,32 +405,16 @@ class BacktestEngine:
             # session_engine.get_active_session() uses datetime.now() which is always
             # the real-world clock time — wrong for backtesting. Compute from bar.
             session = self._get_session_for_time(current_time)
-
-            if current_time.tzinfo is None:
-                _bar_utc = current_time.replace(tzinfo=timezone.utc)
-            else:
-                _bar_utc = current_time.astimezone(timezone.utc)
-            _bar_ist_dt = _bar_utc + timedelta(hours=5, minutes=30)
-            _bar_ist = _bar_ist_dt.time()
-
-            def _in_range(t, start_str, end_str):
-                from datetime import time as dt_time
-                s = dt_time(*map(int, start_str.split(":")))
-                e = dt_time(*map(int, end_str.split(":")))
-                return (t >= s and t < e) if s <= e else (t >= s or t < e)
-
-            # Summer/Winter rule: March 9 to October 31 is Summer.
-            m = _bar_ist_dt.month
-            d = _bar_ist_dt.day
-            is_summer = (3 < m < 11) or (m == 3 and d >= 9)
+            killzone_raw = self._get_killzone_for_time(current_time)
             
-            active_kz = self.config.killzone_timings_summer if is_summer else self.config.killzone_timings_winter
+            kz_map = {
+                "Asia": "Asia",
+                "London": "London",
+                "NewYork": "NewYork Open",
+                "LondonClose": "London Close"
+            }
+            killzone = kz_map.get(killzone_raw, killzone_raw) if killzone_raw else None
 
-            killzone = next(
-                (name for name, timings in active_kz.items()
-                 if _in_range(_bar_ist, timings["start"], timings["end"])),
-                None
-            )
             if not is_zgmt and not killzone:
                 continue
 
@@ -536,7 +547,7 @@ class BacktestEngine:
                         use_partial_tp=True,
                         partial_tp_fraction=bt_partial_tp_fraction,
                         be_buffer_pips=bt_be_buffer_pips,
-                        session=signal.get("session", ""),
+                        session=killzone if killzone else signal.get("session", ""),
                         entry_leg=signal.get("entry_leg", ""),
                         is_limit=is_limit_order,
                         rr_format=bt_rr_format,
@@ -586,7 +597,7 @@ class BacktestEngine:
                     lot=lot,
                     bar_index=idx,
                     bar_time=current_time,
-                    session=signal.get("session", ""),
+                    session=killzone if killzone else signal.get("session", ""),
                     entry_leg=signal.get("entry_leg", ""),
                     rr_format=bt_rr_format,
                 )
@@ -606,7 +617,7 @@ class BacktestEngine:
             if trade.status == "PENDING":
                 trade.status = "CLOSED"
                 trade.result = "CANCELLED"
-                trade.exit_reason = "EXPIRED"
+                trade.exit_reason = "expired"
                 trade.close_bar = total_bars - 1
                 trade.close_time = last_bar["time"]
                 trade.exit_price = trade.entry
@@ -615,7 +626,7 @@ class BacktestEngine:
             else:
                 trade.status = "CLOSED"
                 trade.result = "EXPIRED"
-                trade.exit_reason = "SESSION_END"
+                trade.exit_reason = "expired_session_end"
                 trade.close_bar = total_bars - 1
                 trade.close_time = last_bar["time"]
                 trade.exit_price = last_bar["close"]
@@ -653,13 +664,24 @@ class BacktestEngine:
                 triggered = True
                 
             if triggered:
+                # Guard against filling limit orders outside of Killzones
+                triggered_kz = self._get_killzone_for_time(bar_time)
+                if not triggered_kz:
+                    triggered = False
+
+            if triggered:
                 trade.status = "OPEN"
                 trade.open_time = bar_time
                 trade.open_bar = bar_idx
                 
-                triggered_session = self._get_session_for_time(bar_time)
-                if triggered_session:
-                    trade.session = triggered_session
+                if triggered_kz:
+                    kz_map = {
+                        "Asia": "Asia",
+                        "London": "London",
+                        "NewYork": "NewYork Open",
+                        "LondonClose": "London Close"
+                    }
+                    trade.session = kz_map.get(triggered_kz, triggered_kz)
                     
                 logger.info(
                     f"[BT] Limit Trade TRIGGERED | {trade.pair} {direction} | "
@@ -691,7 +713,8 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + tp3_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN"
-                        trade.exit_reason = "TP3_HIT"
+                        trade.exit_reason = "tp3"
+                        trade.max_level_reached = "tp3"
                         trade.exit_price = trade.tp3
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
@@ -704,7 +727,7 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN" # Technically still a win since SL is at TP1
-                        trade.exit_reason = "STOPPED_AT_TP1"
+                        trade.exit_reason = "tp1"
                         trade.exit_price = trade.current_sl
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
@@ -723,6 +746,7 @@ class BacktestEngine:
                         trade.partial_profit += tp2_pnl
                         trade.remaining_lot = max(round(remainder_lot, 8), 0.0)
                         trade.tp2_hit = True
+                        trade.max_level_reached = "tp2"
                         trade.current_sl = trade.tp1 # Move SL to TP1 level
                         
                         logger.info(f"[BT] ✅ TP2 Hit (1:3 mode) | {trade.pair} | SL → TP1")
@@ -732,7 +756,8 @@ class BacktestEngine:
                             total_pnl = trade.partial_profit + tp3_pnl
                             trade.status = "CLOSED"
                             trade.result = "WIN"
-                            trade.exit_reason = "TP3_HIT"
+                            trade.exit_reason = "tp3"
+                            trade.max_level_reached = "tp3"
                             trade.exit_price = trade.tp3
                             trade.profit_usd = round(total_pnl, 2)
                             trade.close_bar = bar_idx
@@ -746,7 +771,7 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "BREAKEVEN"
-                        trade.exit_reason = "BREAKEVEN"
+                        trade.exit_reason = "breakeven"
                         trade.exit_price = trade.current_sl
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
@@ -761,7 +786,9 @@ class BacktestEngine:
                     loss = self._calc_pnl(trade.entry, trade.current_sl, direction, trade.remaining_lot)
                     trade.status = "CLOSED"
                     trade.result = "LOSS"
-                    trade.exit_reason = "SL_HIT"
+                    trade.exit_reason = "sl_hit"
+                    if not trade.max_level_reached:
+                        trade.max_level_reached = "sl_hit"
                     trade.exit_price = trade.current_sl
                     trade.profit_usd = round(loss, 2)
                     trade.close_bar = bar_idx
@@ -777,6 +804,7 @@ class BacktestEngine:
                     trade.partial_profit = partial_pnl
                     trade.remaining_lot = max(round(remainder_lot, 8), 0.0)
                     trade.tp1_hit = True
+                    trade.max_level_reached = "tp1"
                     trade.be_moved = True
                     
                     buffer = trade.be_buffer_pips * trade.pip_size
@@ -794,6 +822,7 @@ class BacktestEngine:
                         trade.partial_profit += tp2_pnl
                         trade.remaining_lot = max(round(remainder_lot2, 8), 0.0)
                         trade.tp2_hit = True
+                        trade.max_level_reached = "tp2"
                         trade.current_sl = trade.tp1
                         logger.info(f"[BT] ✅ TP2 (Same bar) | {trade.pair} | SL → TP1")
 
@@ -802,7 +831,8 @@ class BacktestEngine:
                             total_pnl = trade.partial_profit + tp3_pnl
                             trade.status = "CLOSED"
                             trade.result = "WIN"
-                            trade.exit_reason = "TP3_HIT"
+                            trade.exit_reason = "tp3"
+                            trade.max_level_reached = "tp3"
                             trade.exit_price = trade.tp3
                             trade.profit_usd = round(total_pnl, 2)
                             trade.close_bar = bar_idx
@@ -823,7 +853,8 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + tp2_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN"
-                        trade.exit_reason = "TP2_HIT"
+                        trade.exit_reason = "tp2"
+                        trade.max_level_reached = "tp2"
                         trade.exit_price = trade.tp2
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
@@ -836,7 +867,7 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + sl_pnl
                         trade.status = "CLOSED"
                         trade.result = "BREAKEVEN"
-                        trade.exit_reason = "BREAKEVEN"
+                        trade.exit_reason = "breakeven"
                         trade.exit_price = trade.current_sl
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
@@ -850,7 +881,9 @@ class BacktestEngine:
                     loss = self._calc_pnl(trade.entry, trade.current_sl, direction, trade.remaining_lot)
                     trade.status = "CLOSED"
                     trade.result = "LOSS"
-                    trade.exit_reason = "SL_HIT"
+                    trade.exit_reason = "sl_hit"
+                    if not trade.max_level_reached:
+                        trade.max_level_reached = "sl_hit"
                     trade.exit_price = trade.current_sl
                     trade.profit_usd = round(loss, 2)
                     trade.close_bar = bar_idx
@@ -866,6 +899,7 @@ class BacktestEngine:
                     trade.partial_profit = partial_pnl
                     trade.remaining_lot = max(round(remainder_lot, 8), 0.0)
                     trade.tp1_hit = True
+                    trade.max_level_reached = "tp1"
                     trade.be_moved = True
                     
                     buffer = trade.be_buffer_pips * trade.pip_size
@@ -881,7 +915,8 @@ class BacktestEngine:
                         total_pnl = trade.partial_profit + tp2_pnl
                         trade.status = "CLOSED"
                         trade.result = "WIN"
-                        trade.exit_reason = "TP2_HIT"
+                        trade.exit_reason = "tp2"
+                        trade.max_level_reached = "tp2"
                         trade.exit_price = trade.tp2
                         trade.profit_usd = round(total_pnl, 2)
                         trade.close_bar = bar_idx
@@ -899,7 +934,9 @@ class BacktestEngine:
             total_pnl = trade.partial_profit + loss
             trade.status      = "CLOSED"
             trade.result      = "BREAKEVEN" if trade.be_moved else "LOSS"
-            trade.exit_reason = "SL_HIT"
+            trade.exit_reason = "sl_hit"
+            if not trade.max_level_reached:
+                trade.max_level_reached = "sl_hit"
             trade.exit_price  = trade.current_sl
             trade.profit_usd  = round(total_pnl, 2)
             trade.close_bar   = bar_idx
@@ -917,7 +954,8 @@ class BacktestEngine:
             total_pnl = trade.partial_profit + tp2_pnl
             trade.status      = "CLOSED"
             trade.result      = "WIN"
-            trade.exit_reason = "TP2_HIT"
+            trade.exit_reason = "tp2"
+            trade.max_level_reached = "tp2"
             trade.exit_price  = trade.tp2
             trade.profit_usd  = round(total_pnl, 2)
             trade.close_bar   = bar_idx
@@ -935,6 +973,7 @@ class BacktestEngine:
             trade.partial_profit = partial
             trade.remaining_lot  = max(0.01, round(trade.lot - half_lot, 2))
             trade.tp1_hit  = True
+            trade.max_level_reached = "tp1"
             trade.be_moved = True
             trade.current_sl = trade.entry   # MMXM: SL to exact BE
             logger.info(

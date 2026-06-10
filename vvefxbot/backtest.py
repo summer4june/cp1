@@ -285,9 +285,14 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     losses     = len(df[df["result"] == "LOSS"])
     breakevens = len(df[df["result"] == "BREAKEVEN"])
     cancelled  = len(df[df["result"] == "CANCELLED"])
-    tp1_hits   = len(df[df["exit_reason"] == "TP1_HIT"]) if "exit_reason" in df.columns else 0
-    tp2_hits   = len(df[df["exit_reason"] == "TP2_HIT"])
-    tp3_hits   = len(df[df["exit_reason"] == "TP3_HIT"])
+    if "max_level_reached" in df.columns:
+        tp1_hits   = len(df[df["max_level_reached"].isin(["tp1", "tp2", "tp3"])])
+        tp2_hits   = len(df[df["max_level_reached"].isin(["tp2", "tp3"])])
+        tp3_hits   = len(df[df["max_level_reached"] == "tp3"])
+    else:
+        tp1_hits   = len(df[df["exit_reason"].isin(["tp1", "tp2", "tp3", "TP1_HIT", "TP2_HIT", "TP3_HIT"])]) if "exit_reason" in df.columns else 0
+        tp2_hits   = len(df[df["exit_reason"].isin(["tp2", "tp3", "TP2_HIT", "TP3_HIT"])]) if "exit_reason" in df.columns else 0
+        tp3_hits   = len(df[df["exit_reason"].isin(["tp3", "TP3_HIT"])]) if "exit_reason" in df.columns else 0
     win_rate   = round(wins / total * 100, 1) if total else 0.0
     net_pnl    = round(df["profit_usd"].sum(), 2)
     avg_win    = round(df[df["result"] == "WIN"]["profit_usd"].mean(),  2) if wins   else 0.0
@@ -331,7 +336,10 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
         w   = len(grp[grp["result"] == "WIN"])
         l   = len(grp[grp["result"] == "LOSS"])
         be  = len(grp[grp["result"] == "BREAKEVEN"])
-        tp2 = len(grp[grp["exit_reason"] == "TP2_HIT"])
+        if "max_level_reached" in grp.columns:
+            tp2 = len(grp[grp["max_level_reached"].isin(["tp2", "tp3"])])
+        else:
+            tp2 = len(grp[grp["exit_reason"].isin(["tp2", "tp3", "TP2_HIT", "TP3_HIT"])]) if "exit_reason" in grp.columns else 0
         pnl = round(grp["profit_usd"].sum(), 2)
         wr  = round(w  / n * 100, 1) if n else 0
         tp2r = round(tp2 / n * 100, 1) if n else 0
@@ -363,7 +371,7 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
             "entry_price", "sl_price", "tp1_price", "tp2_price", "tp3_price",
             "entry", "sl_usd", "tp1_usd", "tp2_usd", "tp3_usd", "lot", 
             "open_bar", "open_time", "close_bar", "close_time", "status", 
-            "result", "profit_usd", "exit_price", "exit_reason", "sl_pips", 
+            "result", "profit_usd", "exit_price", "exit_reason", "max_level_reached", "sl_pips", 
             "tp1_pips", "tp2_pips", "tp3_pips", "month", "week_no", "margin_used", "score"
         ]
         
