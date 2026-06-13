@@ -79,5 +79,5 @@ def config_mock():
     config.mt5_password = "pass"
     config.mt5_server = "server"
     config.telegram_token = "tok"
-    config.telegram_chat_id = "chat"
+    config.telegram_chat_ids = ["chat"]
     return config

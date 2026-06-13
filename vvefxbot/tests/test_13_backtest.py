@@ -40,7 +40,7 @@ def mock_config():
         mt5_password="pass",
         mt5_server="server",
         telegram_token="tok",
-        telegram_chat_id="123",
+        telegram_chat_ids=["123"],
         google_sheet_id="sheet",
         google_creds_path="creds.json"
     )
@@ -744,7 +744,7 @@ def test_zgmt_bt_loss_before_tp1(mock_config):
     closed = engine._check_exits(trade, _bar(high=3210, low=3140), 1, _fake_time())
     assert closed,                 "Should be closed at SL"
     assert trade.result == "LOSS"
-    assert trade.exit_reason == "SL_HIT"
+    assert trade.exit_reason == "sl_hit"
     assert trade.profit_usd < 0   # net loss
     assert not trade.tp1_hit
 
@@ -778,7 +778,7 @@ def test_zgmt_bt_same_bar_tp1_tp2(mock_config):
     closed = engine._check_exits(trade, _bar(high=3310, low=3198), 1, _fake_time())
     assert closed,                 "Must close when same bar hits both TP1+TP2"
     assert trade.result == "WIN"
-    assert trade.exit_reason == "TP2_HIT"
+    assert trade.exit_reason == "tp2"
     assert trade.tp1_hit
     assert trade.profit_usd > 0
     # TP1 partial + TP2 remainder should both be positive
