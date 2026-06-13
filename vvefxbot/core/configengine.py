@@ -111,7 +111,7 @@ class ConfigEngine:
         # Required .env keys
         env_keys = [
             "MT5_LOGIN", "MT5_PASSWORD", "MT5_SERVER", "TELEGRAM_TOKEN", 
-            "TELEGRAM_CHAT_ID", "GOOGLE_SHEET_ID", "GOOGLE_CREDS_PATH"
+            "TELEGRAM_CHAT_IDS", "GOOGLE_SHEET_ID", "GOOGLE_CREDS_PATH"
         ]
 
         # Validate json keys
@@ -210,10 +210,10 @@ class ConfigEngine:
             raise ValueError("CONFIG ERROR: MT5_LOGIN missing or invalid")
 
         # Parse chat IDs into a list
-        raw_chat_id = env_values.get("telegram_chat_id", "")
+        raw_chat_id = env_values.get("telegram_chat_ids", "")
         chat_ids = [cid.strip() for cid in raw_chat_id.split(",") if cid.strip()]
         if not chat_ids:
-            raise ValueError("ENV ERROR: TELEGRAM_CHAT_ID must contain at least one valid ID")
+            raise ValueError("ENV ERROR: TELEGRAM_CHAT_IDS must contain at least one valid ID")
 
         # Construct and return Config dataclass
         return Config(

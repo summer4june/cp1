@@ -23,5 +23,5 @@ def test_handle_yes_callback_expired(config_mock):
         bridge._pending["sig_1"] = {
             "timestamp": datetime.now(timezone.utc) - timedelta(minutes=20)
         }
-        bridge.handle_yes_callback("sig_1")
+        bridge.handle_yes_callback("sig_1", 123)
         assert "sig_1" not in bridge._pending

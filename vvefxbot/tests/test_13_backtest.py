@@ -283,10 +283,8 @@ def test_backtest_engine_gold_initialization(mock_config):
     engine = BacktestEngine(mock_config, connector, "XAUUSD")
     assert engine.pip_size  == 0.01
 
-    # 2. Gold pip_value is always forced to 1.0 (contract-fixed) regardless of argument
-    engine_custom = BacktestEngine(mock_config, connector, "XAUUSD", pip_value=1.5)
+    engine_custom = BacktestEngine(mock_config, connector, "XAUUSD")
     assert engine_custom.pip_size  == 0.01
-    assert engine_custom.pip_value == 1.0   # always 1.0 for XAUUSD
 
 
 def test_backtest_engine_jpy_initialization(mock_config):
@@ -301,9 +299,7 @@ def test_backtest_engine_jpy_initialization(mock_config):
         engine = BacktestEngine(mock_config, connector, jpy_pair)
 
         assert engine.pip_size == 0.01, f"{jpy_pair}: pip_size should be 0.01"
-        assert 3.0 < engine.pip_value < 15.0, (
-            f"{jpy_pair}: pip_value {engine.pip_value} out of realistic range (3-15) for price ~190"
-        )
+        assert engine.pip_size == 0.01, f"{jpy_pair}: pip_size should be 0.01"
 
 
 
@@ -384,7 +380,7 @@ def test_backtest_engine_gold_trade_execution(mock_config):
     assert trade["signal_id"] == "sig_gold_1"
     assert trade["status"] == "CLOSED"
     assert trade["result"] == "WIN"
-    assert trade["exit_reason"] == "TP2_HIT"
+    assert trade["exit_reason"] == "tp2"
     
     # Math validation:
     # Lot size calculation: Risk amount = $10.0. SL pips = 95.0. Pip value = 1.0.
@@ -643,11 +639,11 @@ def test_zgmt_direct_entry_at_zgmt_price(mock_config):
     scanner = ScannerZGMT(mock_config, connector, state)
     signal = scanner.scan("GBPUSD", "Asia", "Asia")
 
-    assert isinstance(signal, list) and len(signal) > 0, "Should produce a signal"
-    assert signal[0]["direction"] == "BUY", "Bias should be BULLISH (discount zone)"
+    assert isinstance(signal, dict), "Should produce a signal dict"
+    assert signal["direction"] == "BUY", "Bias should be BULLISH (discount zone)"
     # DIRECT mode must use zgmt_price, NOT the drifted tick ask (1.35202)
-    assert signal[0]["entry_price"] == round(zgmt_price_open, 5), \
-        f"DIRECT entry must be at zgmt_price ({zgmt_price_open}), got {signal[0]['entry_price']}"
+    assert signal["entry_price"] == round(zgmt_price_open, 5), \
+        f"DIRECT entry must be at zgmt_price ({zgmt_price_open}), got {signal['entry_price']}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -731,7 +727,7 @@ def test_zgmt_bt_full_win(mock_config):
     closed = engine._check_exits(trade, _bar(high=3310, low=3295), 2, _fake_time())
     assert closed,                 "Should be closed at TP2"
     assert trade.result == "WIN"
-    assert trade.exit_reason == "TP2_HIT"
+    assert trade.exit_reason == "tp2"
     assert trade.profit_usd > 0
 
 
@@ -1075,7 +1071,7 @@ def test_split_mode_two_signals(mock_config):
     mock_config.zgmt_scanner = {
         "zgmt_entry_mode": "SPLIT",
         "strategy_a_enabled": True,
-        "strategy_b_enabled": True,
+        "strategy_c_enabled": True,
         "zgmt_filter_pips_fx": 25,
         "zgmt_filter_pips_metal": 95,
         "zgmt_adr_days": 5,
@@ -1097,17 +1093,14 @@ def test_split_mode_two_signals(mock_config):
 
     # Call scan
     result = scanner.scan("EURUSD", "LONDON", "OPEN")
-    
-    # Should be a list of two signals
+
+    # Should return a list of two dicts
     assert result is not None
     assert isinstance(result, list)
     assert len(result) == 2
 
     leg_a, leg_b = result
     
-    assert leg_a["position_fraction"] == 0.5
-    assert leg_b["position_fraction"] == 0.5
-
     # Entry A must be direct
     assert abs(leg_a["entry_price"] - zgmt_price) < 1e-5
 

@@ -9,11 +9,16 @@ def test_config_loads_defaults(monkeypatch, tmp_path):
     monkeypatch.setenv("MT5_PASSWORD", "pass")
     monkeypatch.setenv("MT5_SERVER", "server")
     monkeypatch.setenv("TELEGRAM_TOKEN", "tok")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "123")
+    monkeypatch.setenv("TELEGRAM_CHAT_IDS", "123")
     monkeypatch.setenv("GOOGLE_SHEET_ID", "dummy_id")
     monkeypatch.setenv("GOOGLE_CREDS_PATH", "dummy.json")
     
     config_data = {
+        "strategy_mode": "MMXM",
+        "enabled_scanners": {"mmxm": True, "ote": False, "zgmt": False},
+        "ote_scanner": {},
+        "zgmt_scanner": {},
+        "trade_management": {},
         "pairs": ["EURUSD"], "risk_percent": 1.0, "trading_pool_size": 1000.0,
         "session_timings": {}, 
         "killzone_timings_summer": {},
