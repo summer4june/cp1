@@ -20,8 +20,12 @@ _SCOPES = [
 ]
 
 _HEADERS = [
-    "Year", "Date", "Time", "Pair", "Session", "Entry Leg", "Direction", "Entry", "SL", "TP1", "TP2",
-    "Lot", "Risk%", "Spread", "Effective RR", "Result", "Profit/Loss", "Notes", "Signal Score"
+    "trade_id", "pair", "direction", "year", "session", "entry_leg", 
+    "entry_price", "sl_price", "tp1_price", "tp2_price", "tp3_price",
+    "entry", "sl_usd", "tp1_usd", "tp2_usd", "tp3_usd", "lot", 
+    "open_bar", "open_time", "close_bar", "close_time", "status", 
+    "result", "profit_usd", "exit_price", "exit_reason", "max_level_reached", "sl_pips", 
+    "tp1_pips", "tp2_pips", "tp3_pips", "month", "week_no", "margin_used", "score"
 ]
 
 class GoogleSheetReporter:
@@ -38,6 +42,7 @@ class GoogleSheetReporter:
         self.client = None
         self.sheet = None
         self.denied_sheet = None
+        self.vault_sheet = None
 
     def connect(self) -> bool:
         """
@@ -63,25 +68,37 @@ class GoogleSheetReporter:
 
             # Check if header exists, if not auto-add it
             first_row = self.sheet.row_values(1)
-            if not first_row or first_row[0] not in ("Year", "Date"):
+            if not first_row or first_row[0] not in ("trade_id", "TradeID"):
                 self.sheet.insert_row(_HEADERS, 1)
-                logger.info("Added header row to Google Sheet.")
+                logger.info("Added header row to main Google Sheet.")
 
-            logger.info("Successfully connected to Google Sheet.")
+            logger.info("Successfully connected to main Google Sheet.")
             
-            # Connect to Denied sheet optionally
-            denied_sheet_id = getattr(self.config, "google_denied_sheet_id", None)
-            if denied_sheet_id:
-                try:
-                    denied_spreadsheet = self.client.open_by_key(denied_sheet_id)
-                    self.denied_sheet = denied_spreadsheet.sheet1
-                    denied_headers = ["Date", "Time", "Pair", "Strategy", "Direction", "Reason", "Spread", "Signal Score", "Signal ID"]
-                    first_row_denied = self.denied_sheet.row_values(1)
-                    if not first_row_denied or first_row_denied[0] != "Date":
-                        self.denied_sheet.insert_row(denied_headers, 1)
-                        logger.info("Added header row to Denied Google Sheet.")
-                except Exception as e:
-                    logger.error(f"Failed to connect to Denied Google Sheet: {e}")
+            # Connect to Denied/Rejected sheet in the SAME spreadsheet
+            try:
+                self.denied_sheet = spreadsheet.worksheet("Rejected")
+            except gspread.exceptions.WorksheetNotFound:
+                logger.info("Rejected sheet not found, creating it now.")
+                self.denied_sheet = spreadsheet.add_worksheet(title="Rejected", rows=1000, cols=15)
+                
+            denied_headers = ["Date", "Time", "Pair", "Strategy", "Direction", "Reason", "Spread", "Signal Score", "Signal ID"]
+            first_row_denied = self.denied_sheet.row_values(1)
+            if not first_row_denied or first_row_denied[0] != "Date":
+                self.denied_sheet.insert_row(denied_headers, 1)
+                logger.info("Added header row to Rejected Google Sheet tab.")
+
+            # Connect to Vault sheet in the SAME spreadsheet
+            try:
+                self.vault_sheet = spreadsheet.worksheet("Vault")
+            except gspread.exceptions.WorksheetNotFound:
+                logger.info("Vault sheet not found, creating it now.")
+                self.vault_sheet = spreadsheet.add_worksheet(title="Vault", rows=1000, cols=10)
+                
+            vault_headers = ["Date", "Time", "Daily Profit", "Transferred to Vault", "New Vault Balance", "New Trading Balance", "New Lot Margin"]
+            first_row_vault = self.vault_sheet.row_values(1)
+            if not first_row_vault or first_row_vault[0] != "Date":
+                self.vault_sheet.insert_row(vault_headers, 1)
+                logger.info("Added header row to Vault Google Sheet tab.")
 
             return True
 
@@ -108,7 +125,7 @@ class GoogleSheetReporter:
         return self._log_trade_with_retry(trade, signal, retry_count=1)
 
     def _build_row_data(self, trade: Dict[str, Any], signal: Dict[str, Any]) -> list:
-        """Build the full row data list for a trade."""
+        """Build the full row data list for a trade (35 columns)."""
         now_utc = datetime.now(pytz.utc)
         if "execution_time" in trade and trade["execution_time"]:
             try:
@@ -117,45 +134,93 @@ class GoogleSheetReporter:
                 pass
 
         now_ist = now_utc.astimezone(_IST)
-        trade_id = trade.get("trade_id", "")
-        bias_summary = signal.get("bias_summary", "") if signal else ""
-        notes = f"TradeID:{trade_id} | {bias_summary}"
+        
+        close_time_ist = ""
+        status = trade.get("status", "OPEN")
+        if status == "CLOSED":
+            close_time_ist = datetime.now(pytz.utc).astimezone(_IST).strftime("%Y-%m-%d %H:%M:%S IST")
+
+        pair = trade.get("pair") or (signal.get("pair", "") if signal else "")
+        direction = trade.get("direction") or (signal.get("direction", "") if signal else "")
+        entry_price = trade.get("executed_price", 0.0)
+        sl_price = trade.get("sl", 0.0)
+        tp1_price = trade.get("tp1", 0.0)
+        tp2_price = trade.get("tp2", 0.0)
+        tp3_price = trade.get("tp3", 0.0) or (signal.get("tp3_price", 0.0) if signal else 0.0)
+
+        # Pip distances
+        point = 0.01 if ("JPY" in pair or "XAU" in pair or "XAG" in pair) else 0.0001
+        sl_pips = signal.get("sl_pips", round(abs(entry_price - sl_price) / point, 1)) if signal and point else 0.0
+        tp1_pips = signal.get("tp_pips", round(abs(entry_price - tp1_price) / point, 1)) if signal and point else 0.0
+        tp2_pips = round(abs(entry_price - tp2_price) / point, 1) if tp2_price > 0 and point else 0.0
+        tp3_pips = signal.get("tp3_pips", round(abs(entry_price - tp3_price) / point, 1)) if signal and tp3_price > 0 and point else 0.0
+
+        # USD values
+        sl_usd = float(trade.get("risk_amount", 0.0))
+        tp1_usd = sl_usd
+        tp2_usd = sl_usd * 2.0
+        tp3_usd = sl_usd * 3.0
+
+        result = trade.get("result", "") or ""
+        max_level = ""
+        if result == "TP1_HIT":
+            max_level = "tp1"
+        elif result == "TP2_HIT":
+            max_level = "tp2"
+        elif result == "TP3_HIT":
+            max_level = "tp3"
 
         return [
-            now_ist.strftime("%Y"),
-            now_ist.strftime("%Y-%m-%d"),
-            now_ist.strftime("%H:%M:%S"),
-            trade.get("pair") or (signal.get("pair", "") if signal else trade.get("pair", "")),
-            signal.get("session", "") if signal else "",
-            signal.get("entry_leg", "") if signal else "",
-            trade.get("direction") or (signal.get("direction", "") if signal else ""),
-            trade.get("executed_price", 0.0),
-            trade.get("sl", 0.0),
-            trade.get("tp1", 0.0),
-            trade.get("tp2", 0.0),
-            trade.get("lot_total", 0.0),
-            self.config.risk_percent,
-            signal.get("spread_pips", 0.0) if signal else 0.0,
-            signal.get("effective_rr", 0.0) if signal else 0.0,
-            trade.get("result", "") or "",
-            trade.get("profit_usd", 0.0) or 0.0,
-            notes,
-            signal.get("score", 0.0) if signal else 0.0,
+            trade.get("trade_id", ""),                                      # 1. trade_id
+            pair,                                                           # 2. pair
+            direction,                                                      # 3. direction
+            now_ist.strftime("%Y"),                                         # 4. year
+            signal.get("session", "") if signal else "",                    # 5. session
+            signal.get("entry_leg", "") if signal else "",                  # 6. entry_leg
+            entry_price,                                                    # 7. entry_price
+            sl_price,                                                       # 8. sl_price
+            tp1_price,                                                      # 9. tp1_price
+            tp2_price,                                                      # 10. tp2_price
+            tp3_price,                                                      # 11. tp3_price
+            signal.get("entry_mode", "DIRECT") if signal else "DIRECT",     # 12. entry
+            sl_usd,                                                         # 13. sl_usd
+            tp1_usd,                                                        # 14. tp1_usd
+            tp2_usd,                                                        # 15. tp2_usd
+            tp3_usd,                                                        # 16. tp3_usd
+            trade.get("lot_total", 0.0),                                    # 17. lot
+            "",  # open_bar                                                 # 18. open_bar
+            now_ist.strftime("%Y-%m-%d %H:%M:%S IST"),                      # 19. open_time
+            "",  # close_bar                                                # 20. close_bar
+            close_time_ist,                                                 # 21. close_time
+            status,                                                         # 22. status
+            result,                                                         # 23. result
+            trade.get("profit_usd", 0.0) or 0.0,                            # 24. profit_usd
+            "",  # exit_price                                               # 25. exit_price
+            result,  # exit_reason                                          # 26. exit_reason
+            max_level,  # max_level_reached                                 # 27. max_level_reached
+            sl_pips,                                                        # 28. sl_pips
+            tp1_pips,                                                       # 29. tp1_pips
+            tp2_pips,                                                       # 30. tp2_pips
+            tp3_pips,                                                       # 31. tp3_pips
+            now_ist.strftime("%m"),                                         # 32. month
+            now_ist.isocalendar()[1],                                       # 33. week_no
+            "",  # margin_used                                              # 34. margin_used
+            signal.get("score", 0.0) if signal else 0.0                     # 35. score
         ]
 
     def _find_row_by_trade_id(self, trade_id: str) -> int:
         """
-        Find the 1-indexed row number in the sheet whose Notes cell contains
-        'TradeID:<trade_id>'. Returns -1 if not found.
+        Find the 1-indexed row number in the sheet whose trade_id cell (col 1) matches exactly.
+        Returns -1 if not found.
         """
         try:
-            # Notes is the 18th column (index 17, 1-indexed col 18)
-            notes_col = self.sheet.col_values(18)
-            for i, cell_val in enumerate(notes_col):
-                if f"TradeID:{trade_id}" in str(cell_val):
+            # trade_id is the 1st column (index 0, 1-indexed col 1)
+            id_col = self.sheet.col_values(1)
+            for i, cell_val in enumerate(id_col):
+                if str(cell_val).strip() == trade_id:
                     return i + 1  # 1-indexed
         except Exception as e:
-            logger.warning(f"Could not search Notes column: {e}")
+            logger.warning(f"Could not search trade_id column: {e}")
         return -1
 
     def _log_trade_with_retry(self, trade: Dict[str, Any], signal: Dict[str, Any], retry_count: int) -> bool:
@@ -173,9 +238,16 @@ class GoogleSheetReporter:
                 # Try to find and update existing row
                 row_num = self._find_row_by_trade_id(trade_id)
                 if row_num > 0:
-                    # Update Result (col 16) and Profit (col 17) in the existing row
-                    self.sheet.update_cell(row_num, 16, trade.get("result", ""))
-                    self.sheet.update_cell(row_num, 17, trade.get("profit_usd", 0.0))
+                    # Update close_time (21), status (22), result (23), profit_usd (24), exit_reason (26), max_level (27)
+                    updates = [
+                        {"range": f"U{row_num}", "values": [[row_data[20]]]}, # 21. close_time
+                        {"range": f"V{row_num}", "values": [[row_data[21]]]}, # 22. status
+                        {"range": f"W{row_num}", "values": [[row_data[22]]]}, # 23. result
+                        {"range": f"X{row_num}", "values": [[row_data[23]]]}, # 24. profit_usd
+                        {"range": f"Z{row_num}", "values": [[row_data[25]]]}, # 26. exit_reason
+                        {"range": f"AA{row_num}", "values": [[row_data[26]]]}, # 27. max_level_reached
+                    ]
+                    self.sheet.batch_update(updates)
                     logger.info(f"Trade {trade_id} CLOSED — updated row {row_num} in Google Sheet.")
                     return True
                 else:
@@ -215,18 +287,8 @@ class GoogleSheetReporter:
 
         try:
             # Get existing notes to find already synced trade IDs
-            # Assuming Notes is the 16th column (index 15)
-            # To be safe and handle empty sheets, fetch all records or column values
-            all_records = self.sheet.get_all_records()
-            synced_trade_ids = set()
-            for record in all_records:
-                notes = str(record.get("Notes", ""))
-                if "TradeID:" in notes:
-                    # Extract the TradeID substring
-                    parts = notes.split("TradeID:")
-                    if len(parts) > 1:
-                        tid = parts[1].split(" |")[0].strip()
-                        synced_trade_ids.add(tid)
+            all_trade_ids = self.sheet.col_values(1)
+            synced_trade_ids = set([str(tid).strip() for tid in all_trade_ids if tid])
 
             # Fetch closed trades from state engine
             closed_trades = []
@@ -267,10 +329,8 @@ class GoogleSheetReporter:
 
     def log_denied_trade(self, signal: Dict[str, Any], reason: str) -> bool:
         """
-        Log a denied/skipped signal to the separate Google Sheet.
+        Log a denied/skipped signal to the 'Rejected' tab in the Google Sheet.
         """
-        if not getattr(self.config, "google_denied_sheet_id", None):
-            return False
             
         if self.denied_sheet is None:
             if not self.connect():
@@ -297,4 +357,32 @@ class GoogleSheetReporter:
             return True
         except Exception as e:
             logger.error(f"Error logging denied trade to Google Sheet: {e}")
+            return False
+
+    def log_vault_eod(self, date_str: str, profit: float, transferred: float, vault_bal: float, trading_bal: float, risk_amt: float) -> bool:
+        """
+        Logs the End of Day Vault summary to the Vault sheet.
+        """
+        if not self.vault_sheet:
+            if not self.connect():
+                return False
+
+        now_ist = datetime.now(pytz.utc).astimezone(_IST).strftime("%H:%M:%S")
+
+        row_data = [
+            date_str,
+            now_ist,
+            round(profit, 2),
+            round(transferred, 2),
+            round(vault_bal, 2),
+            round(trading_bal, 2),
+            round(risk_amt, 2)
+        ]
+
+        try:
+            self.vault_sheet.append_row(row_data)
+            logger.info(f"Successfully logged EOD Vault data for {date_str} to Google Sheet.")
+            return True
+        except Exception as e:
+            logger.error(f"Error logging EOD Vault to Google Sheet: {e}")
             return False

@@ -36,7 +36,7 @@ class Config:
     mt5_password: str
     mt5_server: str
     telegram_token: str
-    telegram_chat_id: str
+    telegram_chat_ids: List[str]
     google_sheet_id: str
     google_creds_path: str
     google_denied_sheet_id: Optional[str] = None
@@ -137,7 +137,7 @@ class ConfigEngine:
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
             elif key == "strategy_mode":
                 if json_data[key] not in ["MMXM", "OTE", "ZGMT", "MULTI"]:
-                    raise ValueError(f"CONFIG ERROR: strategy_mode must be MMXM, OTE, ZGMT, or MULTI")
+                    raise ValueError("CONFIG ERROR: strategy_mode must be MMXM, OTE, ZGMT, or MULTI")
 
         # Validate OTE specific keys if enabled or if present
         ote = json_data.get("ote_scanner", {})
@@ -209,6 +209,12 @@ class ConfigEngine:
         except ValueError:
             raise ValueError("CONFIG ERROR: MT5_LOGIN missing or invalid")
 
+        # Parse chat IDs into a list
+        raw_chat_id = env_values.get("telegram_chat_id", "")
+        chat_ids = [cid.strip() for cid in raw_chat_id.split(",") if cid.strip()]
+        if not chat_ids:
+            raise ValueError("ENV ERROR: TELEGRAM_CHAT_ID must contain at least one valid ID")
+
         # Construct and return Config dataclass
         return Config(
             strategy_mode=json_data["strategy_mode"],
@@ -237,7 +243,7 @@ class ConfigEngine:
             mt5_password=env_values["mt5_password"],
             mt5_server=env_values["mt5_server"],
             telegram_token=env_values["telegram_token"],
-            telegram_chat_id=env_values["telegram_chat_id"],
+            telegram_chat_ids=chat_ids,
             google_sheet_id=env_values["google_sheet_id"],
             google_creds_path=env_values["google_creds_path"],
             google_denied_sheet_id=os.getenv("GOOGLE_DENIED_SHEET_ID")

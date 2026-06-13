@@ -161,14 +161,27 @@ class ExecutionEngine:
         rr_format = self.config.trade_management.get("rr_format", "1:2")
         mt5_tp = signal.get("tp3_price") if rr_format == "1:3" and signal.get("tp3_price") else signal.get("tp2_price", 0.0)
 
-        order_result = self.mt5.place_order(
-            symbol=pair,
-            order_type=direction,
-            lot=lot_size,
-            sl=signal["sl_price"],
-            tp=mt5_tp,
-            comment="VvE"
-        )
+        entry_mode = signal.get("entry_mode", "DIRECT")
+
+        if entry_mode == "FILTER":
+            order_result = self.mt5.place_pending_order(
+                symbol=pair,
+                order_type=direction,
+                lot=lot_size,
+                entry_price=signal["entry_price"],
+                sl=signal["sl_price"],
+                tp=mt5_tp,
+                comment="VvE_Limit"
+            )
+        else:
+            order_result = self.mt5.place_order(
+                symbol=pair,
+                order_type=direction,
+                lot=lot_size,
+                sl=signal["sl_price"],
+                tp=mt5_tp,
+                comment="VvE_Mkt"
+            )
 
         if not order_result["success"]:
             logger.error(f"[{pair}] Order placement failed: {order_result['error']}")
@@ -178,21 +191,27 @@ class ExecutionEngine:
         executed_price = signal["entry_price"]  # Best estimate; actual fill logged below
 
         # Try to get the real executed price from MT5
+        is_pending = False
         try:
             import MetaTrader5 as mt5_lib
             positions = mt5_lib.positions_get(ticket=ticket)
             if positions:
                 executed_price = positions[0].price_open
+            else:
+                orders = mt5_lib.orders_get(ticket=ticket)
+                if orders:
+                    is_pending = True
         except Exception:
             pass  # Fallback to entry price estimate
 
         # ── STEP 8: Slippage check (post-placement) ───────────────────
-        if not self.risk.check_slippage(signal["entry_price"], executed_price, pair):
-            logger.warning(f"[{pair}] SLIPPAGE_TOO_HIGH — closing ticket {ticket} immediately.")
-            close_result = self.mt5.close_partial(ticket, lot_size)
-            if not close_result["success"]:
-                logger.error(f"[{pair}] Failed to close high-slippage order: {close_result['error']}")
-            return _FAIL("Slippage too high — order closed")
+        if not is_pending:
+            if not self.risk.check_slippage(signal["entry_price"], executed_price, pair):
+                logger.warning(f"[{pair}] SLIPPAGE_TOO_HIGH — closing ticket {ticket} immediately.")
+                close_result = self.mt5.close_partial(ticket, lot_size)
+                if not close_result["success"]:
+                    logger.error(f"[{pair}] Failed to close high-slippage order: {close_result['error']}")
+                return _FAIL("Slippage too high — order closed")
 
         # ── STEP 9: Persist trade to DB ───────────────────────────────
         now_utc = datetime.now(timezone.utc).isoformat()
@@ -212,7 +231,7 @@ class ExecutionEngine:
             "lot_total": lot_size,
             "risk_amount": risk_amount,
             "execution_time": now_utc,
-            "status": "OPEN",
+            "status": "PENDING" if is_pending else "OPEN",
             "result": None,
             "profit_usd": 0.0,
         }
@@ -231,7 +250,8 @@ class ExecutionEngine:
         self.state.increment_daily_trades(today)
 
         # ── STEP 12: Telegram confirmation ────────────────────────────
-        alert = f"✅ Trade OPEN | {pair} {direction} | Ticket: {ticket}"
+        status_str = "PENDING LIMIT" if is_pending else "OPEN"
+        alert = f"✅ Trade {status_str} | {pair} {direction} | Ticket: {ticket}"
         self.telegram.send_alert(alert)
         logger.info(alert)
 

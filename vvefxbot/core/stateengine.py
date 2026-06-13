@@ -54,17 +54,34 @@ class StateEngine:
                     signal_id TEXT PRIMARY KEY, pair TEXT, session TEXT,
                     timeframe_bias TEXT, timeframe_entry TEXT, direction TEXT,
                     bias_summary TEXT, entry_price REAL, sl_price REAL,
-                    tp1_price REAL, tp2_price REAL, sl_pips REAL, tp_pips REAL,
+                    tp1_price REAL, tp2_price REAL, tp3_price REAL, sl_pips REAL, tp_pips REAL, tp3_pips REAL,
                     spread_pips REAL, effective_rr REAL, score REAL,
-                    detected_time TEXT, strategy TEXT
+                    detected_time TEXT, strategy TEXT, entry_mode TEXT, entry_leg TEXT,
+                    setup_type TEXT, fixed_lot_size REAL, skip_rr_check INTEGER, position_fraction REAL
                 )
                 """)
 
-                # Migration: add 'strategy' column to signals_detected if it doesn't exist
+                # Migration: add 'strategy', 'entry_mode', 'entry_leg' to signals_detected if not exist
                 cursor.execute("PRAGMA table_info(signals_detected)")
                 cols = [info[1] for info in cursor.fetchall()]
                 if cols and "strategy" not in cols:
                     cursor.execute("ALTER TABLE signals_detected ADD COLUMN strategy TEXT")
+                if cols and "entry_mode" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN entry_mode TEXT")
+                if cols and "entry_leg" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN entry_leg TEXT")
+                if cols and "setup_type" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN setup_type TEXT")
+                if cols and "fixed_lot_size" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN fixed_lot_size REAL")
+                if cols and "skip_rr_check" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN skip_rr_check INTEGER")
+                if cols and "position_fraction" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN position_fraction REAL")
+                if cols and "tp3_price" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN tp3_price REAL")
+                if cols and "tp3_pips" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN tp3_pips REAL")
 
                 # 2. trades_executed
                 cursor.execute("""
@@ -74,7 +91,7 @@ class StateEngine:
                     executed_price REAL, sl REAL, tp1 REAL, tp2 REAL, tp3 REAL,
                     lot_total REAL, risk_amount REAL, execution_time TEXT,
                     status TEXT, result TEXT, profit_usd REAL,
-                    tp1_hit INTEGER DEFAULT 0, be_moved INTEGER DEFAULT 0
+                    tp1_hit INTEGER DEFAULT 0, tp2_hit INTEGER DEFAULT 0, be_moved INTEGER DEFAULT 0
                 )
                 """)
 
@@ -83,6 +100,8 @@ class StateEngine:
                 cols = [info[1] for info in cursor.fetchall()]
                 if cols and "tp3" not in cols:
                     cursor.execute("ALTER TABLE trades_executed ADD COLUMN tp3 REAL")
+                if cols and "tp2_hit" not in cols:
+                    cursor.execute("ALTER TABLE trades_executed ADD COLUMN tp2_hit INTEGER DEFAULT 0")
 
                 # 3. trades_skipped
                 cursor.execute("""
@@ -213,6 +232,20 @@ class StateEngine:
             finally:
                 self._close_connection(conn)
 
+    def get_pending_trades(self) -> List[Dict[str, Any]]:
+        """Returns all trades with status 'PENDING'."""
+        with self.lock:
+            conn = self._get_connection()
+            conn.row_factory = sqlite3.Row
+            try:
+                cursor = conn.execute("SELECT * FROM trades_executed WHERE status = 'PENDING'")
+                return [dict(row) for row in cursor.fetchall()]
+            except sqlite3.Error as e:
+                logger.error(f"Error getting pending trades: {e}")
+                return []
+            finally:
+                self._close_connection(conn)
+
     def get_open_trades(self) -> List[Dict[str, Any]]:
         """Returns all trades with status 'OPEN'."""
         with self.lock:
@@ -252,6 +285,18 @@ class StateEngine:
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Error updating TP1 hit: {e}")
+            finally:
+                self._close_connection(conn)
+
+    def update_trade_tp2_hit(self, trade_id: str) -> None:
+        """Marks TP2 as hit for a trade."""
+        with self.lock:
+            conn = self._get_connection()
+            try:
+                conn.execute("UPDATE trades_executed SET tp2_hit = 1 WHERE trade_id = ?", (trade_id,))
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Error updating TP2 hit: {e}")
             finally:
                 self._close_connection(conn)
 

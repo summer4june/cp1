@@ -1,0 +1,7 @@
+[2026-06-13 21:23:09,880] [CRITICAL] [VaultEngine] 🛑 DRAWDOWN PANIC: Total PnL (-21.00) hit limit (-20.00). CLOSING ALL POSITIONS!
+[2026-06-13 21:23:09,890] [INFO] [VaultEngine] Vault injected $10.00 to restore minimum Trading Balance.
+[2026-06-13 21:23:09,892] [INFO] [VaultEngine] EOD Processed: Profit=$-40.00, Vault=$0.00, New TB=$70.00
+[2026-06-13 21:23:09,895] [WARNING] [VaultEngine] Vault depleted! Trading Balance below minimum.
+[2026-06-13 21:23:09,897] [INFO] [VaultEngine] EOD Processed: Profit=$-40.00, Vault=$0.00, New TB=$65.00
+[2026-06-13 21:23:09,901] [INFO] [VaultEngine] EOD Processed: Profit=$-10.00, Vault=$0.00, New TB=$90.00
+[2026-06-13 21:23:09,905] [INFO] [VaultEngine] EOD Processed: Profit=$10.00, Vault=$5.00, New TB=$105.00

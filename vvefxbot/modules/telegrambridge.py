@@ -50,7 +50,7 @@ class TelegramBridge:
         self.reporter = reporter
 
         self.bot = telebot.TeleBot(self.config.telegram_token, threaded=False)
-        self.chat_id = self.config.telegram_chat_id
+        self.chat_ids = self.config.telegram_chat_ids
 
         # Thread-safe storage: signal_id → {signal_dict, lot_size, timestamp}
         self._pending: Dict[str, Dict[str, Any]] = {}
@@ -70,14 +70,14 @@ class TelegramBridge:
             """Handle YES EXECUTE button press."""
             signal_id = call.data[len("YES_"):]
             self.bot.answer_callback_query(call.id)
-            self.handle_yes_callback(signal_id)
+            self.handle_yes_callback(signal_id, call.message.chat.id)
 
         @self.bot.callback_query_handler(func=lambda c: c.data.startswith("NO_"))
         def on_no(call):
             """Handle NO SKIP button press."""
             signal_id = call.data[len("NO_"):]
             self.bot.answer_callback_query(call.id)
-            self.handle_no_callback(signal_id)
+            self.handle_no_callback(signal_id, call.message.chat.id)
 
         @self.bot.callback_query_handler(func=lambda c: c.data.startswith("REASON_"))
         def on_reason(call):
@@ -87,7 +87,14 @@ class TelegramBridge:
             if len(parts) == 2:
                 signal_id, reason = parts
                 self.bot.answer_callback_query(call.id)
-                self.handle_reason_callback(signal_id, reason)
+                self.handle_reason_callback(signal_id, reason, call.message.chat.id)
+
+        @self.bot.callback_query_handler(func=lambda c: c.data.startswith("MANUAL_REASON_"))
+        def on_manual_reason(call):
+            """Handle Manual Reason button press."""
+            signal_id = call.data[len("MANUAL_REASON_"):]
+            self.bot.answer_callback_query(call.id)
+            self.handle_manual_reason_prompt(signal_id, call.message.chat.id)
 
     # ------------------------------------------------------------------
     # PUBLIC METHODS
@@ -105,17 +112,50 @@ class TelegramBridge:
                     logger.error(f"Telegram polling error: {e}. Restarting in 5s.")
                     import time
                     time.sleep(5)
+                    
+        def _cleanup():
+            """Internal loop to auto-reject signals older than 15 minutes."""
+            import time
+            from datetime import datetime, timezone, timedelta
+            logger.info("Telegram cleanup thread started.")
+            while True:
+                try:
+                    now = datetime.now(timezone.utc)
+                    expired_ids = []
+                    with self._lock:
+                        for sig_id, data in self._pending.items():
+                            age = now - data["timestamp"]
+                            if age > timedelta(minutes=_SIGNAL_EXPIRY_MINUTES):
+                                expired_ids.append(sig_id)
+                                
+                    for sig_id in expired_ids:
+                        self.handle_reason_callback(sig_id, "Ignore", None)
+                except Exception as e:
+                    logger.error(f"Telegram cleanup error: {e}")
+                time.sleep(60)
 
         thread = threading.Thread(target=_poll, daemon=True, name="TelegramListener")
         thread.start()
+        
+        cleanup_thread = threading.Thread(target=_cleanup, daemon=True, name="TelegramCleanup")
+        cleanup_thread.start()
 
-    def send_signal(self, signal: Dict[str, Any], lot_size: float) -> bool:
+    def broadcast_message(self, text: str) -> None:
+        """Sends a plain text message to all configured chat IDs."""
+        for chat_id in self.chat_ids:
+            try:
+                self.bot.send_message(chat_id, text, parse_mode="Markdown")
+            except Exception as e:
+                logger.error(f"Failed to broadcast message to {chat_id}: {e}")
+
+    def send_signal(self, signal: Dict[str, Any], lot_size: float, usd_metrics: Dict[str, float] = None) -> bool:
         """
         Format and send an A+ signal with YES/NO approval buttons.
 
         Args:
-            signal (dict): Full signal dictionary from ScannerMMXM.
+            signal (dict): Full signal dictionary from Scanner.
             lot_size (float): Calculated lot size from RiskEngine.
+            usd_metrics (dict): Exact SL/TP and margin calculations in USD.
 
         Returns:
             bool: True if sent successfully.
@@ -125,22 +165,35 @@ class TelegramBridge:
             datetime.now(_IST).strftime("%Y-%m-%d %H:%M:%S")
         )
 
+        usd = usd_metrics or {}
+        sl_usd = usd.get("sl_usd", 0.0)
+        tp1_usd = usd.get("tp1_usd", 0.0)
+        tp2_usd = usd.get("tp2_usd", 0.0)
+        tp3_usd = usd.get("tp3_usd", 0.0)
+        margin_usd = usd.get("margin_usd", 0.0)
+        
+        tp3_price_str = signal.get("tp3_price", "") if signal.get("tp3_price") else "N/A"
+
         text = (
-            "🤖 *VvE FxBOT — A+ SIGNAL DETECTED*\n\n"
-            f"📊 Pair: `{signal['pair']}`\n"
-            f"🕐 Session: `{signal['session']}`\n"
-            f"📈 Direction: `{signal['direction']}`\n"
-            f"⚡ Setup: `{signal.get('strategy', 'ICT MMXM')}`\n\n"
+            f"Time : `{timestamp_ist}`\n\n"
+            f"Pair: `{signal['pair']}`\n"
+            f"Session: `{signal['session']}`\n"
+            f"Direction: `{signal['direction']}`\n"
+            f"Entry_leg: `{signal.get('entry_leg', 'A')}`\n\n"
             f"Entry: `{signal['entry_price']}`\n"
-            f"SL: `{signal['sl_price']}` (`{signal['sl_pips']}` pips)\n"
-            f"TP1: `{signal['tp1_price']}` (1R)\n"
-            f"TP2: `{signal['tp2_price']}` (2R)\n\n"
-            f"Risk: `{self.config.risk_percent}%`\n"
+            f"SL: `{signal['sl_price']}`\n"
+            f"TP1: `{signal['tp1_price']}`\n"
+            f"TP2: `{signal['tp2_price']}`\n"
+            f"TP3: `{tp3_price_str}`\n\n"
+            f"Sl_USD: `${sl_usd:.2f}`\n"
+            f"TP1_USD : `${tp1_usd:.2f}`\n"
+            f"TP2_USD : `${tp2_usd:.2f}`\n"
+            f"TP3_USD : `${tp3_usd:.2f}`\n\n"
+            f"Margin will use : `${margin_usd:.2f}`\n"
             f"Lot: `{lot_size}`\n"
-            f"Spread: `{signal['spread_pips']}` pips\n"
-            f"Eff. RR: `{signal['effective_rr']}`\n"
-            f"Score: `{signal['score']}/100`\n\n"
-            f"🕐 `{timestamp_ist}` IST\n"
+            f"Spread: `{signal['spread_pips']}`\n"
+            f"Eff RR: `{signal['effective_rr']}`\n"
+            f"Score: `{signal['score']}`\n\n"
             f"Signal ID: `{signal_id}`"
         )
 
@@ -151,32 +204,38 @@ class TelegramBridge:
         )
 
         try:
-            self.bot.send_message(self.chat_id, text, parse_mode="Markdown", reply_markup=markup)
+            for cid in self.chat_ids:
+                try:
+                    self.bot.send_message(cid, text, parse_mode="Markdown", reply_markup=markup)
+                except Exception as e:
+                    logger.error(f"Failed to send signal to chat {cid}: {e}")
+                    
             with self._lock:
                 self._pending[signal_id] = {
                     "signal": signal,
                     "lot_size": lot_size,
                     "timestamp": datetime.now(timezone.utc),
                 }
-            logger.info(f"Signal sent to Telegram: {signal_id}")
+            logger.info(f"Signal sent to Telegram broadcast list: {signal_id}")
             return True
         except Exception as e:
-            logger.error(f"Failed to send signal to Telegram: {e}")
+            logger.error(f"Failed to process signal broadcast: {e}")
             return False
 
     def send_alert(self, message: str) -> None:
         """
-        Send a plain text alert message.
+        Send a plain text alert message to all chat IDs.
 
         Args:
             message (str): Alert content (daily stop, loss streak, errors, etc.).
         """
-        try:
-            self.bot.send_message(self.chat_id, message)
-        except Exception as e:
-            logger.error(f"Failed to send Telegram alert: {e}")
+        for cid in self.chat_ids:
+            try:
+                self.bot.send_message(cid, message)
+            except Exception as e:
+                logger.error(f"Failed to send Telegram alert to {cid}: {e}")
 
-    def handle_yes_callback(self, signal_id: str) -> None:
+    def handle_yes_callback(self, signal_id: str, trigger_chat_id: int) -> None:
         """
         Handle YES EXECUTE button press.
 
@@ -185,24 +244,19 @@ class TelegramBridge:
 
         Args:
             signal_id (str): Signal UUID.
+            trigger_chat_id (int): Chat ID of the user who clicked YES.
         """
         with self._lock:
             pending = self._pending.get(signal_id)
 
         if not pending:
-            self.bot.send_message(self.chat_id, f"⚠️ Signal `{signal_id}` not found or already processed.", parse_mode="Markdown")
+            self.bot.send_message(trigger_chat_id, f"⚠️ Signal `{signal_id}` not found or already processed.", parse_mode="Markdown")
             return
 
         age = datetime.now(timezone.utc) - pending["timestamp"]
         if age > timedelta(minutes=_SIGNAL_EXPIRY_MINUTES):
-            with self._lock:
-                self._pending.pop(signal_id, None)
-            self.bot.send_message(
-                self.chat_id,
-                f"⏰ Signal expired: `{signal_id}`\nSignals are only valid for {_SIGNAL_EXPIRY_MINUTES} minutes.",
-                parse_mode="Markdown"
-            )
-            logger.warning(f"Signal expired on YES press: {signal_id}")
+            # Log as expired using the standard rejection pathway
+            self.handle_reason_callback(signal_id, "Expired (Late YES)", trigger_chat_id)
             return
 
         # Remove before calling execution to avoid double-execution
@@ -211,65 +265,84 @@ class TelegramBridge:
 
         try:
             self.execution_callback(signal_id)
-            self.bot.send_message(
-                self.chat_id,
-                f"✅ Trade execution triggered for `{signal_id}`",
-                parse_mode="Markdown"
-            )
+            for cid in self.chat_ids:
+                try:
+                    self.bot.send_message(
+                        cid,
+                        f"✅ Trade execution triggered for `{signal_id}`",
+                        parse_mode="Markdown"
+                    )
+                except Exception:
+                    pass
             logger.info(f"Execution callback triggered for signal: {signal_id}")
         except Exception as e:
             logger.error(f"Execution callback failed for {signal_id}: {e}")
-            self.bot.send_message(self.chat_id, f"❌ Execution failed: {e}")
+            for cid in self.chat_ids:
+                try:
+                    self.bot.send_message(cid, f"❌ Execution failed: {e}")
+                except Exception:
+                    pass
 
-    def handle_no_callback(self, signal_id: str) -> None:
+    def handle_no_callback(self, signal_id: str, trigger_chat_id: int) -> None:
         """
         Handle NO SKIP button press.
 
-        Removes signal from pending and sends skip reason keyboard.
-
-        Args:
-            signal_id (str): Signal UUID.
+        Presents the skip reason keyboard to the user if signal is still active.
         """
         with self._lock:
-            self._pending.pop(signal_id, None)
-
+            pending = self._pending.get(signal_id)
+            
+        if not pending:
+            self.bot.send_message(trigger_chat_id, f"⚠️ Signal `{signal_id}` not found or already processed.", parse_mode="Markdown")
+            return
+            
         markup = InlineKeyboardMarkup(row_width=2)
         buttons = [
             InlineKeyboardButton(reason, callback_data=f"REASON_{signal_id}_{reason}")
             for reason in _SKIP_REASONS
         ]
+        buttons.append(InlineKeyboardButton("✍️ Manual Reason", callback_data=f"MANUAL_REASON_{signal_id}"))
         markup.add(*buttons)
 
         try:
             self.bot.send_message(
-                self.chat_id,
+                trigger_chat_id,
                 "Select skip reason:",
                 reply_markup=markup
             )
         except Exception as e:
             logger.error(f"Failed to send skip reason keyboard: {e}")
 
-    def handle_reason_callback(self, signal_id: str, reason: str) -> None:
+    def handle_reason_callback(self, signal_id: str, reason: str, trigger_chat_id: Optional[int]) -> None:
         """
-        Handle skip reason button press.
+        Handle skip reason button press or manual reason text.
 
         Logs the skip to state_engine and sends confirmation.
 
         Args:
             signal_id (str): Signal UUID.
             reason (str): Human-readable skip reason.
+            trigger_chat_id (int): Chat ID of the user who clicked, or None for auto-rejections.
         """
         try:
-            # Retrieve stored spread/score from pending if available,
-            # or fall back to 0.0 if the signal has already been cleared
+            # Retrieve stored spread/score from pending
             with self._lock:
                 pending = self._pending.pop(signal_id, None)
+
+            if not pending and reason != "Ignore" and reason != "Expired (Late YES)":
+                # If it's already popped, and it's not our internal auto-rejections, ignore it
+                if trigger_chat_id:
+                    self.bot.send_message(trigger_chat_id, f"⚠️ Signal `{signal_id}` already processed or expired.", parse_mode="Markdown")
+                return
 
             spread = pending["signal"].get("spread_pips", 0.0) if pending else 0.0
             score = pending["signal"].get("score", 0.0) if pending else 0.0
 
             self.state.insert_skip(signal_id, reason, spread, score)
-            logger.info(f"Signal {signal_id} skipped: {reason}")
+            
+            # Identify who rejected it for the log
+            user_msg = "by a user" if trigger_chat_id else "automatically"
+            logger.info(f"Signal {signal_id} skipped {user_msg}: {reason}")
 
             # Optionally log denied signal to Denied Google Sheet
             if pending and self.reporter:
@@ -277,10 +350,38 @@ class TelegramBridge:
                 if signal_dict:
                     self.reporter.log_denied_trade(signal_dict, reason)
 
-            self.bot.send_message(
-                self.chat_id,
-                f"❌ Signal `{signal_id}` skipped: *{reason}*",
-                parse_mode="Markdown"
-            )
+            # Broadcast skip to all users
+            for cid in self.chat_ids:
+                try:
+                    self.bot.send_message(
+                        cid,
+                        f"❌ Signal `{signal_id}` skipped: *{reason}*",
+                        parse_mode="Markdown"
+                    )
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Failed to record skip reason for {signal_id}: {e}")
+
+    def handle_manual_reason_prompt(self, signal_id: str, trigger_chat_id: int) -> None:
+        """
+        Prompt the user to type a manual reason.
+        """
+        try:
+            msg = self.bot.send_message(
+                trigger_chat_id,
+                "Please type your manual reason for rejecting this trade:",
+                parse_mode="Markdown"
+            )
+            self.bot.register_next_step_handler(msg, self._receive_manual_reason, signal_id, trigger_chat_id)
+        except Exception as e:
+            logger.error(f"Failed to send manual reason prompt: {e}")
+
+    def _receive_manual_reason(self, message, signal_id: str, trigger_chat_id: int) -> None:
+        """Callback to receive the typed text for manual rejection."""
+        if not message.text:
+            self.bot.send_message(trigger_chat_id, "No text provided. Skip action cancelled.")
+            return
+            
+        reason = message.text.strip()
+        self.handle_reason_callback(signal_id, reason, trigger_chat_id)

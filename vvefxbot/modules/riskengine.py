@@ -3,22 +3,25 @@ from typing import List, Dict, Any, Tuple
 from core.logger import get_logger
 from core.configengine import Config
 from core.mt5connector import MT5Connector
+from modules.vaultengine import VaultEngine
 
 logger = get_logger("RiskEngine")
 
 class RiskEngine:
     """Engine to calculate risk, lot size, and validate trade setups."""
 
-    def __init__(self, config: Config, mt5connector: MT5Connector):
+    def __init__(self, config: Config, mt5connector: MT5Connector, vault_engine: VaultEngine = None):
         """
         Initializes the RiskEngine.
 
         Args:
             config (Config): Validated configuration dataclass.
             mt5connector (MT5Connector): Live MT5 connection.
+            vault_engine (VaultEngine): Vault system for dynamic lot sizing.
         """
         self.config = config
         self.mt5 = mt5connector
+        self.vault = vault_engine
 
     def _get_pip_size(self, pair: str) -> float:
         """Helper to get pip size."""
@@ -62,13 +65,14 @@ class RiskEngine:
                     return 10.0 / current_price
                 return 10.0
 
-    def calculate_lot_size(self, sl_pips: float, pair: str) -> float:
+    def calculate_lot_size(self, sl_pips: float, pair: str, score: float = 100.0) -> float:
         """
         Calculate the appropriate lot size based on risk parameters.
 
         Args:
             sl_pips (float): Stop loss distance in pips.
             pair (str): Trading pair symbol.
+            score (float): The signal strength score.
 
         Returns:
             float: Lot size, constrained between 0.01 and 1.0.
@@ -76,7 +80,17 @@ class RiskEngine:
         if sl_pips <= 0:
             return 0.01
 
-        risk_amount = self.config.trading_pool_size * (self.config.risk_percent / 100.0)
+        if score < 80.0:
+            logger.info(f"[{pair}] Signal score {score} is below 80. Strictly using 0.01 lot size.")
+            return 0.01
+
+        if self.vault:
+            risk_amount = self.vault.get_current_risk_amount()
+            trading_balance = self.vault.get_vault_config().get("trading_balance", 100.0)
+        else:
+            risk_amount = self.config.trading_pool_size * (self.config.risk_percent / 100.0)
+            trading_balance = 999.0
+
         pip_value = self._get_pip_value(pair)
         
         lot_size = risk_amount / (sl_pips * pip_value)
@@ -86,7 +100,11 @@ class RiskEngine:
         
         # Min/Max constraints
         lot_size = max(0.01, lot_size)
-        lot_size = min(1.0, lot_size)
+        
+        if trading_balance < 101.0:
+            lot_size = min(0.01, lot_size)
+        else:
+            lot_size = min(1.0, lot_size)
         
         return lot_size
 
@@ -147,7 +165,11 @@ class RiskEngine:
                 # Fallback to risk_amount if pair/sl_pips are unavailable
                 total_risk_usd += trade.get("risk_amount", 0.0)
 
-        max_risk_usd = self.config.trading_pool_size * (self.config.max_open_risk_percent / 100.0)
+        if self.vault:
+            max_risk_usd = self.vault.get_vault_config().get("trading_balance", 100.0) * (self.config.max_open_risk_percent / 100.0)
+        else:
+            max_risk_usd = self.config.trading_pool_size * (self.config.max_open_risk_percent / 100.0)
+            
         return total_risk_usd <= max_risk_usd
 
     def check_max_open_trades(self, open_trades: List[Dict[str, Any]]) -> bool:
@@ -199,7 +221,8 @@ class RiskEngine:
             return {"pass": False, "failed_check": "check_max_open_trades", "lot_size": 0.0, "effective_rr": effective_rr}
 
         # All checks passed, calculate lot size
-        lot_size = self.calculate_lot_size(sl_pips, pair)
+        score = signal.get("score", 100.0)
+        lot_size = self.calculate_lot_size(sl_pips, pair, score)
 
         return {
             "pass": True,

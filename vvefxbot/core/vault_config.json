@@ -1,0 +1,9 @@
+{
+    "start_balance": 100.0,
+    "trading_balance": 100.0,
+    "vault_balance": 0.0,
+    "divide_factor": 15,
+    "vault_percentage": 0.50,
+    "min_trading_balance": 70.0,
+    "max_daily_drawdown_pct": 0.20
+}

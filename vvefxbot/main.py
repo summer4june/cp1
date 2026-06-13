@@ -16,6 +16,7 @@ from modules.trademanager import TradeManager
 from modules.executionengine import ExecutionEngine
 from modules.telegrambridge import TelegramBridge
 from modules.scannermmxm import ScannerMMXM
+from modules.vaultengine import VaultEngine
 
 logger = get_logger("Main")
 
@@ -56,6 +57,79 @@ def session_monitor_loop(session_engine: SessionEngine, interval: int = 60):
             session_engine.log_session_status()
         except Exception as e:
             logger.error(f"Session monitor error: {e}")
+        time.sleep(interval)
+
+
+def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, session_engine: SessionEngine, reporter, telegram_bridge, interval: int = 60):
+    """
+    Daemon thread: Triggers End of Day Vault calculations right after LondonClose killzone ends.
+    """
+    last_eod_date = None
+    while True:
+        try:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            now_ist_dt = session_engine.get_current_ist_time()
+            now_ist = now_ist_dt.time()
+            
+            if session_engine._is_summer_session(now_ist_dt):
+                active_timings = session_engine._parsed_killzones_summer
+            else:
+                active_timings = session_engine._parsed_killzones_winter
+                
+            london_close = active_timings.get("LondonClose")
+            
+            if london_close and today != last_eod_date:
+                end_time = london_close["end"]
+                # Assuming LondonClose ends before midnight IST (e.g., 21:30 or 22:30)
+                if now_ist >= end_time:
+                    logger.info("LondonClose killzone ended. Triggering EOD Vault Process.")
+                    
+                    # Get start balance before process
+                    old_config = vault_engine.get_vault_config()
+                    start_balance = old_config.get("trading_balance", 100.0)
+                    
+                    vault_engine.process_end_of_day(state_engine, reporter=reporter)
+                    last_eod_date = today
+                    
+                    # Gather stats for Telegram
+                    new_config = vault_engine.get_vault_config()
+                    new_trading_balance = new_config.get("trading_balance", 100.0)
+                    new_vault_balance = new_config.get("vault_balance", 0.0)
+                    total_wealth = new_trading_balance + new_vault_balance
+                    current_lot_size = vault_engine.get_current_risk_amount()
+                    
+                    daily_state = state_engine.get_daily_state(today)
+                    daily_profit = daily_state.get("daily_profit_usd", 0.0)
+                    end_balance = start_balance + daily_profit
+                    
+                    daily_trades = daily_state.get("daily_trades", 0)
+                    daily_wins = daily_state.get("daily_wins", 0)
+                    win_rate = (daily_wins / daily_trades * 100) if daily_trades > 0 else 0.0
+                    
+                    # If daily profit is negative, calculate drawdown from start balance
+                    daily_drawdown = (abs(daily_profit) / start_balance * 100) if daily_profit < 0 else 0.0
+                    
+                    msg = (
+                        "🌙 *End of Day Vault Summary*\n\n"
+                        f"• Start Balance: `${start_balance:.2f}`\n"
+                        f"• End Balance: `${end_balance:.2f}`\n"
+                        f"• Daily Profit: `${daily_profit:.2f}`\n"
+                        f"• Trading Balance: `${new_trading_balance:.2f}`\n"
+                        f"• Vault Balance: `${new_vault_balance:.2f}`\n"
+                        f"• Total Wealth: `${total_wealth:.2f}`\n"
+                        f"• Current Lot Size (Margin): `${current_lot_size:.2f}`\n"
+                        f"• Win Rate: `{win_rate:.1f}%`\n"
+                        f"• Daily Drawdown: `{daily_drawdown:.2f}%`\n"
+                        f"• Number of Trades: `{daily_trades}`"
+                    )
+                    
+                    if telegram_bridge:
+                        telegram_bridge.broadcast_message(msg)
+                        logger.info("EOD Vault summary sent to Telegram.")
+                    
+        except Exception as e:
+            logger.error(f"EOD monitor error: {e}")
+            
         time.sleep(interval)
 
 
@@ -119,6 +193,13 @@ def scan_pair(
             signal_id = signal["signal_id"]
             spread_pips = signal.get("spread_pips", 0.0)
             score = signal.get("score", 0.0)
+            
+            # Pre-send: global threshold check
+            aplus_threshold = risk_engine.config.aplus_threshold
+            if score < aplus_threshold:
+                logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — score ({score}) below global threshold ({aplus_threshold})")
+                state_engine.insert_skip(signal_id, "Below Threshold", spread_pips, score)
+                continue
 
             # Pre-send: risk checks
             open_trades = state_engine.get_open_trades()
@@ -149,8 +230,40 @@ def scan_pair(
                 )
                 lot_size = round(fixed_lot, 2)
 
+            # Calculate USD values
+            import MetaTrader5 as mt5
+            order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
+            
+            # SL USD
+            sl_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["sl_price"])
+            sl_usd = abs(sl_usd) if sl_usd else 0.0
+
+            # TP1, TP2, TP3 USD
+            tp1_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp1_price"])
+            tp1_usd = abs(tp1_usd) if tp1_usd else 0.0
+            
+            tp2_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp2_price"])
+            tp2_usd = abs(tp2_usd) if tp2_usd else 0.0
+            
+            tp3_usd = 0.0
+            if "tp3_price" in signal and signal["tp3_price"] > 0:
+                tp3_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp3_price"])
+                tp3_usd = abs(tp3_usd) if tp3_usd else 0.0
+
+            # Margin USD
+            margin_usd = mt5.order_calc_margin(order_type, pair, lot_size, signal["entry_price"])
+            margin_usd = margin_usd if margin_usd else 0.0
+
+            usd_metrics = {
+                "sl_usd": sl_usd,
+                "tp1_usd": tp1_usd,
+                "tp2_usd": tp2_usd,
+                "tp3_usd": tp3_usd,
+                "margin_usd": margin_usd
+            }
+
             state_engine.insert_signal(signal)
-            sent = telegram_bridge.send_signal(signal, lot_size)
+            sent = telegram_bridge.send_signal(signal, lot_size, usd_metrics)
             if sent:
                 logger.info(f"[{pair}] A+ signal {signal_id} ({scanner_name}) sent to Telegram. Awaiting approval.")
                 # We sent a valid signal, stop checking other scanners for this pair this cycle
@@ -190,8 +303,12 @@ def main():
     correlation_filter = CorrelationFilter(config)
     logger.info("CorrelationFilter initialised.")
 
+    # ── 6.5 VaultEngine ──────────────────────────────────────────────
+    vault_engine = VaultEngine()
+    logger.info("VaultEngine initialised.")
+
     # ── 7. RiskEngine ────────────────────────────────────────────────
-    risk_engine = RiskEngine(config, mt5_connector)
+    risk_engine = RiskEngine(config, mt5_connector, vault_engine)
     logger.info("RiskEngine initialised.")
 
     # ── 8. GoogleSheetReporter ───────────────────────────────────────
@@ -205,7 +322,7 @@ def main():
             logger.info(f"Backfilled {backfilled} closed trades to Google Sheet on startup.")
 
     # ── 9. TradeManager ──────────────────────────────────────────────
-    trade_manager = TradeManager(config, mt5_connector, state_engine, None, sheet_reporter)  # Telegram set below
+    trade_manager = TradeManager(config, mt5_connector, state_engine, None, sheet_reporter, vault_engine)  # Telegram set below
     logger.info("TradeManager initialised.")
 
     # ── 10. ExecutionEngine (pre-wired — Telegram set below) ─────────
@@ -269,6 +386,13 @@ def main():
     )
     sess_thread.start()
     logger.info("Session monitor thread started (60s interval).")
+
+    # ── 14.5 EOD Vault monitor thread ────────────────────────────────
+    eod_thread = threading.Thread(
+        target=eod_monitor_loop, args=(vault_engine, state_engine, session_engine, sheet_reporter, telegram_bridge), daemon=True, name="EODMonitor"
+    )
+    eod_thread.start()
+    logger.info("EOD Vault monitor thread started.")
 
     logger.info("All systems online. Starting main scan loop.")
 

@@ -30,10 +30,14 @@ ORD_FILLING_RETURN = getattr(mt5, 'ORDER_FILLING_RETURN', 2)
 # Order Types
 ORD_BUY = getattr(mt5, 'ORDER_TYPE_BUY', 0)
 ORD_SELL = getattr(mt5, 'ORDER_TYPE_SELL', 1)
+ORD_BUY_LIMIT = getattr(mt5, 'ORDER_TYPE_BUY_LIMIT', 2)
+ORD_SELL_LIMIT = getattr(mt5, 'ORDER_TYPE_SELL_LIMIT', 3)
 
 # Trade Actions
 ACTION_DEAL = getattr(mt5, 'TRADE_ACTION_DEAL', 1)
+ACTION_PENDING = getattr(mt5, 'TRADE_ACTION_PENDING', 5)
 ACTION_SLTP = getattr(mt5, 'TRADE_ACTION_SLTP', 6)
+ACTION_REMOVE = getattr(mt5, 'TRADE_ACTION_REMOVE', 8)
 
 # Timeframes
 TF_M1  = getattr(mt5, 'TIMEFRAME_M1',  1)
@@ -299,6 +303,56 @@ class MT5Connector:
 
         return {"success": False, "ticket": -1, "error": "Max retries exceeded"}
 
+    def place_pending_order(self, symbol: str, order_type: str, lot: float, entry_price: float, sl: float, tp: float, comment: str = "VvE_Limit") -> Dict[str, Any]:
+        """
+        Place a pending Limit order (Buy Limit or Sell Limit).
+        """
+        if order_type.upper() == "BUY":
+            mt5_type = ORD_BUY_LIMIT
+        elif order_type.upper() == "SELL":
+            mt5_type = ORD_SELL_LIMIT
+        else:
+            return {"success": False, "ticket": -1, "error": f"Invalid order type for limit: {order_type}"}
+
+        # Expiration for pending orders set to end of current day (or next day)
+        # Using GTC (Good Till Cancelled) to align with existing logic; bot can cancel them manually if needed.
+        request = {
+            "action": ACTION_PENDING,
+            "symbol": symbol,
+            "volume": lot,
+            "type": mt5_type,
+            "price": entry_price,
+            "sl": sl,
+            "tp": tp,
+            "deviation": 20,
+            "magic": 123456,
+            "comment": comment,
+            "type_time": TIME_GTC,
+            "type_filling": self._get_filling_mode(symbol),
+        }
+
+        retries = 3
+        for i in range(retries):
+            result = mt5.order_send(request)
+            if result is None:
+                err_msg = f"order_send (pending) returned None. MT5 Error: {mt5.last_error()}"
+                logger.error(err_msg)
+                return {"success": False, "ticket": -1, "error": err_msg}
+
+            if result.retcode in [RETCODE_DONE, RETCODE_PLACED]:
+                logger.info(f"Pending order placed: {symbol} {order_type} LIMIT {lot} @ {result.price}, Ticket: {result.order}")
+                return {"success": True, "ticket": result.order, "error": ""}
+            
+            if result.retcode in [RETCODE_REQUOTE, RETCODE_BUSY, RETCODE_TOO_MANY_REQUESTS, RETCODE_LOCKED]:
+                logger.warning(f"Pending order retry {i+1}/{retries} due to retcode: {result.retcode} ({result.comment})")
+                time.sleep(1.0)
+                continue
+            else:
+                logger.error(f"Pending order failed: {result.retcode} - {result.comment}")
+                return {"success": False, "ticket": -1, "error": str(result.comment)}
+
+        return {"success": False, "ticket": -1, "error": "Max retries exceeded"}
+
     def close_partial(self, ticket: int, lot: float) -> Dict[str, str]:
         """
         Close a partial lot of an open position.
@@ -342,6 +396,37 @@ class MT5Connector:
         err_msg = f"Partial close failed: {result.comment if result else 'Unknown error'}"
         logger.error(err_msg)
         return {"success": False, "error": err_msg}
+
+    def close_all_positions(self) -> None:
+        """
+        Close all currently open positions instantly.
+        Iterates over all active MT5 positions and closes their full volume.
+        """
+        positions = mt5.positions_get()
+        if not positions:
+            logger.info("close_all_positions: No open positions to close.")
+            return
+
+        for pos in positions:
+            res = self.close_partial(pos.ticket, pos.volume)
+            if not res["success"]:
+                logger.error(f"Failed to panic-close ticket {pos.ticket}: {res['error']}")
+            else:
+                logger.info(f"Panic-closed ticket {pos.ticket} successfully.")
+
+        # Additionally, cancel pending orders
+        orders = mt5.orders_get()
+        if orders:
+            for order in orders:
+                request = {
+                    "action": ACTION_REMOVE,
+                    "order": order.ticket
+                }
+                res = mt5.order_send(request)
+                if res and res.retcode == RETCODE_DONE:
+                    logger.info(f"Panic-cancelled pending order {order.ticket}")
+                else:
+                    logger.error(f"Failed to cancel pending order {order.ticket}")
 
     def get_historical_profit(self, ticket: int) -> float:
         """

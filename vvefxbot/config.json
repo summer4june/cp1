@@ -88,7 +88,7 @@
     "XAGUSD": 999.0
   },
   "effective_rr_min": 0.0,
-  "aplus_threshold": 0.0,
+  "aplus_threshold": 75.0,
   "slippage_max_pips": 99.0,
   "scan_frequency_seconds": 10,
   "correlation_groups": {},
