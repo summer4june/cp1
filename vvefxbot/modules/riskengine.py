@@ -31,39 +31,59 @@ class RiskEngine:
 
     def _get_pip_value(self, pair: str) -> float:
         """
-        Calculate the pip value for a standard lot (100,000 units).
+        Calculate the pip value in USD for a standard lot (100,000 units).
         """
-        if "XAU" in pair.upper():
+        pair_upper = pair.upper()
+        if "XAU" in pair_upper:
             # Gold: 1 pip = 0.01, standard lot contract size = 100 oz.
             # Pip Value = 100 * 0.01 = 1.00 USD
             return 1.0
-        if pair.upper() in ["EURUSD", "GBPUSD"]:
+        elif "XAG" in pair_upper:
+            # Silver: 1 pip = 0.01, contract = 5000 oz.
+            return 50.0
+
+        if pair_upper.endswith("USD"):
             return 10.0
-        elif "JPY" in pair.upper():
-            # Get current price of the pair
-            candles = self.mt5.get_candles(pair, "M1", count=1)
+
+        # For JPY pairs (e.g. USDJPY, EURJPY, GBPJPY)
+        # 1 pip = 0.01 JPY. Value in JPY = 100,000 * 0.01 = 1000 JPY
+        # USD Value = 1000 / USDJPY
+        if "JPY" in pair_upper:
+            candles = self.mt5.get_candles("USDJPY", "M1", count=1)
             if not candles.empty:
-                current_price = candles.iloc[-1]["close"]
-                return (10.0 / current_price) * 100.0
-            return 10.0  # Fallback if price fetch fails
-        elif "USDCAD" in pair.upper():
+                usdjpy_price = candles.iloc[-1]["close"]
+                return 1000.0 / usdjpy_price
+            return 6.66  # Fallback based on ~150 USDJPY
+
+        # For CAD pairs (e.g. EURCAD, GBPCAD)
+        # 1 pip = 0.0001 CAD. Value in CAD = 100,000 * 0.0001 = 10 CAD
+        # USD Value = 10 / USDCAD
+        if pair_upper.endswith("CAD"):
             candles = self.mt5.get_candles("USDCAD", "M1", count=1)
             if not candles.empty:
-                current_price = candles.iloc[-1]["close"]
-                return 10.0 / current_price
-            return 10.0  # Fallback
-        else:
-            # Default fallback for other pairs not explicitly stated
-            # If USD is quote currency, it's 10. Otherwise approximate.
-            if pair.upper().endswith("USD"):
-                return 10.0
-            else:
-                candles = self.mt5.get_candles(pair, "M1", count=1)
-                if not candles.empty:
-                    current_price = candles.iloc[-1]["close"]
-                    # Rough approximation
-                    return 10.0 / current_price
-                return 10.0
+                usdcad_price = candles.iloc[-1]["close"]
+                return 10.0 / usdcad_price
+            return 7.35
+
+        # For CHF pairs (e.g. EURCHF, GBPCHF)
+        if pair_upper.endswith("CHF"):
+            candles = self.mt5.get_candles("USDCHF", "M1", count=1)
+            if not candles.empty:
+                usdchf_price = candles.iloc[-1]["close"]
+                return 10.0 / usdchf_price
+            return 11.23
+
+        # For GBP quotes (e.g. EURGBP)
+        # USD Value = 10 * GBPUSD
+        if pair_upper.endswith("GBP"):
+            candles = self.mt5.get_candles("GBPUSD", "M1", count=1)
+            if not candles.empty:
+                gbpusd_price = candles.iloc[-1]["close"]
+                return 10.0 * gbpusd_price
+            return 12.50
+            
+        # Default fallback
+        return 10.0
 
     def calculate_lot_size(self, sl_pips: float, pair: str, score: float = 100.0) -> float:
         """

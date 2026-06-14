@@ -118,7 +118,19 @@ class SimulatedTrade:
             contract_size = 100000
             margin_used = (self.lot * contract_size) / 200
             if "JPY" in pair_upper:
-                pip_value = round(1000.0 / self.entry, 6) if self.entry > 0 else 9.2
+                # In backtesting, if pair is USDJPY we can use self.entry.
+                # If it's a cross pair (EURJPY, GBPJPY), we can't use self.entry (e.g. 160) because conversion is USDJPY.
+                # It's safer to use a dynamic approximation based on pair, or a static ~6.66 (150 USDJPY)
+                if pair_upper == "USDJPY":
+                    pip_value = round(1000.0 / self.entry, 6) if self.entry > 0 else 6.66
+                else:
+                    pip_value = 6.66  # Represents ~150 USDJPY
+            elif pair_upper.endswith("CAD"):
+                pip_value = 7.35
+            elif pair_upper.endswith("CHF"):
+                pip_value = 11.23
+            elif pair_upper.endswith("GBP"):
+                pip_value = 12.50
             else:
                 pip_value = 10.0  # $10/pip/lot
 
