@@ -75,10 +75,19 @@ class MT5Connector:
         Returns:
             bool: True if successful, False otherwise.
         """
-        if not mt5.initialize():
+        # It's much safer to pass credentials directly to initialize()
+        # This prevents authorization errors if the terminal isn't already logged in.
+        initialized = mt5.initialize(
+            login=self.config.mt5_login,
+            password=self.config.mt5_password,
+            server=self.config.mt5_server
+        )
+        
+        if not initialized:
             logger.error(f"MT5 initialization failed: {mt5.last_error()}")
             return False
 
+        # Double check login status just in case
         authorized = mt5.login(
             login=self.config.mt5_login,
             password=self.config.mt5_password,
