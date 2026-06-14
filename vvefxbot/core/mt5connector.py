@@ -77,11 +77,17 @@ class MT5Connector:
         """
         # It's much safer to pass credentials directly to initialize()
         # This prevents authorization errors if the terminal isn't already logged in.
-        initialized = mt5.initialize(
-            login=self.config.mt5_login,
-            password=self.config.mt5_password,
-            server=self.config.mt5_server
-        )
+        init_kwargs = {
+            "login": self.config.mt5_login,
+            "password": self.config.mt5_password,
+            "server": self.config.mt5_server
+        }
+        
+        # If the user explicitly sets MT5_PATH in .env, use it to bypass IPC routing confusion
+        if hasattr(self.config, 'mt5_path') and self.config.mt5_path:
+            init_kwargs["path"] = self.config.mt5_path
+
+        initialized = mt5.initialize(**init_kwargs)
         
         if not initialized:
             logger.error(f"MT5 initialization failed: {mt5.last_error()}")

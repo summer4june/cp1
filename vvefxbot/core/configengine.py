@@ -39,6 +39,7 @@ class Config:
     telegram_chat_ids: List[str]
     google_sheet_id: str
     google_creds_path: str
+    mt5_path: Optional[str] = None
     google_denied_sheet_id: Optional[str] = None
 
 class ConfigEngine:
@@ -202,6 +203,9 @@ class ConfigEngine:
             if val is None or val == "":
                 raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
             env_values[key.lower()] = val
+
+        # Optional MT5_PATH
+        env_values["mt5_path"] = os.getenv("MT5_PATH", None)
 
         # Special handling for MT5_LOGIN which should be an integer
         try:
