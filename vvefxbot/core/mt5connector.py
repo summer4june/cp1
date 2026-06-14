@@ -70,30 +70,52 @@ class MT5Connector:
 
     def connect(self) -> bool:
         """
-        Login using credentials from configuration.
+        Login using credentials from configuration, or attach if already running.
         
         Returns:
             bool: True if successful, False otherwise.
         """
-        # It's much safer to pass credentials directly to initialize()
-        # This prevents authorization errors if the terminal isn't already logged in.
+        # STEP 1: Try attaching to an already running terminal first.
+        # This prevents IPC timeouts if the user has manually logged into Exness.
+        if hasattr(self.config, 'mt5_path') and self.config.mt5_path:
+            attached = mt5.initialize(path=self.config.mt5_path)
+        else:
+            attached = mt5.initialize()
+            
+        if attached:
+            account_info = mt5.account_info()
+            if account_info and account_info.login == self.config.mt5_login:
+                logger.info(f"MT5 attached successfully (already logged in): {account_info.login}")
+                return True
+
+        # STEP 2: We are attached but wrong account, OR not attached at all.
+        logger.info(f"Attempting to force login to {self.config.mt5_server}...")
+        
         init_kwargs = {
             "login": self.config.mt5_login,
             "password": self.config.mt5_password,
             "server": self.config.mt5_server
         }
-        
-        # If the user explicitly sets MT5_PATH in .env, use it to bypass IPC routing confusion
         if hasattr(self.config, 'mt5_path') and self.config.mt5_path:
             init_kwargs["path"] = self.config.mt5_path
 
         initialized = mt5.initialize(**init_kwargs)
         
+        # Verify if initialization timed out but actually worked in the background
         if not initialized:
-            logger.error(f"MT5 initialization failed: {mt5.last_error()}")
+            error_code, error_msg = mt5.last_error()
+            if error_code == -10005:  # IPC timeout
+                import time
+                logger.warning("IPC timeout during initialize(). Waiting 3s to check if terminal successfully logged in anyway...")
+                time.sleep(3)
+                account_info = mt5.account_info()
+                if account_info and account_info.login == self.config.mt5_login:
+                    logger.info(f"MT5 connected successfully (bypassed IPC timeout): {account_info.login}")
+                    return True
+            logger.error(f"MT5 initialization failed: {error_code}, {error_msg}")
             return False
 
-        # Double check login status just in case
+        # If it initialized successfully, explicitly call login to be 100% sure
         authorized = mt5.login(
             login=self.config.mt5_login,
             password=self.config.mt5_password,
@@ -105,7 +127,18 @@ class MT5Connector:
             logger.info(f"MT5 connected: {account_info.login if account_info else self.config.mt5_login}")
             return True
         else:
-            logger.error(f"MT5 login failed: {mt5.last_error()}")
+            # Verify if login timed out but actually worked in the background
+            error_code, error_msg = mt5.last_error()
+            if error_code == -10005:  # IPC timeout
+                import time
+                logger.warning("IPC timeout during login(). Waiting 3s to check if terminal successfully logged in anyway...")
+                time.sleep(3)
+                account_info = mt5.account_info()
+                if account_info and account_info.login == self.config.mt5_login:
+                    logger.info(f"MT5 connected successfully (bypassed IPC timeout): {account_info.login}")
+                    return True
+
+            logger.error(f"MT5 login failed: {error_code}, {error_msg}")
             return False
 
     def disconnect(self):
