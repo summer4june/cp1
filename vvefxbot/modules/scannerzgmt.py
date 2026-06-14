@@ -672,8 +672,9 @@ class ScannerZGMT:
         """
         zgmt_cfg = self.zgmt_cfg
 
-        h4_candles = self.mt5.get_candles(pair, "H4", count=zgmt_cfg.get("zgmt_ob_candles_4h", 50))
-        h1_candles = self.mt5.get_candles(pair, "H1", count=zgmt_cfg.get("zgmt_ob_candles_1h", 100))
+        # For 20 trading days of history: 20 days * 6 H4 candles = 120, 20 days * 24 H1 candles = 480
+        h4_candles = self.mt5.get_candles(pair, "H4", count=zgmt_cfg.get("zgmt_ob_candles_4h", 120))
+        h1_candles = self.mt5.get_candles(pair, "H1", count=zgmt_cfg.get("zgmt_ob_candles_1h", 480))
 
         h4_empty = h4_candles is None or (hasattr(h4_candles, 'empty') and h4_candles.empty)
         h1_empty = h1_candles is None or (hasattr(h1_candles, 'empty') and h1_candles.empty)

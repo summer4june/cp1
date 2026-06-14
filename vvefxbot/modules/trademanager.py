@@ -561,17 +561,27 @@ class TradeManager:
         """
         profit_usd = self.mt5.get_historical_profit(ticket)
 
-        if profit_usd >= -0.01 and int(trade.get("be_moved", 0)):
+        if profit_usd >= -0.01 and int(trade.get("be_moved", 0)) and profit_usd < 5.0:
             result = "BREAKEVEN"
+            event_type = "BREAKEVEN"
         else:
             result = "WIN" if profit_usd > 0 else "LOSS"
-
-        event_type = "SL_HIT" if result == "LOSS" else "MANUAL_CLOSE"
+            if result == "WIN":
+                if float(trade.get("tp3", 0.0)) > 0:
+                    event_type = "TP3_HIT"
+                else:
+                    event_type = "TP2_HIT"
+            else:
+                event_type = "SL_HIT"
 
         self.state.update_trade_status(trade_id, "CLOSED", result, round(profit_usd, 2))
         self.state.insert_event(trade_id, event_type, current_price)
 
-        msg = f"{'❌' if result == 'LOSS' else '🔶'} Trade CLOSED {result} | {pair} | {profit_usd:.2f} USD"
+        if event_type in ["TP2_HIT", "TP3_HIT"]:
+            msg = f"✅ {event_type.replace('_', ' ')} — Trade CLOSED WIN | {pair} | +{profit_usd:.2f} USD"
+        else:
+            msg = f"{'❌' if result == 'LOSS' else '🔶'} Trade CLOSED {result} ({event_type}) | {pair} | {profit_usd:.2f} USD"
+        
         logger.info(msg)
         self.telegram.send_alert(msg)
 
