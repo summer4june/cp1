@@ -38,7 +38,8 @@ def heartbeat_loop(connector: MT5Connector, interval: int = 60):
             logger.info(f"HEARTBEAT | MT5: {status} | Balance: {balance}")
             if not connected:
                 logger.warning("Heartbeat detected disconnection. Attempting reconnect...")
-                connector.connect()
+                if connector.connect():
+                    connector.preload_history()
         except Exception as e:
             logger.error(f"Heartbeat error: {e}\n{traceback.format_exc()}")
         time.sleep(interval)
@@ -294,6 +295,8 @@ def main():
     mt5_connector = MT5Connector(config)
     if not mt5_connector.connect():
         logger.warning("Initial MT5 connection failed — heartbeat will retry.")
+    else:
+        mt5_connector.preload_history()
 
     # ── 5. SessionEngine ─────────────────────────────────────────────
     session_engine = SessionEngine(config)

@@ -146,6 +146,31 @@ class MT5Connector:
         mt5.shutdown()
         logger.info("MT5 connection closed.")
 
+    def preload_history(self):
+        """
+        Force MT5 terminal to download historical data for all pairs and required timeframes 
+        immediately on startup to act exactly like the backtesting environment.
+        """
+        logger.info("Pre-loading historical data for all pairs (30+ days). This may take a few seconds...")
+        import time
+        for pair in self.config.pairs:
+            # Select symbol into Market Watch
+            mt5.symbol_select(pair, True)
+            
+            # Fetch ~30 days of data for each timeframe to force broker sync
+            # D1 = 30 candles
+            # H1 = 30 * 24 = 720 candles
+            # M15 = 30 * 24 * 4 = 2880 candles
+            # M1 = 30 * 24 * 60 = 43200 candles (cap to 5000 for speed)
+            
+            _ = mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_D1, 0, 50)
+            _ = mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_H1, 0, 1000)
+            _ = mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_M15, 0, 3000)
+            _ = mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_M1, 0, 5000)
+            
+        time.sleep(2.0)  # Wait for background downloads to finish
+        logger.info("Historical data pre-load complete.")
+
     def get_candles(self, symbol: str, timeframe: str, count: int = 100) -> pd.DataFrame:
         """
         Fetch candle data for a symbol and timeframe.
