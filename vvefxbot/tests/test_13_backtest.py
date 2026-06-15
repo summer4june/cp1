@@ -1001,11 +1001,11 @@ def test_adr_sl_tp_dynamic_gold(mock_config):
 
 
 # ── Test 6: ADR fallback to fixed pips when D1 candles are insufficient ──────
-def test_adr_sl_strict_cancellation_on_missing_data(mock_config):
+def test_adr_sl_fallback_on_missing_data(mock_config):
     """
     When D1 candles are insufficient for ADR computation, the scanner must:
     1. Log a WARNING (not crash).
-    2. Cancel the signal strictly (return None) — no more fallback to fixed pips.
+    2. Fall back to the fixed sl_pips_fx / sl_pips_gold from config.
     """
     import logging
     from unittest.mock import MagicMock
@@ -1035,7 +1035,12 @@ def test_adr_sl_strict_cancellation_on_missing_data(mock_config):
     # Ensure no exception is raised (ADR failure must be handled gracefully)
     result = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", 1.1000, {}, zgmt_cfg)
 
-    assert result is None, "Should strictly return None on ADR failure, preventing the trade"
+    assert result is not None, "Should return a result even on ADR failure"
+    # Must fall back to fixed 25 pips
+    assert result["sl_pips"] == 25.0, \
+        f"Fallback sl_pips should be 25 (fixed), got {result['sl_pips']}"
+    assert result["tp_pips"] == 50.0, \
+        f"Fallback tp_pips should be 50 (fixed), got {result['tp_pips']}"
 
 
 # ── Test 7: SPLIT mode emits two signals ───────────
