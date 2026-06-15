@@ -1,6 +1,6 @@
 import sys
 import logging
-from core.configengine import Config
+from core.configengine import ConfigEngine
 from core.mt5connector import MT5Connector
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -11,7 +11,8 @@ def test_mt5_data_fetch():
     print("===========================================\n")
     
     print("1. Loading config...")
-    config = Config.load()
+    config_engine = ConfigEngine()
+    config = config_engine.get_config()
     print("   ✅ Config loaded.")
     
     print("\n2. Initializing MT5 Connector...")
