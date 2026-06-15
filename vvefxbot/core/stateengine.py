@@ -51,7 +51,7 @@ class StateEngine:
                 # 1. signals_detected
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS signals_detected (
-                    signal_id TEXT PRIMARY KEY, pair TEXT, session TEXT,
+                    signal_id TEXT PRIMARY KEY, pair TEXT, session TEXT, killzone TEXT,
                     timeframe_bias TEXT, timeframe_entry TEXT, direction TEXT,
                     bias_summary TEXT, entry_price REAL, sl_price REAL,
                     tp1_price REAL, tp2_price REAL, tp3_price REAL, sl_pips REAL, tp_pips REAL, tp3_pips REAL,
@@ -82,6 +82,8 @@ class StateEngine:
                     cursor.execute("ALTER TABLE signals_detected ADD COLUMN tp3_price REAL")
                 if cols and "tp3_pips" not in cols:
                     cursor.execute("ALTER TABLE signals_detected ADD COLUMN tp3_pips REAL")
+                if cols and "killzone" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN killzone TEXT")
 
                 # 2. trades_executed
                 cursor.execute("""
