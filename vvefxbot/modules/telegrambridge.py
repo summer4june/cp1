@@ -62,6 +62,13 @@ class TelegramBridge:
     # HANDLER REGISTRATION
     # ------------------------------------------------------------------
 
+    def _answer_callback_safe(self, call_id: str):
+        """Safely answer callback queries, ignoring 'too old' timeouts."""
+        try:
+            self.bot.answer_callback_query(call_id)
+        except Exception as e:
+            logger.debug(f"Could not answer callback query {call_id} (may be too old): {e}")
+
     def _register_handlers(self):
         """Register inline keyboard callback handlers with the bot."""
 
@@ -69,14 +76,14 @@ class TelegramBridge:
         def on_yes(call):
             """Handle YES EXECUTE button press."""
             signal_id = call.data[len("YES_"):]
-            self.bot.answer_callback_query(call.id)
+            self._answer_callback_safe(call.id)
             self.handle_yes_callback(signal_id, call.message.chat.id, call.message.message_id)
 
         @self.bot.callback_query_handler(func=lambda c: c.data.startswith("NO_"))
         def on_no(call):
             """Handle NO SKIP button press."""
             signal_id = call.data[len("NO_"):]
-            self.bot.answer_callback_query(call.id)
+            self._answer_callback_safe(call.id)
             self.handle_no_callback(signal_id, call.message.chat.id, call.message.message_id)
 
         @self.bot.callback_query_handler(func=lambda c: c.data.startswith("REASON_"))
@@ -86,14 +93,14 @@ class TelegramBridge:
             parts = call.data[len("REASON_"):].split("_", 1)
             if len(parts) == 2:
                 signal_id, reason = parts
-                self.bot.answer_callback_query(call.id)
+                self._answer_callback_safe(call.id)
                 self.handle_reason_callback(signal_id, reason, call.message.chat.id, call.message.message_id)
 
         @self.bot.callback_query_handler(func=lambda c: c.data.startswith("MANUAL_REASON_"))
         def on_manual_reason(call):
             """Handle Manual Reason button press."""
             signal_id = call.data[len("MANUAL_REASON_"):]
-            self.bot.answer_callback_query(call.id)
+            self._answer_callback_safe(call.id)
             self.handle_manual_reason_prompt(signal_id, call.message.chat.id, call.message.message_id)
 
     # ------------------------------------------------------------------
