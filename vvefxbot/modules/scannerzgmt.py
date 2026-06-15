@@ -541,6 +541,8 @@ class ScannerZGMT:
 
         # ── Step 2B: Untested condition ───────────────────────────────
         is_tested = self._is_zgmt_level_tested(pair, zgmt_price, zgmt_cfg)
+        strategy_a_valid = not is_tested
+
         if is_tested:
             now_utc = self._utc_now()
             today_zgmt_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -549,19 +551,22 @@ class ScannerZGMT:
 
             if now_utc < test_start_time:
                 # Still inside exclusion window — price hasn't displaced yet.
-                # Do NOT finalize the day: just defer to next scan bar.
                 logger.debug(
-                    f"[{pair}] ZGMT Step 2B: Inside exclusion window — deferring, day NOT finalized."
+                    f"[{pair}] ZGMT Step 2B: Inside exclusion window — deferring."
                 )
-                return None
+                strategy_a_valid = True
             else:
-                # Level has genuinely been touched after the exclusion window → invalid for today.
-                logger.info(
+                # Level has genuinely been touched after the exclusion window → invalid for Strategy A.
+                logger.debug(
                     f"[{pair}] ZGMT Step 2B: 0 GMT level already tested "
-                    f"({zgmt_price:.5f}) — setup invalid for today."
+                    f"({zgmt_price:.5f}) — Strategy A invalid for today."
                 )
-                self._mark_daily_finalized(pair)
-                return None
+                
+                # Optimization: if B and C are disabled, finalize the day early
+                if not zgmt_cfg.get("strategy_b_enabled", False) and not zgmt_cfg.get("strategy_c_enabled", False):
+                    logger.info(f"[{pair}] ZGMT Step 2B: 0 GMT level tested and B/C disabled. Finalizing for today.")
+                    self._mark_daily_finalized(pair)
+                    return None
 
         # ── Step 3: Power of Three (optional) ────────────────────────
         if zgmt_cfg.get("require_power_of_three", False):
@@ -627,7 +632,7 @@ class ScannerZGMT:
             }
 
         # Strategy A (0 GMT Liquidity)
-        if is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
+        if strategy_a_valid and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
             levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
             if levs_direct:
                 signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
