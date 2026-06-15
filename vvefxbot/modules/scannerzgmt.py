@@ -368,19 +368,16 @@ class ScannerZGMT:
             filter_pips = zgmt_cfg.get("zgmt_filter_pips_fx", 25)
         filter_diff = self._pips_to_price(pair, filter_pips)
 
-        # ── Steps 5/6: Dynamic ADR-based SL/TP ──
-        # SL = 5-day ADR ÷ 2. If ADR data is unavailable, fall back to fixed pips.
+        # ── Steps 5/6: Dynamic ADR-based SL/TP (STRICT — no fallback) ──
+        # SL = 5-day ADR ÷ 2. If ADR data is unavailable, the signal is cancelled.
+        # We do NOT fall back to fixed pips — a signal without a real ADR-based SL is not valid.
         adr_sl_dist = self._calculate_adr_sl(pair)  # returns price-unit distance or None
         if not adr_sl_dist or adr_sl_dist <= 0:
-            fallback_cfg = zgmt_cfg.get("zgmt_sl_tp", {})
-            if self._is_metal(pair):
-                fallback_pips = float(fallback_cfg.get("sl_pips_gold", 95))
-            else:
-                fallback_pips = float(fallback_cfg.get("sl_pips_fx", 25))
             logger.warning(
-                f"[{pair}] ZGMT: ADR(5) unavailable — falling back to fixed SL ({fallback_pips} pips)."
+                f"[{pair}] ZGMT: ADR(5) unavailable — signal cancelled. "
+                f"Cannot calculate SL without real ADR data."
             )
-            adr_sl_dist = self._pips_to_price(pair, fallback_pips)
+            return None
 
         sl_dist_price = adr_sl_dist
         tp_dist_price = adr_sl_dist * 2
