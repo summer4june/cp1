@@ -189,10 +189,10 @@ def scan_pair(
             for signal in signals:
                 # Dedupe check for MULTI mode or general safety
                 # If we already generated a signal for this pair+direction recently, skip
-                # We use a 15-minute cooldown window by default
+                # Set to 1440 minutes (24 hours) so we only send once per day, even if bot restarts
                 direction = signal.get("direction", "")
-                if state_engine.has_recent_signal(pair, direction, cooldown_minutes=15):
-                    logger.debug(f"[{pair}] {scanner_name} skipped — recent {direction} signal already exists.")
+                if state_engine.has_recent_signal(pair, direction, cooldown_minutes=1440):
+                    logger.debug(f"[{pair}] {scanner_name} skipped — {direction} signal already sent today.")
                     continue
 
                 signal_id = signal["signal_id"]
