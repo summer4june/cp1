@@ -327,7 +327,7 @@ class TelegramBridge:
         if pending and "messages" in pending:
             for cid, mid in pending["messages"]:
                 try:
-                    if cid == trigger_chat_id:
+                    if str(cid) == str(trigger_chat_id):
                         self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=markup)
                     else:
                         self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=None)
