@@ -118,9 +118,9 @@
       "sl_pips_fx": 25,
       "tp_pips_fx": 50
     },
-    "_comment_sl_cap": "Hard cap on ADR-based SL — prevents 500-1200 pip runaway SLs",
+    "_comment_sl_cap": "Hard cap on ADR-based SL. FX: 1 pip=0.0001. Gold/Silver: 1 pip=0.01 so 1500 pips=$15 on Gold",
     "max_sl_pips_fx": 50,
-    "max_sl_pips_metal": 150,
+    "max_sl_pips_metal": 1500,
     "score": 70.0,
     "cooldown_minutes": 0,
     "max_daily_trades": 999,
