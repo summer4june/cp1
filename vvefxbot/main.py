@@ -179,98 +179,102 @@ def scan_pair(
 
         # Run scanners sequentially
         for scanner_name, scanner in scanners:
-            signal = scanner.scan(pair, session, killzone)
-            if signal is None:
+            result = scanner.scan(pair, session, killzone)
+            if not result:
                 continue
                 
-            # Dedupe check for MULTI mode or general safety
-            # If we already generated a signal for this pair+direction recently, skip
-            # We use a 15-minute cooldown window by default
-            direction = signal.get("direction", "")
-            if state_engine.has_recent_signal(pair, direction, cooldown_minutes=15):
-                logger.debug(f"[{pair}] {scanner_name} skipped — recent {direction} signal already exists.")
-                continue
-
-            signal_id = signal["signal_id"]
-            spread_pips = signal.get("spread_pips", 0.0)
-            score = signal.get("score", 0.0)
+            # Convert single dict to list for uniform processing
+            signals = result if isinstance(result, list) else [result]
             
-            # Pre-send: global threshold check
-            aplus_threshold = risk_engine.config.aplus_threshold
-            if score < aplus_threshold:
-                logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — score ({score}) below global threshold ({aplus_threshold})")
-                state_engine.insert_skip(signal_id, "Below Threshold", spread_pips, score)
-                continue
+            for signal in signals:
+                # Dedupe check for MULTI mode or general safety
+                # If we already generated a signal for this pair+direction recently, skip
+                # We use a 15-minute cooldown window by default
+                direction = signal.get("direction", "")
+                if state_engine.has_recent_signal(pair, direction, cooldown_minutes=15):
+                    logger.debug(f"[{pair}] {scanner_name} skipped — recent {direction} signal already exists.")
+                    continue
 
-            # Pre-send: risk checks
-            open_trades = state_engine.get_open_trades()
-            risk_result = risk_engine.run_all_checks(signal, open_trades)
-            if not risk_result["pass"]:
-                reason = risk_result["failed_check"]
-                logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — risk: {reason}")
-                state_engine.insert_skip(signal_id, reason, spread_pips, score)
-                continue
+                signal_id = signal["signal_id"]
+                spread_pips = signal.get("spread_pips", 0.0)
+                score = signal.get("score", 0.0)
+                
+                # Pre-send: global threshold check
+                aplus_threshold = risk_engine.config.aplus_threshold
+                if score < aplus_threshold:
+                    logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — score ({score}) below global threshold ({aplus_threshold})")
+                    state_engine.insert_skip(signal_id, "Below Threshold", spread_pips, score)
+                    continue
 
-            # Pre-send: correlation check
-            allowed, corr_reason = correlation_filter.can_trade(pair, open_trades, direction)
-            if not allowed:
-                logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — correlation: {corr_reason}")
-                state_engine.insert_skip(signal_id, corr_reason, spread_pips, score)
-                continue
+                # Pre-send: risk checks
+                open_trades = state_engine.get_open_trades()
+                risk_result = risk_engine.run_all_checks(signal, open_trades)
+                if not risk_result["pass"]:
+                    reason = risk_result["failed_check"]
+                    logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — risk: {reason}")
+                    state_engine.insert_skip(signal_id, reason, spread_pips, score)
+                    continue
 
-            # All checks passed — send signal to Telegram for human approval
-            lot_size = risk_result["lot_size"]
+                # Pre-send: correlation check
+                allowed, corr_reason = correlation_filter.can_trade(pair, open_trades, direction)
+                if not allowed:
+                    logger.info(f"[{pair}] {scanner_name} Signal {signal_id} skipped — correlation: {corr_reason}")
+                    state_engine.insert_skip(signal_id, corr_reason, spread_pips, score)
+                    continue
 
-            # Strategy-level fixed lot override (e.g. zgmt_scanner.fixed_lot_size)
-            # Risk/spread/RR checks above still run normally; only the lot is swapped.
-            fixed_lot = signal.get("fixed_lot_size", 0.0)
-            if fixed_lot and fixed_lot > 0.0:
-                logger.info(
-                    f"[{pair}] {scanner_name}: Fixed lot override "
-                    f"{lot_size:.2f} → {fixed_lot:.2f} (fixed_lot_size in config)"
-                )
-                lot_size = round(fixed_lot, 2)
+                # All checks passed — send signal to Telegram for human approval
+                lot_size = risk_result["lot_size"]
 
-            # Calculate USD values
-            import MetaTrader5 as mt5
-            order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
-            
-            # SL USD
-            sl_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["sl_price"])
-            sl_usd = abs(sl_usd) if sl_usd else 0.0
+                # Strategy-level fixed lot override (e.g. zgmt_scanner.fixed_lot_size)
+                # Risk/spread/RR checks above still run normally; only the lot is swapped.
+                fixed_lot = signal.get("fixed_lot_size", 0.0)
+                if fixed_lot and fixed_lot > 0.0:
+                    logger.info(
+                        f"[{pair}] {scanner_name}: Fixed lot override "
+                        f"{lot_size:.2f} → {fixed_lot:.2f} (fixed_lot_size in config)"
+                    )
+                    lot_size = round(fixed_lot, 2)
 
-            # TP1, TP2, TP3 USD
-            tp1_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp1_price"])
-            tp1_usd = abs(tp1_usd) if tp1_usd else 0.0
-            
-            tp2_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp2_price"])
-            tp2_usd = abs(tp2_usd) if tp2_usd else 0.0
-            
-            tp3_usd = 0.0
-            if "tp3_price" in signal and signal["tp3_price"] > 0:
-                tp3_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp3_price"])
-                tp3_usd = abs(tp3_usd) if tp3_usd else 0.0
+                # Calculate USD values
+                import MetaTrader5 as mt5
+                order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
+                
+                # SL USD
+                sl_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["sl_price"])
+                sl_usd = abs(sl_usd) if sl_usd else 0.0
 
-            # Margin USD
-            margin_usd = mt5.order_calc_margin(order_type, pair, lot_size, signal["entry_price"])
-            margin_usd = margin_usd if margin_usd else 0.0
+                # TP1, TP2, TP3 USD
+                tp1_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp1_price"])
+                tp1_usd = abs(tp1_usd) if tp1_usd else 0.0
+                
+                tp2_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp2_price"])
+                tp2_usd = abs(tp2_usd) if tp2_usd else 0.0
+                
+                tp3_usd = 0.0
+                if "tp3_price" in signal and signal["tp3_price"] > 0:
+                    tp3_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp3_price"])
+                    tp3_usd = abs(tp3_usd) if tp3_usd else 0.0
 
-            usd_metrics = {
-                "sl_usd": sl_usd,
-                "tp1_usd": tp1_usd,
-                "tp2_usd": tp2_usd,
-                "tp3_usd": tp3_usd,
-                "margin_usd": margin_usd
-            }
+                # Margin USD
+                margin_usd = mt5.order_calc_margin(order_type, pair, lot_size, signal["entry_price"])
+                margin_usd = margin_usd if margin_usd else 0.0
 
-            state_engine.insert_signal(signal)
-            sent = telegram_bridge.send_signal(signal, lot_size, usd_metrics)
-            if sent:
-                logger.info(f"[{pair}] A+ signal {signal_id} ({scanner_name}) sent to Telegram. Awaiting approval.")
-                # We sent a valid signal, stop checking other scanners for this pair this cycle
-                break
-            else:
-                logger.error(f"[{pair}] Failed to send signal {signal_id} to Telegram.")
+                usd_metrics = {
+                    "sl_usd": sl_usd,
+                    "tp1_usd": tp1_usd,
+                    "tp2_usd": tp2_usd,
+                    "tp3_usd": tp3_usd,
+                    "margin_usd": margin_usd
+                }
+
+                state_engine.insert_signal(signal)
+                sent = telegram_bridge.send_signal(signal, lot_size, usd_metrics)
+                if sent:
+                    logger.info(f"[{pair}] A+ signal {signal_id} ({scanner_name}) sent to Telegram. Awaiting approval.")
+                    # We sent a valid signal, stop checking other scanners for this pair this cycle
+                    break
+                else:
+                    logger.error(f"[{pair}] Failed to send signal {signal_id} to Telegram.")
 
     except Exception as e:
         logger.error(f"[{pair}] Exception during pair scan: {e}\n{traceback.format_exc()}")
