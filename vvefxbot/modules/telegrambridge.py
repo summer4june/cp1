@@ -70,14 +70,14 @@ class TelegramBridge:
             """Handle YES EXECUTE button press."""
             signal_id = call.data[len("YES_"):]
             self.bot.answer_callback_query(call.id)
-            self.handle_yes_callback(signal_id, call.message.chat.id)
+            self.handle_yes_callback(signal_id, call.message.chat.id, call.message.message_id)
 
         @self.bot.callback_query_handler(func=lambda c: c.data.startswith("NO_"))
         def on_no(call):
             """Handle NO SKIP button press."""
             signal_id = call.data[len("NO_"):]
             self.bot.answer_callback_query(call.id)
-            self.handle_no_callback(signal_id, call.message.chat.id)
+            self.handle_no_callback(signal_id, call.message.chat.id, call.message.message_id)
 
         @self.bot.callback_query_handler(func=lambda c: c.data.startswith("REASON_"))
         def on_reason(call):
@@ -87,14 +87,14 @@ class TelegramBridge:
             if len(parts) == 2:
                 signal_id, reason = parts
                 self.bot.answer_callback_query(call.id)
-                self.handle_reason_callback(signal_id, reason, call.message.chat.id)
+                self.handle_reason_callback(signal_id, reason, call.message.chat.id, call.message.message_id)
 
         @self.bot.callback_query_handler(func=lambda c: c.data.startswith("MANUAL_REASON_"))
         def on_manual_reason(call):
             """Handle Manual Reason button press."""
             signal_id = call.data[len("MANUAL_REASON_"):]
             self.bot.answer_callback_query(call.id)
-            self.handle_manual_reason_prompt(signal_id, call.message.chat.id)
+            self.handle_manual_reason_prompt(signal_id, call.message.chat.id, call.message.message_id)
 
     # ------------------------------------------------------------------
     # PUBLIC METHODS
@@ -206,9 +206,11 @@ class TelegramBridge:
         )
 
         try:
+            sent_messages = []
             for cid in self.chat_ids:
                 try:
-                    self.bot.send_message(cid, text, parse_mode="Markdown", reply_markup=markup)
+                    msg = self.bot.send_message(cid, text, parse_mode="Markdown", reply_markup=markup)
+                    sent_messages.append((cid, msg.message_id))
                 except Exception as e:
                     logger.error(f"Failed to send signal to chat {cid}: {e}")
                     
@@ -217,6 +219,7 @@ class TelegramBridge:
                     "signal": signal,
                     "lot_size": lot_size,
                     "timestamp": datetime.now(timezone.utc),
+                    "messages": sent_messages
                 }
             logger.info(f"Signal sent to Telegram broadcast list: {signal_id}")
             return True
@@ -265,6 +268,13 @@ class TelegramBridge:
         with self._lock:
             self._pending.pop(signal_id, None)
 
+        if pending and "messages" in pending:
+            for cid, mid in pending["messages"]:
+                try:
+                    self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=None)
+                except Exception:
+                    pass
+
         try:
             self.execution_callback(signal_id)
             for cid in self.chat_ids:
@@ -306,14 +316,15 @@ class TelegramBridge:
         buttons.append(InlineKeyboardButton("✍️ Manual Reason", callback_data=f"MANUAL_REASON_{signal_id}"))
         markup.add(*buttons)
 
-        try:
-            self.bot.send_message(
-                trigger_chat_id,
-                "Select skip reason:",
-                reply_markup=markup
-            )
-        except Exception as e:
-            logger.error(f"Failed to send skip reason keyboard: {e}")
+        if pending and "messages" in pending:
+            for cid, mid in pending["messages"]:
+                try:
+                    if cid == trigger_chat_id:
+                        self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=markup)
+                    else:
+                        self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=None)
+                except Exception as e:
+                    logger.error(f"Failed to edit skip reason keyboard for {cid}: {e}")
 
     def handle_reason_callback(self, signal_id: str, reason: str, trigger_chat_id: Optional[int]) -> None:
         """
@@ -330,6 +341,14 @@ class TelegramBridge:
             # Retrieve stored spread/score from pending
             with self._lock:
                 pending = self._pending.pop(signal_id, None)
+
+            # Clear keyboards for everyone if they haven't been cleared yet
+            if pending and "messages" in pending:
+                for cid, mid in pending["messages"]:
+                    try:
+                        self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=None)
+                    except Exception:
+                        pass
 
             if not pending and reason != "Ignore" and reason != "Expired (Late YES)":
                 # If it's already popped, and it's not our internal auto-rejections, ignore it
@@ -370,6 +389,16 @@ class TelegramBridge:
         Prompt the user to type a manual reason.
         """
         try:
+            # Optionally clear the reason keyboard while they are typing to prevent double clicks
+            with self._lock:
+                pending = self._pending.get(signal_id)
+            if pending and "messages" in pending:
+                for cid, mid in pending["messages"]:
+                    try:
+                        self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=None)
+                    except Exception:
+                        pass
+
             msg = self.bot.send_message(
                 trigger_chat_id,
                 "Please type your manual reason for rejecting this trade:",
