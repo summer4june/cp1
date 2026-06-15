@@ -387,7 +387,7 @@ class ScannerZGMT:
         # ── Cap SL at configurable maximum ──────────────────────────
         # Prevents runaway ADR-based SL (e.g. 500-1200 pips on JPY cross days)
         if self._is_metal(pair):
-            max_sl_pips = float(zgmt_cfg.get("max_sl_pips_metal", 150))
+            max_sl_pips = float(zgmt_cfg.get("max_sl_pips_metal", 1500))  # 1500 pips = $15 on Gold
         else:
             max_sl_pips = float(zgmt_cfg.get("max_sl_pips_fx", 50))
         if sl_pips > max_sl_pips:
@@ -760,7 +760,7 @@ class ScannerZGMT:
 
         # Cap SL at configurable maximum (same cap as standard ZGMT entries)
         if self._is_metal(pair):
-            max_sl_pips = float(zgmt_cfg.get("max_sl_pips_metal", 150))
+            max_sl_pips = float(zgmt_cfg.get("max_sl_pips_metal", 1500))  # 1500 pips = $15 on Gold
         else:
             max_sl_pips = float(zgmt_cfg.get("max_sl_pips_fx", 50))
         if sl_pips > max_sl_pips:
