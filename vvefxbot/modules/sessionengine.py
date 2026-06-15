@@ -132,32 +132,35 @@ class SessionEngine:
         """
         return self.get_active_killzone() is not None
 
-    def get_allowed_pairs(self, session: Optional[str]) -> List[str]:
+    def get_allowed_pairs(self, session: Optional[str] = None, killzone: Optional[str] = None) -> List[str]:
         """
-        Get list of allowed trading pairs for a given session.
+        Get list of allowed trading pairs for a given session/killzone.
         
         Args:
             session (str | None): Current session name.
+            killzone (str | None): Current killzone name.
             
         Returns:
             List[str]: List of allowed symbols.
         """
-        if session is not None:
+        # If either a session or a killzone is active, allow the configured pairs
+        if session is not None or killzone is not None:
             return self.config.pairs
         return []
 
-    def is_pair_allowed(self, pair: str, session: Optional[str]) -> bool:
+    def is_pair_allowed(self, pair: str, session: Optional[str], killzone: Optional[str] = None) -> bool:
         """
-        Check if a specific pair is allowed in the current session.
+        Check if a specific pair is allowed in the current session/killzone.
         
         Args:
             pair (str): Trading symbol.
             session (str | None): Current session name.
+            killzone (str | None): Current killzone name.
             
         Returns:
             bool: True if allowed.
         """
-        return pair in self.get_allowed_pairs(session)
+        return pair in self.get_allowed_pairs(session, killzone)
 
     def is_avoid_window(self) -> bool:
         """

@@ -164,7 +164,7 @@ def scan_pair(
     """
     try:
         # Pair-level session check
-        if not session_engine.is_pair_allowed(pair, session):
+        if not session_engine.is_pair_allowed(pair, session, killzone):
             return
 
         # Cooldown check
@@ -418,7 +418,7 @@ def main():
                 time.sleep(config.scan_frequency_seconds)
                 continue
 
-            pairs = session_engine.get_allowed_pairs(session)
+            pairs = session_engine.get_allowed_pairs(session, killzone)
             if not pairs:
                 time.sleep(config.scan_frequency_seconds)
                 continue
