@@ -30,10 +30,12 @@ def get_logger(module_name: str) -> logging.Logger:
             filename=os.path.join(log_dir, "bot.log"),
             encoding='utf-8'
         )
+        file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(log_format)
 
         # Console Handler
         console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.DEBUG)
         console_handler.setFormatter(log_format)
 
         # Sensitive Information Masking Filter
