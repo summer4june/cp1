@@ -152,26 +152,29 @@ class MT5Connector:
         """
         Force MT5 terminal to download historical data for all pairs and required timeframes 
         immediately on startup to act exactly like the backtesting environment.
+
+        Timeframe requirements per scanner:
+          D1  : 21 candles (20-day bias range) + 7 candles (ADR) → fetch 50 for safety
+          H4  : 120 candles (20 trading days of H4 for OB detection in Strategy B)
+          H1  : 480 candles (20 trading days of H1 for OB detection + 0GMT price)
+          M15 : 2880 candles (30 days × 96 bars/day — general use)
+          M1  : up to elapsed-minutes-since-midnight for tested-level check (cap 1500 for speed)
         """
-        logger.info("Pre-loading historical data for all pairs (30+ days). This may take a few seconds...")
+        logger.info("Pre-loading historical data for all pairs and all required timeframes. This may take a few seconds...")
         import time
         for pair in self.config.pairs:
-            # Select symbol into Market Watch
+            # Select symbol into Market Watch first
             mt5.symbol_select(pair, True)
-            
-            # Fetch ~30 days of data for each timeframe to force broker sync
-            # D1 = 30 candles
-            # H1 = 30 * 24 = 720 candles
-            # M15 = 30 * 24 * 4 = 2880 candles
-            # M1 = 30 * 24 * 60 = 43200 candles (cap to 5000 for speed)
-            
-            _ = mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_D1, 0, 50)
-            _ = mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_H1, 0, 1000)
-            _ = mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_M15, 0, 3000)
-            _ = mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_M1, 0, 5000)
-            
-        time.sleep(2.0)  # Wait for background downloads to finish
-        logger.info("Historical data pre-load complete.")
+
+            mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_D1,  0, 50)    # 50 D1 candles
+            mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_H4,  0, 200)   # 200 H4 candles = 33 days
+            mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_H1,  0, 720)   # 720 H1 candles = 30 days
+            mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_M15, 0, 3000)  # 3000 M15 candles = 31 days
+            mt5.copy_rates_from_pos(pair, mt5.TIMEFRAME_M1,  0, 1500)  # 1500 M1 candles = 25 hours
+
+        time.sleep(3.0)  # Give MT5 time to complete background broker downloads
+        logger.info("Historical data pre-load complete for all timeframes (D1/H4/H1/M15/M1).")
+
 
     def get_candles(self, symbol: str, timeframe: str, count: int = 100) -> pd.DataFrame:
         """
@@ -191,12 +194,15 @@ class MT5Connector:
             return pd.DataFrame()
 
         rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
-        
-        # If we didn't get enough candles, we might need to force a broker sync.
-        # We cap the strict check at 1000 because a broker might genuinely not have 5000+ M1 candles available,
-        # but we absolutely want to ensure we get the 480 H1 candles requested by the OB scanner.
-        if rates is None or len(rates) < min(count, 1000):
-            logger.warning(f"Missing {timeframe} candles for {symbol} (Got {len(rates) if rates is not None else 0}/{count}). Forcing MT5 terminal to sync with broker...")
+
+        # Trigger a broker sync if we received significantly fewer candles than requested.
+        # Threshold: 90% of requested count, minimum 10 candles.
+        # This avoids panic-retries for large requests where 1-2 missing bars is normal,
+        # while still catching genuine data gaps (e.g. 2 bars returned for an H1 480 request).
+        min_acceptable = max(10, int(count * 0.90))
+        if rates is None or len(rates) < min_acceptable:
+            logger.warning(f"Missing {timeframe} candles for {symbol} (Got {len(rates) if rates is not None else 0}/{count}, need {min_acceptable}). Forcing MT5 terminal to sync with broker...")
+
             
             # Step 1: Ensure symbol is actually visible in Market Watch
             success = mt5.symbol_select(symbol, True)
@@ -214,12 +220,13 @@ class MT5Connector:
             rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
             
             # If it still fails severely, try reconnecting
-            if rates is None or len(rates) < min(count, 1000):
+            if rates is None or len(rates) < min_acceptable:
                 logger.warning(f"Sync failed for {symbol}. Attempting one-time reconnect...")
                 if self.connect():
                     import time
                     time.sleep(1.0)
                     rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
+
             
         if rates is None or len(rates) == 0:
             logger.error(f"Could not retrieve {timeframe} candles for {symbol} after retry.")
