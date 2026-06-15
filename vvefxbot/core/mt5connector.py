@@ -194,7 +194,10 @@ class MT5Connector:
             logger.warning(f"Missing {timeframe} candles for {symbol}. Forcing MT5 terminal to sync with broker...")
             
             # Step 1: Ensure symbol is actually visible in Market Watch
-            mt5.symbol_select(symbol, True)
+            success = mt5.symbol_select(symbol, True)
+            if not success:
+                logger.error(f"FATAL: MT5 does not recognize symbol '{symbol}'. Does your broker use a suffix (e.g. {symbol}m or {symbol}.a)?")
+                return pd.DataFrame()
             
             # Step 2: Request a large chunk of data to trigger a background download from the broker
             _ = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, 3000)
