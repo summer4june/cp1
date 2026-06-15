@@ -499,12 +499,12 @@ class ScannerZGMT:
         window_end = self._parse_hhmm(zgmt_cfg.get("zgmt_window_end_ist", "08:00"))
         current_ist_time = now_ist.time()
 
-        if not (window_start <= current_ist_time <= window_end):
+        is_in_zgmt_window = window_start <= current_ist_time <= window_end
+        if not is_in_zgmt_window:
             logger.debug(
-                f"[{pair}] ZGMT: Outside signal window "
-                f"({window_start}–{window_end} IST, now={current_ist_time} IST)."
+                f"[{pair}] ZGMT: Outside Strategy A window "
+                f"({window_start}–{window_end} IST). Strategies B/C may still run."
             )
-            return None
 
         # ── Step 1: Daily bias ────────────────────────────────────────
         require_pd = zgmt_cfg.get("require_pd_array_check", True)
@@ -626,7 +626,7 @@ class ScannerZGMT:
             }
 
         # Strategy A (0 GMT Liquidity)
-        if zgmt_cfg.get("strategy_a_enabled", False):
+        if is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
             levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
             if levs_direct:
                 signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
