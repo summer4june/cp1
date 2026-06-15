@@ -174,10 +174,21 @@ class TelegramBridge:
         
         tp3_price_str = signal.get("tp3_price", "") if signal.get("tp3_price") else "N/A"
 
+        display_session = signal.get("session")
+        display_kz = signal.get("killzone")
+        if display_session and display_kz:
+            sess_str = f"{display_session} ({display_kz} KZ)"
+        elif display_session:
+            sess_str = display_session
+        elif display_kz:
+            sess_str = f"{display_kz} Killzone"
+        else:
+            sess_str = "None"
+
         text = (
             f"Time : `{timestamp_ist}`\n\n"
             f"Pair: `{signal['pair']}`\n"
-            f"Session: `{signal['session']}`\n"
+            f"Session: `{sess_str}`\n"
             f"Direction: `{signal['direction']}`\n"
             f"Entry Leg: `{signal.get('entry_leg', 'A')}`\n\n"
             f"Entry: `{signal['entry_price']}`\n"
