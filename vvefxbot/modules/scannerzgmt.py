@@ -684,8 +684,9 @@ class ScannerZGMT:
         if not current_price:
             return None
 
-        symbol_point = self.mt5.get_symbol_point(pair)
-        tap_threshold = zgmt_cfg.get("zgmt_ob_tap_threshold_pips", 5) * symbol_point
+        symbol_point = self.mt5.get_symbol_point(pair)  # used only for OB body comparisons
+        pip_size = self._pip_size(pair)                  # used for pip-based calculations
+        tap_threshold = zgmt_cfg.get("zgmt_ob_tap_threshold_pips", 5) * pip_size
 
         all_obs = []
         for df, tf in [(h4_candles, "H4"), (h1_candles, "H1")]:
@@ -754,7 +755,7 @@ class ScannerZGMT:
         if not sl_distance or sl_distance <= 0:
             return None
 
-        sl_pips = sl_distance / symbol_point
+        sl_pips = sl_distance / pip_size   # use pip_size not symbol_point — point ≠ pip on 5-decimal brokers
         tp_pips = sl_pips * 2
 
         # Cap SL at configurable maximum (same cap as standard ZGMT entries)
