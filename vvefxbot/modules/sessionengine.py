@@ -142,12 +142,7 @@ class SessionEngine:
         Returns:
             List[str]: List of allowed symbols.
         """
-        if session == "Asia":
-            allowed = ["USDJPY", "EURJPY"]
-            if "GBPJPY" in self.config.pairs:
-                allowed.append("GBPJPY")
-            return [p for p in allowed if p in self.config.pairs]
-        elif session in ["London", "NewYork"]:
+        if session is not None:
             return self.config.pairs
         return []
 
