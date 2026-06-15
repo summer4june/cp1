@@ -162,30 +162,8 @@ class SessionEngine:
     def is_avoid_window(self) -> bool:
         """
         Check if the current time falls within an 'avoid window'.
-        
-        Avoid windows:
-        - Monday: London killzone first hour (11:30–12:30 IST)
-        - Friday: NY session after 19:00 IST
-        
-        Returns:
-            bool: True if in an avoid window.
+        Currently disabled per user request to strictly follow config killzones.
         """
-        now_ist = self.get_current_ist_time()
-        day = now_ist.weekday()  # 0 is Monday, 4 is Friday
-        now_time = now_ist.time()
-
-        # Monday 11:30 - 12:30 IST
-        if day == 0:
-            start_avoid = time(11, 30)
-            end_avoid = time(12, 30)
-            if start_avoid <= now_time < end_avoid:
-                return True
-
-        # Friday after 19:00 IST
-        if day == 4:
-            if now_time >= time(19, 0):
-                return True
-
         return False
 
     def log_session_status(self):
