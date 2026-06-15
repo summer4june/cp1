@@ -44,6 +44,7 @@ TF_M1  = getattr(mt5, 'TIMEFRAME_M1',  1)
 TF_M5  = getattr(mt5, 'TIMEFRAME_M5',  5)
 TF_M15 = getattr(mt5, 'TIMEFRAME_M15', 15)
 TF_H1  = getattr(mt5, 'TIMEFRAME_H1',  16385)
+TF_H4  = getattr(mt5, 'TIMEFRAME_H4',  16388)
 TF_D1  = getattr(mt5, 'TIMEFRAME_D1',  16408)
 
 # Other Constants
@@ -65,6 +66,7 @@ class MT5Connector:
             "M5":  TF_M5,
             "M15": TF_M15,
             "H1":  TF_H1,
+            "H4":  TF_H4,
             "D1":  TF_D1,
         }
 
