@@ -103,16 +103,17 @@ class MT5Connector:
 
         initialized = mt5.initialize(**init_kwargs)
         
-        # Verify if initialization timed out but actually worked in the background
+        # Verify if initialization timed out or returned False but actually worked in the background
         if not initialized:
             error_code, error_msg = mt5.last_error()
-            if error_code == -10005:  # IPC timeout
+            if error_code == -10005 or error_code == 1:  # IPC timeout or already successful
                 import time
-                logger.warning("IPC timeout during initialize(). Waiting 3s to check if terminal successfully logged in anyway...")
-                time.sleep(3)
+                if error_code == -10005:
+                    logger.warning("IPC timeout during initialize(). Waiting 3s to check if terminal successfully logged in anyway...")
+                    time.sleep(3)
                 account_info = mt5.account_info()
                 if account_info and account_info.login == self.config.mt5_login:
-                    logger.info(f"MT5 connected successfully (bypassed IPC timeout): {account_info.login}")
+                    logger.info(f"MT5 connected successfully (bypassed init error {error_code}): {account_info.login}")
                     return True
             logger.error(f"MT5 initialization failed: {error_code}, {error_msg}")
             return False
@@ -129,15 +130,16 @@ class MT5Connector:
             logger.info(f"MT5 connected: {account_info.login if account_info else self.config.mt5_login}")
             return True
         else:
-            # Verify if login timed out but actually worked in the background
+            # Verify if login timed out or returned False but actually worked in the background
             error_code, error_msg = mt5.last_error()
-            if error_code == -10005:  # IPC timeout
+            if error_code == -10005 or error_code == 1:  # IPC timeout or already successful
                 import time
-                logger.warning("IPC timeout during login(). Waiting 3s to check if terminal successfully logged in anyway...")
-                time.sleep(3)
+                if error_code == -10005:
+                    logger.warning("IPC timeout during login(). Waiting 3s to check if terminal successfully logged in anyway...")
+                    time.sleep(3)
                 account_info = mt5.account_info()
                 if account_info and account_info.login == self.config.mt5_login:
-                    logger.info(f"MT5 connected successfully (bypassed IPC timeout): {account_info.login}")
+                    logger.info(f"MT5 connected successfully (bypassed login error {error_code}): {account_info.login}")
                     return True
 
             logger.error(f"MT5 login failed: {error_code}, {error_msg}")
