@@ -165,13 +165,31 @@ class MT5Connector:
 
         rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
         
-        if rates is None:
-            logger.warning(f"Failed to get candles for {symbol}. Attempting one-time reconnect.")
-            if self.connect():
-                rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
+        if rates is None or len(rates) == 0:
+            logger.warning(f"Missing {timeframe} candles for {symbol}. Forcing MT5 terminal to sync with broker...")
+            
+            # Step 1: Ensure symbol is actually visible in Market Watch
+            mt5.symbol_select(symbol, True)
+            
+            # Step 2: Request a large chunk of data to trigger a background download from the broker
+            _ = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, 3000)
+            
+            import time
+            time.sleep(1.5)  # Wait for MT5 to fetch data
+            
+            # Step 3: Try getting the requested candles again
+            rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
+            
+            # If it still fails, the connection might actually be dropped, try reconnecting
+            if rates is None or len(rates) == 0:
+                logger.warning(f"Sync failed for {symbol}. Attempting one-time reconnect...")
+                if self.connect():
+                    import time
+                    time.sleep(1.0)
+                    rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
             
         if rates is None or len(rates) == 0:
-            logger.error(f"Could not retrieve candles for {symbol} after retry.")
+            logger.error(f"Could not retrieve {timeframe} candles for {symbol} after retry.")
             return pd.DataFrame()
 
         df = pd.DataFrame(rates)
