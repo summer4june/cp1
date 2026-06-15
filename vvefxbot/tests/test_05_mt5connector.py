@@ -14,6 +14,7 @@ def test_connect_success(config_mock):
 def test_connect_failure(config_mock):
     with patch("core.mt5connector.mt5", create=True) as mock_mt5:
         mock_mt5.initialize.return_value = False
+        mock_mt5.last_error.return_value = (-1, "Test error")
         connector = MT5Connector(config_mock)
         assert connector.connect() is False
 
