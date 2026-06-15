@@ -192,8 +192,11 @@ class MT5Connector:
 
         rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
         
-        if rates is None or len(rates) == 0:
-            logger.warning(f"Missing {timeframe} candles for {symbol}. Forcing MT5 terminal to sync with broker...")
+        # If we didn't get enough candles, we might need to force a broker sync.
+        # We cap the strict check at 1000 because a broker might genuinely not have 5000+ M1 candles available,
+        # but we absolutely want to ensure we get the 480 H1 candles requested by the OB scanner.
+        if rates is None or len(rates) < min(count, 1000):
+            logger.warning(f"Missing {timeframe} candles for {symbol} (Got {len(rates) if rates is not None else 0}/{count}). Forcing MT5 terminal to sync with broker...")
             
             # Step 1: Ensure symbol is actually visible in Market Watch
             success = mt5.symbol_select(symbol, True)
@@ -210,8 +213,8 @@ class MT5Connector:
             # Step 3: Try getting the requested candles again
             rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
             
-            # If it still fails, the connection might actually be dropped, try reconnecting
-            if rates is None or len(rates) == 0:
+            # If it still fails severely, try reconnecting
+            if rates is None or len(rates) < min(count, 1000):
                 logger.warning(f"Sync failed for {symbol}. Attempting one-time reconnect...")
                 if self.connect():
                     import time
