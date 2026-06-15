@@ -240,7 +240,7 @@ class TelegramBridge:
             except Exception as e:
                 logger.error(f"Failed to send Telegram alert to {cid}: {e}")
 
-    def handle_yes_callback(self, signal_id: str, trigger_chat_id: int) -> None:
+    def handle_yes_callback(self, signal_id: str, trigger_chat_id: int, message_id: int = None) -> None:
         """
         Handle YES EXECUTE button press.
 
@@ -250,6 +250,7 @@ class TelegramBridge:
         Args:
             signal_id (str): Signal UUID.
             trigger_chat_id (int): Chat ID of the user who clicked YES.
+            message_id (int): Message ID of the original signal message (for button removal).
         """
         with self._lock:
             pending = self._pending.get(signal_id)
@@ -261,7 +262,7 @@ class TelegramBridge:
         age = datetime.now(timezone.utc) - pending["timestamp"]
         if age > timedelta(minutes=_SIGNAL_EXPIRY_MINUTES):
             # Log as expired using the standard rejection pathway
-            self.handle_reason_callback(signal_id, "Expired (Late YES)", trigger_chat_id)
+            self.handle_reason_callback(signal_id, "Expired (Late YES)", trigger_chat_id, message_id)
             return
 
         # Remove before calling execution to avoid double-execution
@@ -295,11 +296,11 @@ class TelegramBridge:
                 except Exception:
                     pass
 
-    def handle_no_callback(self, signal_id: str, trigger_chat_id: int) -> None:
+    def handle_no_callback(self, signal_id: str, trigger_chat_id: int, message_id: int = None) -> None:
         """
         Handle NO SKIP button press.
 
-        Presents the skip reason keyboard to the user if signal is still active.
+        Edits the original signal message to replace YES/NO buttons with skip reason keyboard.
         """
         with self._lock:
             pending = self._pending.get(signal_id)
@@ -326,16 +327,17 @@ class TelegramBridge:
                 except Exception as e:
                     logger.error(f"Failed to edit skip reason keyboard for {cid}: {e}")
 
-    def handle_reason_callback(self, signal_id: str, reason: str, trigger_chat_id: Optional[int]) -> None:
+    def handle_reason_callback(self, signal_id: str, reason: str, trigger_chat_id: Optional[int], message_id: int = None) -> None:
         """
         Handle skip reason button press or manual reason text.
 
-        Logs the skip to state_engine and sends confirmation.
+        Logs the skip to state_engine, clears buttons on original message, and sends confirmation.
 
         Args:
             signal_id (str): Signal UUID.
             reason (str): Human-readable skip reason.
             trigger_chat_id (int): Chat ID of the user who clicked, or None for auto-rejections.
+            message_id (int): Message ID of the original signal message (for button removal).
         """
         try:
             # Retrieve stored spread/score from pending
@@ -384,7 +386,7 @@ class TelegramBridge:
         except Exception as e:
             logger.error(f"Failed to record skip reason for {signal_id}: {e}")
 
-    def handle_manual_reason_prompt(self, signal_id: str, trigger_chat_id: int) -> None:
+    def handle_manual_reason_prompt(self, signal_id: str, trigger_chat_id: int, message_id: int = None) -> None:
         """
         Prompt the user to type a manual reason.
         """

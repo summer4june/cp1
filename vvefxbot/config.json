@@ -98,7 +98,7 @@
     "enabled": true,
     "timeframe_bias": "D1",
     "timeframe_entry": "H1",
-    "d1_candles_for_range": 2,
+    "d1_candles_for_range": 20,
     "zgmt_window_start_ist": "05:30",
     "zgmt_window_end_ist": "08:00",
     "zgmt_ny_midnight_ist": "09:30",
