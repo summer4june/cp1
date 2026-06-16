@@ -30,6 +30,7 @@ class Config:
     correlation_groups: Dict[str, List[str]]
     demo_mode: bool
     trading_pool_size: float
+    require_telegram_approval: bool
     
     # From .env
     mt5_login: int
@@ -244,6 +245,7 @@ class ConfigEngine:
             correlation_groups=json_data["correlation_groups"],
             demo_mode=bool(json_data["demo_mode"]),
             trading_pool_size=float(json_data["trading_pool_size"]),
+            require_telegram_approval=bool(json_data.get("require_telegram_approval", True)),
             mt5_login=env_values["mt5_login"],
             mt5_password=env_values["mt5_password"],
             mt5_server=env_values["mt5_server"],

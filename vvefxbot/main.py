@@ -3,6 +3,7 @@ import threading
 import traceback
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from core.configengine import ConfigEngine
 from core.logger import get_logger
@@ -249,6 +250,8 @@ def scan_pair(
     correlation_filter: CorrelationFilter,
     state_engine: StateEngine,
     telegram_bridge: TelegramBridge,
+    execution_engine: Any,
+    config: Any,
     today: str,
 ):
     """
@@ -374,15 +377,24 @@ def scan_pair(
                 }
 
                 state_engine.insert_signal(signal)
-                sent = telegram_bridge.send_signal(signal, lot_size, usd_metrics)
-                if sent:
-                    # Mark signal as CONFIRMED sent to Telegram — prevents re-sending on restart
-                    state_engine.mark_signal_sent(signal_id)
-                    logger.info(f"[{pair}] A+ signal {signal_id} ({scanner_name}) sent to Telegram. Awaiting approval.")
-                    # We sent a valid signal, stop checking other scanners for this pair this cycle
-                    break
+                
+                if config.require_telegram_approval:
+                    sent = telegram_bridge.send_signal(signal, lot_size, usd_metrics)
+                    if sent:
+                        # Mark signal as CONFIRMED sent to Telegram — prevents re-sending on restart
+                        state_engine.mark_signal_sent(signal_id)
+                        logger.info(f"[{pair}] A+ signal {signal_id} ({scanner_name}) sent to Telegram. Awaiting approval.")
+                        # We sent a valid signal, stop checking other scanners for this pair this cycle
+                        break
+                    else:
+                        logger.error(f"[{pair}] Failed to send signal {signal_id} to Telegram.")
                 else:
-                    logger.error(f"[{pair}] Failed to send signal {signal_id} to Telegram.")
+                    # Bypass Telegram and auto-execute
+                    logger.info(f"[{pair}] Auto-approving signal {signal_id} ({scanner_name}) (Telegram bypassed via config).")
+                    state_engine.mark_signal_sent(signal_id)
+                    if execution_engine:
+                        execution_engine.execute_signal(signal_id)
+                    break
 
     except Exception as e:
         logger.error(f"[{pair}] Exception during pair scan: {e}\n{traceback.format_exc()}")
@@ -547,7 +559,7 @@ def main():
                         pair, session, killzone,
                         session_engine, scanners, risk_engine,
                         correlation_filter, state_engine,
-                        telegram_bridge, today,
+                        telegram_bridge, execution_engine, config, today,
                     )
             # ThreadPoolExecutor __exit__ waits for all futures to finish
 
