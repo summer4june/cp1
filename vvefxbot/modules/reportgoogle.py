@@ -155,11 +155,12 @@ class GoogleSheetReporter:
         tp2_pips = round(abs(entry_price - tp2_price) / point, 1) if tp2_price > 0 and point else 0.0
         tp3_pips = signal.get("tp3_pips", round(abs(entry_price - tp3_price) / point, 1)) if signal and tp3_price > 0 and point else 0.0
 
-        # USD values
-        sl_usd = float(trade.get("risk_amount", 0.0))
-        tp1_usd = sl_usd
-        tp2_usd = sl_usd * 2.0
-        tp3_usd = sl_usd * 3.0
+        # USD values (using exact metrics from MT5 if available)
+        sl_usd = float(trade.get("sl_usd") or trade.get("risk_amount", 0.0))
+        tp1_usd = float(trade.get("tp1_usd") or sl_usd)
+        tp2_usd = float(trade.get("tp2_usd") or sl_usd * 2.0)
+        tp3_usd = float(trade.get("tp3_usd") or sl_usd * 3.0)
+        margin_used = float(trade.get("margin_used") or 0.0)
 
         result = trade.get("result", "") or ""
         max_level = ""
@@ -204,7 +205,7 @@ class GoogleSheetReporter:
             tp3_pips,                                                       # 31. tp3_pips
             now_ist.strftime("%m"),                                         # 32. month
             now_ist.isocalendar()[1],                                       # 33. week_no
-            "",  # margin_used                                              # 34. margin_used
+            round(margin_used, 2) if margin_used > 0 else "",               # 34. margin_used
             signal.get("score", 0.0) if signal else 0.0                     # 35. score
         ]
 

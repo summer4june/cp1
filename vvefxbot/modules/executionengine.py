@@ -157,7 +157,13 @@ class ExecutionEngine:
             )
             lot_size = round(fixed_lot, 2)
 
-        # Check config to determine final TP for MT5
+        # Recalculate true risk amount in USD based on final lot_size
+        try:
+            pip_val = self.risk._get_pip_value(pair)
+            actual_risk_usd = lot_size * sl_pips * pip_val
+            risk_amount = round(actual_risk_usd, 2)
+        except Exception as e:
+            logger.warning(f"[{pair}] Could not calc actual risk_amount: {e}")
         rr_format = self.config.trade_management.get("rr_format", "1:2")
         mt5_tp = signal.get("tp3_price") if rr_format == "1:3" and signal.get("tp3_price") else signal.get("tp2_price", 0.0)
 
@@ -217,6 +223,31 @@ class ExecutionEngine:
         now_utc = datetime.now(timezone.utc).isoformat()
         trade_id = str(uuid.uuid4())
 
+        # Exact USD calculations using MT5
+        try:
+            import MetaTrader5 as mt5_lib
+            order_type_m = mt5_lib.ORDER_TYPE_BUY if direction == "BUY" else mt5_lib.ORDER_TYPE_SELL
+            
+            margin_usd = mt5_lib.order_calc_margin(order_type_m, pair, lot_size, executed_price)
+            margin_usd = margin_usd if margin_usd else 0.0
+
+            sl_usd = mt5_lib.order_calc_profit(order_type_m, pair, lot_size, executed_price, signal["sl_price"])
+            sl_usd = abs(sl_usd) if sl_usd else risk_amount
+
+            tp1_usd = mt5_lib.order_calc_profit(order_type_m, pair, lot_size, executed_price, signal["tp1_price"])
+            tp1_usd = abs(tp1_usd) if tp1_usd else 0.0
+
+            tp2_price = signal.get("tp2_price", 0.0)
+            tp2_usd = mt5_lib.order_calc_profit(order_type_m, pair, lot_size, executed_price, tp2_price) if tp2_price > 0 else 0.0
+            tp2_usd = abs(tp2_usd) if tp2_usd else 0.0
+
+            tp3_price = signal.get("tp3_price", 0.0)
+            tp3_usd = mt5_lib.order_calc_profit(order_type_m, pair, lot_size, executed_price, tp3_price) if tp3_price > 0 else 0.0
+            tp3_usd = abs(tp3_usd) if tp3_usd else 0.0
+        except Exception as e:
+            logger.error(f"[{pair}] Error calculating MT5 metrics: {e}")
+            margin_usd, sl_usd, tp1_usd, tp2_usd, tp3_usd = 0.0, risk_amount, 0.0, 0.0, 0.0
+
         trade_data = {
             "trade_id": trade_id,
             "signal_id": signal_id,
@@ -234,6 +265,11 @@ class ExecutionEngine:
             "status": "PENDING" if is_pending else "OPEN",
             "result": None,
             "profit_usd": 0.0,
+            "sl_usd": sl_usd,
+            "tp1_usd": tp1_usd,
+            "tp2_usd": tp2_usd,
+            "tp3_usd": tp3_usd,
+            "margin_used": margin_usd,
         }
         self.state.insert_trade(trade_data)
 

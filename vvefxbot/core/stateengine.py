@@ -97,7 +97,10 @@ class StateEngine:
                     lot_total REAL, risk_amount REAL, execution_time TEXT,
                     status TEXT, result TEXT, profit_usd REAL,
                     tp1_hit INTEGER DEFAULT 0, tp2_hit INTEGER DEFAULT 0,
-                    be_moved INTEGER DEFAULT 0, current_sl REAL
+                    be_moved INTEGER DEFAULT 0, current_sl REAL,
+                    sl_usd REAL DEFAULT 0.0, tp1_usd REAL DEFAULT 0.0,
+                    tp2_usd REAL DEFAULT 0.0, tp3_usd REAL DEFAULT 0.0,
+                    margin_used REAL DEFAULT 0.0
                 )
                 """)
 
@@ -109,6 +112,11 @@ class StateEngine:
                     "tp2_hit": "INTEGER DEFAULT 0",
                     "be_moved": "INTEGER DEFAULT 0",
                     "current_sl": "REAL",
+                    "sl_usd": "REAL DEFAULT 0.0",
+                    "tp1_usd": "REAL DEFAULT 0.0",
+                    "tp2_usd": "REAL DEFAULT 0.0",
+                    "tp3_usd": "REAL DEFAULT 0.0",
+                    "margin_used": "REAL DEFAULT 0.0",
                 }
                 for col, col_type in _te_migrations.items():
                     if cols and col not in cols:
@@ -680,6 +688,8 @@ class StateEngine:
                 logger.error(f"Error inserting skip: {e}")
             finally:
                 self._close_connection(conn)
+
+
 
     def insert_event(self, trade_id: str, event_type: str, price: float) -> None:
         """Logs a trade management event."""
