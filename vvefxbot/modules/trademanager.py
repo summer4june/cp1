@@ -362,6 +362,20 @@ class TradeManager:
                 # Still mark TP1 so we don't keep retrying
                 self.state.update_trade_tp1_hit(trade_id)
                 self.state.insert_event(trade_id, "TP1_HIT", current_price)
+                
+                msg = (
+                    f"📊 *TP1 Hit — No Partial Close*\n"
+                    f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                    f"Price: `{current_price:.5f}`\n"
+                    f"_Remaining lot ({live_volume:.4f}) is too small to split._"
+                )
+                self._send_alert(msg)
+                
+                if self.reporter:
+                    updated_trade = self.state.get_trade(trade_id)
+                    signal = self.state.get_signal(trade.get("signal_id", ""))
+                    self.reporter.log_trade(updated_trade, signal)
+
             else:
                 tp1_close = self.mt5.close_partial(ticket, partial_lot)
                 if tp1_close["success"]:
@@ -446,6 +460,30 @@ class TradeManager:
                 logger.warning(f"[{pair}] Partial lot rounded to zero. Skipping TP2 close.")
                 self.state.update_trade_tp2_hit(trade_id)
                 self.state.insert_event(trade_id, "TP2_HIT", current_price)
+                
+                # Move SL to TP1 even if partial close is skipped
+                be_result = self.mt5.modify_sl(ticket, tp1_price)
+                sl_msg = ""
+                if be_result["success"]:
+                    self.state.update_trade_current_sl(trade_id, tp1_price)
+                    self.state.insert_event(trade_id, "SL_MOVED_TP1", tp1_price)
+                    sl_msg = f"\nSL moved to TP1: `{tp1_price:.5f}`"
+                else:
+                    logger.error(f"[{pair}] SL->TP1 modification failed on zero-lot TP2: {be_result['error']}")
+
+                msg = (
+                    f"✅ *TP2 Hit — No Partial Close*\n"
+                    f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                    f"Price: `{current_price:.5f}`{sl_msg}\n"
+                    f"_Remaining lot ({live_volume:.4f}) is too small to split. Riding TP3..._"
+                )
+                self._send_alert(msg)
+                
+                if self.reporter:
+                    updated_trade = self.state.get_trade(trade_id)
+                    signal = self.state.get_signal(trade.get("signal_id", ""))
+                    self.reporter.log_trade(updated_trade, signal)
+
             else:
                 close_result = self.mt5.close_partial(ticket, close_lot)
                 if close_result["success"]:
