@@ -198,10 +198,14 @@ class MT5Connector:
         rates = mt5.copy_rates_from_pos(symbol, mt5_tf, 0, count)
 
         # Trigger a broker sync if we received significantly fewer candles than requested.
-        # Threshold: 90% of requested count, minimum 10 candles.
+        # Threshold: 90% of requested count, minimum 10 candles (or `count` if count < 10).
         # This avoids panic-retries for large requests where 1-2 missing bars is normal,
         # while still catching genuine data gaps (e.g. 2 bars returned for an H1 480 request).
-        min_acceptable = max(10, int(count * 0.90))
+        if count < 10:
+            min_acceptable = count
+        else:
+            min_acceptable = max(10, int(count * 0.90))
+            
         if rates is None or len(rates) < min_acceptable:
             logger.warning(f"Missing {timeframe} candles for {symbol} (Got {len(rates) if rates is not None else 0}/{count}, need {min_acceptable}). Forcing MT5 terminal to sync with broker...")
 
