@@ -196,43 +196,45 @@ class ScannerZGMT:
     # Step 2 — Identify 0 GMT open price from today's H1 candles
     # ──────────────────────────────────────────────────────────────────
 
+    def _get_broker_utc_offset_hours(self, pair: str) -> int:
+        """Calculate the broker's offset from UTC in hours."""
+        tick = self.mt5.get_tick(pair)
+        if not tick or "time" not in tick:
+            return 0
+        real_utc_ts = datetime.now(timezone.utc).timestamp()
+        broker_ts = tick["time"]
+        offset_seconds = broker_ts - real_utc_ts
+        return round(offset_seconds / 3600.0)
+
     def _get_zgmt_price(self, pair: str) -> tuple[float | None, bool]:
         """
         Fetch the H1 candle open price that corresponds to today's 0 GMT
         (which is 00:00 UTC = 5:30 AM IST).
-
-        Returns:
-            Tuple[float | None, bool]: (price, is_structural_absence)
         """
         now_utc = self._utc_now()
-        # Today's 0 GMT is midnight UTC of the current calendar day (UTC)
         target_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        offset_hours = self._get_broker_utc_offset_hours(pair)
+        target_broker_datetime = target_utc + timedelta(hours=offset_hours)
 
-        # Fetch last 30 H1 candles to reliably find today's midnight bar
         candles = self.mt5.get_candles(pair, "H1", count=30)
         if candles is None or candles.empty:
             logger.debug(f"[{pair}] ZGMT: No H1 candles returned.")
             return None, False
 
-        # candle["time"] is UTC-aware after MT5Connector processing
         for _, row in candles.iterrows():
             candle_time = row["time"]
-            # Normalize to UTC-aware if needed
             if candle_time.tzinfo is None:
                 candle_time = candle_time.replace(tzinfo=timezone.utc)
-            # Match the candle that opened exactly at 0 GMT (00:00 UTC)
-            if (candle_time.year == target_utc.year and
-                    candle_time.month == target_utc.month and
-                    candle_time.day == target_utc.day and
-                    candle_time.hour == 0 and
-                    candle_time.minute == 0):
+            if (candle_time.year == target_broker_datetime.year and
+                    candle_time.month == target_broker_datetime.month and
+                    candle_time.day == target_broker_datetime.day and
+                    candle_time.hour == target_broker_datetime.hour and
+                    candle_time.minute == target_broker_datetime.minute):
                 zgmt_price = float(row["open"])
-                logger.debug(f"[{pair}] ZGMT: Found 0 GMT open price = {zgmt_price:.5f} at {candle_time}")
+                logger.debug(f"[{pair}] ZGMT: Found 0 GMT open price = {zgmt_price:.5f} at {candle_time} (offset {offset_hours}h)")
                 return zgmt_price, False
 
-        # If the candle is not found, determine if it's a permanent structural absence.
-        # If we are within the first 2 hours of 0 GMT (00:00 - 01:59 UTC), the candle might just be delayed
-        # or waiting for its first tick, so we should NOT permanently finalize the day.
         is_structural = now_utc.hour >= 2
         logger.debug(f"[{pair}] ZGMT: 0 GMT H1 candle not found in fetched data. is_structural={is_structural}")
         return None, is_structural

@@ -171,6 +171,20 @@ class GoogleSheetReporter:
         elif result == "TP3_HIT":
             max_level = "tp3"
 
+        # Calculate proper open time
+        exec_time_str = trade.get("execution_time")
+        if exec_time_str:
+            try:
+                exec_dt_utc = datetime.fromisoformat(exec_time_str)
+                # Convert UTC to IST
+                ist_tz = timezone(timedelta(hours=5, minutes=30))
+                exec_dt_ist = exec_dt_utc.astimezone(ist_tz)
+                open_time_ist = exec_dt_ist.strftime("%Y-%m-%d %H:%M:%S IST")
+            except Exception:
+                open_time_ist = now_ist.strftime("%Y-%m-%d %H:%M:%S IST")
+        else:
+            open_time_ist = now_ist.strftime("%Y-%m-%d %H:%M:%S IST")
+
         return [
             trade.get("trade_id", ""),                                      # 1. trade_id
             pair,                                                           # 2. pair
@@ -190,7 +204,7 @@ class GoogleSheetReporter:
             tp3_usd,                                                        # 16. tp3_usd
             trade.get("lot_total", 0.0),                                    # 17. lot
             "",  # open_bar                                                 # 18. open_bar
-            now_ist.strftime("%Y-%m-%d %H:%M:%S IST"),                      # 19. open_time
+            open_time_ist,                                                  # 19. open_time
             "",  # close_bar                                                # 20. close_bar
             close_time_ist,                                                 # 21. close_time
             status,                                                         # 22. status
