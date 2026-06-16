@@ -12,7 +12,7 @@ def test_mt5_data_fetch():
     
     print("1. Loading config...")
     config_engine = ConfigEngine()
-    config = config_engine.get_config()
+    config = config_engine.config
     print("   ✅ Config loaded.")
     
     print("\n2. Initializing MT5 Connector...")

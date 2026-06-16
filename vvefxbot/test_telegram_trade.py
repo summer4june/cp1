@@ -11,7 +11,7 @@ from modules.telegrambridge import TelegramBridge
 def main():
     print("Loading config...")
     config_engine = ConfigEngine()
-    config = config_engine.get_config()
+    config = config_engine.config
 
     print("Initializing TelegramBridge...")
     # Initialize with None for things we don't need in this test

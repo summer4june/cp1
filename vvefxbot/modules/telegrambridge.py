@@ -324,15 +324,22 @@ class TelegramBridge:
         buttons.append(InlineKeyboardButton("✍️ Manual Reason", callback_data=f"MANUAL_REASON_{signal_id}"))
         markup.add(*buttons)
 
+        # First, update the specific message where the user clicked NO
+        try:
+            if trigger_chat_id and message_id:
+                self.bot.edit_message_reply_markup(chat_id=trigger_chat_id, message_id=message_id, reply_markup=markup)
+        except Exception as e:
+            logger.error(f"Failed to edit skip reason keyboard for trigger chat: {e}")
+
+        # Next, clear the YES/NO buttons from any other chats this signal was broadcast to
         if pending and "messages" in pending:
             for cid, mid in pending["messages"]:
-                try:
-                    if str(cid) == str(trigger_chat_id):
-                        self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=markup)
-                    else:
+                # Only clear if it's a different message ID to avoid overwriting the markup we just set
+                if str(mid) != str(message_id):
+                    try:
                         self.bot.edit_message_reply_markup(chat_id=cid, message_id=mid, reply_markup=None)
-                except Exception as e:
-                    logger.error(f"Failed to edit skip reason keyboard for {cid}: {e}")
+                    except Exception:
+                        pass
 
     def handle_reason_callback(self, signal_id: str, reason: str, trigger_chat_id: Optional[int], message_id: int = None) -> None:
         """
