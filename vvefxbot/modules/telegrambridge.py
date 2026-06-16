@@ -3,6 +3,7 @@ import pytz
 from datetime import datetime, timezone, timedelta
 from typing import Callable, Dict, Any, Optional
 import telebot
+from telebot import apihelper
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from core.logger import get_logger
@@ -48,6 +49,10 @@ class TelegramBridge:
         self.state = state_engine
         self.execution_callback = execution_callback
         self.reporter = reporter
+
+        if self.config.telegram_proxy:
+            logger.info(f"Telegram proxy configured: {self.config.telegram_proxy}")
+            apihelper.proxy = {'https': self.config.telegram_proxy}
 
         self.bot = telebot.TeleBot(self.config.telegram_token, threaded=False)
         self.chat_ids = self.config.telegram_chat_ids

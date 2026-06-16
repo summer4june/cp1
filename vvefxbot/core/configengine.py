@@ -41,6 +41,7 @@ class Config:
     google_creds_path: str
     mt5_path: Optional[str] = None
     google_denied_sheet_id: Optional[str] = None
+    telegram_proxy: Optional[str] = None
 
 class ConfigEngine:
     """Engine to load, validate, and provide access to the bot configuration."""
@@ -250,7 +251,8 @@ class ConfigEngine:
             telegram_chat_ids=chat_ids,
             google_sheet_id=env_values["google_sheet_id"],
             google_creds_path=env_values["google_creds_path"],
-            google_denied_sheet_id=os.getenv("GOOGLE_DENIED_SHEET_ID")
+            google_denied_sheet_id=os.getenv("GOOGLE_DENIED_SHEET_ID"),
+            telegram_proxy=os.getenv("TELEGRAM_PROXY")
         )
 
     def get_config(self) -> Config:
