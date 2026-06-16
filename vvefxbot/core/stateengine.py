@@ -278,6 +278,18 @@ class StateEngine:
             finally:
                 self._close_connection(conn)
 
+    def update_trade_ticket(self, trade_id: str, ticket_id: str) -> None:
+        """Updates the ticket_id of a trade (used when a limit order fills and changes ticket)."""
+        with self.lock:
+            conn = self._get_connection()
+            try:
+                conn.execute("UPDATE trades_executed SET ticket_id = ? WHERE trade_id = ?", (ticket_id, trade_id))
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Error updating trade ticket: {e}")
+            finally:
+                self._close_connection(conn)
+
     def update_trade_tp1_hit(self, trade_id: str) -> None:
         """Marks TP1 as hit for a trade."""
         with self.lock:

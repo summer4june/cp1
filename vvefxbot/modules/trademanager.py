@@ -643,20 +643,70 @@ class TradeManager:
             # Still pending, nothing to do
             return
 
-        if self._ticket_exists_in_mt5(ticket):
-            # Order triggered and is now an open position
-            msg = f"🔔 Pending Order TRIGGERED | {pair} | Ticket: {ticket}"
-            logger.info(msg)
-            self.telegram.send_alert(msg)
-            self.state.update_trade_status(trade_id, "OPEN", "PENDING_TRIGGERED", 0.0)
-        else:
-            # Not in orders, not in positions -> Cancelled or instantly stopped out
-            profit_usd = self.mt5.get_historical_profit(ticket)
-            result = "WIN" if profit_usd > 0 else "LOSS" if profit_usd < 0 else "CANCELLED"
-            msg = f"🗑️ Pending Order REMOVED/FILLED | {pair} | {result} ({profit_usd:.2f} USD)"
-            logger.info(msg)
-            self.telegram.send_alert(msg)
-            self.state.update_trade_status(trade_id, "CLOSED", result, profit_usd)
+        import MetaTrader5 as mt5
+        # The order is no longer in active orders. Check if it was filled.
+        history_orders = mt5.history_orders_get(ticket=ticket)
+        if history_orders and len(history_orders) > 0:
+            h_order = history_orders[0]
+            if h_order.state == mt5.ORDER_STATE_FILLED:
+                # Order was filled! Find the position ID.
+                position_id = getattr(h_order, "position_id", ticket)
+                
+                # Check if this position is actually open in MT5
+                if self._ticket_exists_in_mt5(position_id):
+                    if str(position_id) != str(ticket):
+                        self.state.update_trade_ticket(trade_id, str(position_id))
+                        ticket_display = f"{ticket} -> {position_id}"
+                    else:
+                        ticket_display = str(ticket)
+                        
+                    msg = f"🔔 Pending Order TRIGGERED | {pair} | Ticket: {ticket_display}"
+                    logger.info(msg)
+                    self.telegram.send_alert(msg)
+                    self.state.update_trade_status(trade_id, "OPEN", "PENDING_TRIGGERED", 0.0)
+                    
+                    if self.reporter:
+                        updated_trade = self.state.get_trade(trade_id)
+                        signal = self.state.get_signal(trade.get("signal_id", ""))
+                        self.reporter.log_trade(updated_trade, signal)
+                    return
+                else:
+                    # It was filled, but the position is already closed!
+                    profit_usd = self.mt5.get_historical_profit(position_id)
+                    result = "WIN" if profit_usd > 0 else "LOSS" if profit_usd < 0 else "BREAKEVEN"
+                    msg = f"⚡ Pending Order TRIGGERED & INSTANTLY CLOSED | {pair} | {result} ({profit_usd:.2f} USD)"
+                    logger.info(msg)
+                    self.telegram.send_alert(msg)
+                    self.state.update_trade_status(trade_id, "CLOSED", result, profit_usd)
+                    
+                    if self.reporter:
+                        updated_trade = self.state.get_trade(trade_id)
+                        signal = self.state.get_signal(trade.get("signal_id", ""))
+                        self.reporter.log_trade(updated_trade, signal)
+                    return
+                    
+            elif h_order.state in [mt5.ORDER_STATE_CANCELED, mt5.ORDER_STATE_REJECTED, mt5.ORDER_STATE_EXPIRED]:
+                msg = f"🗑️ Pending Order CANCELLED/EXPIRED | {pair} | Ticket: {ticket}"
+                logger.info(msg)
+                self.telegram.send_alert(msg)
+                self.state.update_trade_status(trade_id, "CLOSED", "CANCELLED", 0.0)
+                
+                if self.reporter:
+                    updated_trade = self.state.get_trade(trade_id)
+                    signal = self.state.get_signal(trade.get("signal_id", ""))
+                    self.reporter.log_trade(updated_trade, signal)
+                return
+
+        # Fallback if it's somehow completely missing
+        msg = f"❓ Pending Order MISSING from MT5 | {pair} | Ticket: {ticket}"
+        logger.info(msg)
+        self.telegram.send_alert(msg)
+        self.state.update_trade_status(trade_id, "CLOSED", "CANCELLED", 0.0)
+        
+        if self.reporter:
+            updated_trade = self.state.get_trade(trade_id)
+            signal = self.state.get_signal(trade.get("signal_id", ""))
+            self.reporter.log_trade(updated_trade, signal)
 
     def start_monitoring(self) -> None:
         """Start the trade monitoring loop in a daemon background thread."""
