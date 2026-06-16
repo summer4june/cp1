@@ -347,15 +347,23 @@ class StateEngine:
                 self._close_connection(conn)
 
     def update_trade_status(self, trade_id: str, status: str, result: str, profit_usd: float) -> None:
-        """Updates the status, result, and profit of a trade."""
+        """Updates the status, result, and profit of a trade. If status is OPEN, updates execution_time to now."""
         with self.lock:
             conn = self._get_connection()
             try:
-                conn.execute("""
-                    UPDATE trades_executed 
-                    SET status = ?, result = ?, profit_usd = ?
-                    WHERE trade_id = ?
-                """, (status, result, profit_usd, trade_id))
+                if status == "OPEN":
+                    now_str = datetime.now(timezone.utc).isoformat()
+                    conn.execute("""
+                        UPDATE trades_executed 
+                        SET status = ?, result = ?, profit_usd = ?, execution_time = ?
+                        WHERE trade_id = ?
+                    """, (status, result, profit_usd, now_str, trade_id))
+                else:
+                    conn.execute("""
+                        UPDATE trades_executed 
+                        SET status = ?, result = ?, profit_usd = ?
+                        WHERE trade_id = ?
+                    """, (status, result, profit_usd, trade_id))
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Error updating trade status: {e}")
