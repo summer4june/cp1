@@ -103,7 +103,21 @@ class TradeManager:
         return round(floored, 8)
 
     def _get_current_price(self, pair: str, direction: str) -> Optional[float]:
-        """Return the last M1 close price for TP/SL monitoring."""
+        """
+        Return live bid/ask price for real-time TP/SL monitoring.
+        BUY trades compare against ASK (the price at which position would close at profit).
+        SELL trades compare against BID.
+        Falls back to last M1 close if tick is unavailable.
+        """
+        try:
+            tick = mt5.symbol_info_tick(pair)
+            if tick is not None:
+                # For BUY: profit comes when bid >= TP (bid is what market will pay us)
+                # For SELL: profit comes when ask <= TP (ask is what market charges to close)
+                return float(tick.bid) if direction == "BUY" else float(tick.ask)
+        except Exception:
+            pass
+        # Fallback: last M1 close
         candles = self.mt5.get_candles(pair, "M1", count=1)
         if candles is None or candles.empty:
             return None
@@ -134,10 +148,30 @@ class TradeManager:
         return 0.0
 
     def _price_reached(self, current: float, target: float, direction: str) -> bool:
-        """True if price has crossed the target in the trade direction."""
+        """
+        True if price has crossed the target in the trade direction.
+        CRITICAL: Returns False if target is 0 or negative — prevents accidental
+        TP2/TP3 triggers when those prices are unset (default 0.0 in DB).
+        """
+        if target is None or target <= 0.0:
+            return False  # Guard: unset target must NEVER trigger
         if direction == "BUY":
             return current >= target
         return current <= target
+
+    # ------------------------------------------------------------------
+    # TELEGRAM HELPER
+    # ------------------------------------------------------------------
+
+    def _send_alert(self, msg: str) -> None:
+        """Send a Telegram alert, guarding against self.telegram being None."""
+        if self.telegram is None:
+            logger.warning(f"TradeManager: Telegram not wired. Dropping: {msg[:80]}")
+            return
+        try:
+            self.telegram.send_alert(msg)
+        except Exception as e:
+            logger.error(f"TradeManager: send_alert failed: {e}")
 
     # ------------------------------------------------------------------
     # DAILY GUARDS
@@ -157,7 +191,7 @@ class TradeManager:
         if consec >= 3:
             alert = f"⚠️ 3 consecutive losses reached for {pair}. Session paused."
             logger.warning(alert)
-            self.telegram.send_alert(alert)
+            self._send_alert(alert)
 
         max_loss = self.config.trading_pool_size * (_DAILY_LOSS_THRESHOLD_PCT / 100.0)
         if daily.get("total_loss_usd", 0.0) >= max_loss:
@@ -167,7 +201,7 @@ class TradeManager:
                 f"Bot disabled for today."
             )
             logger.warning(alert)
-            self.telegram.send_alert(alert)
+            self._send_alert(alert)
 
     # ------------------------------------------------------------------
     # CORE MONITORING
@@ -289,6 +323,14 @@ class TradeManager:
                 )
             return
 
+        # ── Fallback guard: position closed but state didn't catch it ──
+        if not ticket_alive:
+            logger.warning(f"[{pair}] Fallback: Ticket {ticket} dead but not caught by TP flow.")
+            self._handle_unexpected_close(
+                trade, trade_id, pair, ticket,
+                current_price, entry_price, direction, today
+            )
+
     def _execute_tp1(
         self,
         trade: Dict, trade_id: str, pair: str, direction: str,
@@ -324,15 +366,17 @@ class TradeManager:
                 tp1_close = self.mt5.close_partial(ticket, partial_lot)
                 if tp1_close["success"]:
                     partial_profit = self._get_profit_for_ticket(ticket)
+                    remaining_lot = round(live_volume - partial_lot, 8)
                     self.state.update_trade_tp1_hit(trade_id)
                     self.state.insert_event(trade_id, "TP1_HIT", current_price)
                     msg = (
-                        f"📊 TP1 Hit — Closed {partial_lot:.4f} lot "
-                        f"({self._partial_tp_fraction*100:.0f}%) | "
-                        f"{pair} | Ticket: {ticket} | Float P&L: {partial_profit:.2f} USD"
+                        f"📊 *TP1 Hit — Partial Close*\n"
+                        f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                        f"Closed: `{partial_lot:.4f}` lot ({self._partial_tp_fraction*100:.0f}%) | Remaining: `{remaining_lot:.4f}` lot\n"
+                        f"Price: `{current_price:.5f}` | Float P&L: `{partial_profit:.2f} USD`"
                     )
-                    logger.info(msg)
-                    self.telegram.send_alert(msg)
+                    logger.info(f"[{pair}] TP1 Hit: closed {partial_lot:.4f} | remaining {remaining_lot:.4f}")
+                    self._send_alert(msg)
                 else:
                     logger.error(
                         f"[{pair}] TP1 partial close failed: {tp1_close['error']}. "
@@ -343,7 +387,11 @@ class TradeManager:
             # ── No partial close: just mark TP1 reached ───────────────
             self.state.update_trade_tp1_hit(trade_id)
             self.state.insert_event(trade_id, "TP1_HIT", current_price)
-            logger.info(f"[{pair}] TP1 reached (partial_tp_enabled=False) — SL → BE+buffer only.")
+            logger.info(f"[{pair}] TP1 reached (partial_tp_enabled=False) — SL -> BE+buffer only.")
+            self._send_alert(
+                f"📊 *TP1 Reached — Moving SL to Breakeven*\n"
+                f"Pair: `{pair}` | Ticket: `{ticket}` | Price: `{current_price:.5f}`"
+            )
 
         # ── Move SL to BE + buffer pips ───────────────────────────────
         buffer_price = self._pips_to_price(pair, self._be_buffer_pips)
@@ -358,14 +406,15 @@ class TradeManager:
             self.state.update_trade_current_sl(trade_id, new_sl)
             self.state.insert_event(trade_id, "BE_MOVED", new_sl)
             msg = (
-                f"🔒 SL → BE+{self._be_buffer_pips:.0f}pips @ {new_sl:.5f} | "
-                f"{pair} | Ticket: {ticket}"
+                f"🔒 *SL Moved to Breakeven*\n"
+                f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                f"New SL: `{new_sl:.5f}` (Entry +{self._be_buffer_pips:.0f} pips buffer)"
             )
-            logger.info(msg)
-            self.telegram.send_alert(msg)
+            logger.info(f"[{pair}] SL -> BE+{self._be_buffer_pips:.0f}pips @ {new_sl:.5f}")
+            self._send_alert(msg)
         else:
             logger.error(
-                f"[{pair}] SL→BE modification failed: {be_result['error']}"
+                f"[{pair}] SL->BE modification failed: {be_result['error']}"
             )
 
     def _execute_tp2(
@@ -400,6 +449,7 @@ class TradeManager:
             else:
                 close_result = self.mt5.close_partial(ticket, close_lot)
                 if close_result["success"]:
+                    remaining_lot = round(live_volume - close_lot, 8)
                     self.state.update_trade_tp2_hit(trade_id)
                     self.state.insert_event(trade_id, "TP2_HIT", current_price)
                     
@@ -409,9 +459,14 @@ class TradeManager:
                         self.state.update_trade_current_sl(trade_id, tp1_price)
                         self.state.insert_event(trade_id, "SL_MOVED_TP1", tp1_price)
                     
-                    msg = f"✅ TP2 Hit — Closed {close_lot:.4f} lot | SL → TP1 | {pair} | Ticket: {ticket}"
-                    logger.info(msg)
-                    self.telegram.send_alert(msg)
+                    msg = (
+                        f"✅ *TP2 Hit — Partial Close*\n"
+                        f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                        f"Closed: `{close_lot:.4f}` lot | Remaining: `{remaining_lot:.4f}` lot\n"
+                        f"SL moved to TP1: `{tp1_price:.5f}` | Riding TP3..."
+                    )
+                    logger.info(f"[{pair}] TP2 Hit: closed {close_lot:.4f} | remaining {remaining_lot:.4f} | SL->TP1")
+                    self._send_alert(msg)
                 else:
                     logger.error(f"[{pair}] TP2 partial close failed: {close_result['error']}")
         else:
@@ -427,9 +482,14 @@ class TradeManager:
                 self.state.insert_event(trade_id, "TP2_HIT", current_price)
                 self.state.add_daily_profit(today, profit)
                 self.state.reset_consecutive_losses(today)
-                msg = f"✅ TP2 Hit — Trade CLOSED WIN | {pair} | +{profit:.2f} USD"
-                logger.info(msg)
-                self.telegram.send_alert(msg)
+                msg = (
+                    f"✅ *TP2 Hit — Trade CLOSED WIN* 🎉\n"
+                    f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                    f"Lot Closed: `{close_lot:.4f}` | Price: `{current_price:.5f}`\n"
+                    f"Total P&L: `+{profit:.2f} USD`"
+                )
+                logger.info(f"[{pair}] TP2 Hit: CLOSED WIN | +{profit:.2f} USD")
+                self._send_alert(msg)
                 if self.reporter:
                     updated_trade = self.state.get_trade(trade_id)
                     signal = self.state.get_signal(trade.get("signal_id", ""))
@@ -467,9 +527,14 @@ class TradeManager:
             self.state.insert_event(trade_id, "TP3_HIT", current_price)
             self.state.add_daily_profit(today, profit)
             self.state.reset_consecutive_losses(today)
-            msg = f"🏆 TP3 Hit — Trade CLOSED WIN | {pair} | +{profit:.2f} USD"
-            logger.info(msg)
-            self.telegram.send_alert(msg)
+            msg = (
+                f"🏆 *TP3 Hit — Trade FULLY CLOSED WIN* 🔥\n"
+                f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                f"Lot Closed: `{close_lot:.4f}` | Price: `{current_price:.5f}`\n"
+                f"Total P&L: `+{profit:.2f} USD`"
+            )
+            logger.info(f"[{pair}] TP3 Hit: FULLY CLOSED WIN | +{profit:.2f} USD")
+            self._send_alert(msg)
             if self.reporter:
                 updated_trade = self.state.get_trade(trade_id)
                 signal = self.state.get_signal(trade.get("signal_id", ""))
@@ -509,10 +574,10 @@ class TradeManager:
                         self.state.insert_event(trade_id, "TP1_HIT", current_price)
                         self.state.insert_event(trade_id, "BE_MOVED", entry_price)
                         msg = (
-                            f"📊 TP1 Hit (ticket {ticket1} closed) + SL→BE on {ticket2} | {pair}"
+                            f"📊 TP1 Hit (ticket {ticket1} closed) + SL->BE on {ticket2} | {pair}"
                         )
                         logger.info(msg)
-                        self.telegram.send_alert(msg)
+                        self._send_alert(msg)
                     else:
                         logger.error(f"[{pair}] Case B TP1 close failed: {close_result['error']}")
             elif not ticket1_alive:
@@ -532,9 +597,12 @@ class TradeManager:
                         self.state.insert_event(trade_id, "TP2_HIT", current_price)
                         self.state.add_daily_profit(today, profit)
                         self.state.reset_consecutive_losses(today)
-                        msg = f"✅ TP2 Hit — Trade CLOSED WIN | {pair} | +{profit:.2f} USD"
-                        logger.info(msg)
-                        self.telegram.send_alert(msg)
+                        msg = (
+                            f"✅ *TP2 Hit — Trade CLOSED WIN* 🎉\n"
+                            f"Pair: `{pair}` | P&L: `+{profit:.2f} USD`"
+                        )
+                        logger.info(f"[{pair}] Case B TP2 Hit: CLOSED WIN | +{profit:.2f} USD")
+                        self._send_alert(msg)
                         if self.reporter:
                             updated_trade = self.state.get_trade(trade_id)
                             signal = self.state.get_signal(trade.get("signal_id", ""))
@@ -578,12 +646,26 @@ class TradeManager:
         self.state.insert_event(trade_id, event_type, current_price)
 
         if event_type in ["TP2_HIT", "TP3_HIT"]:
-            msg = f"✅ {event_type.replace('_', ' ')} — Trade CLOSED WIN | {pair} | +{profit_usd:.2f} USD"
+            msg = (
+                f"✅ *{event_type.replace('_', ' ')} — Trade CLOSED WIN*\n"
+                f"Pair: `{pair}` | Ticket: `{ticket}` | Price: `{current_price:.5f}`\n"
+                f"P&L: `+{profit_usd:.2f} USD`"
+            )
+        elif result == "BREAKEVEN":
+            msg = (
+                f"🟧 *Trade CLOSED BREAKEVEN*\n"
+                f"Pair: `{pair}` | Ticket: `{ticket}` | Price: `{current_price:.5f}`\n"
+                f"P&L: `{profit_usd:.2f} USD` _(SL at breakeven)_"
+            )
         else:
-            msg = f"{'❌' if result == 'LOSS' else '🔶'} Trade CLOSED {result} ({event_type}) | {pair} | {profit_usd:.2f} USD"
+            msg = (
+                f"❌ *Trade CLOSED {result}*\n"
+                f"Pair: `{pair}` | Ticket: `{ticket}` | Price: `{current_price:.5f}`\n"
+                f"P&L: `{profit_usd:.2f} USD`"
+            )
         
-        logger.info(msg)
-        self.telegram.send_alert(msg)
+        logger.info(f"[{pair}] Trade {trade_id} closed: {result} | {profit_usd:.2f} USD")
+        self._send_alert(msg)
 
         if self.reporter:
             updated_trade = self.state.get_trade(trade_id)
@@ -627,7 +709,7 @@ class TradeManager:
             try:
                 panic = self.vault.check_drawdown(self.state, self.mt5, total_unrealized_pnl)
                 if panic:
-                    self.telegram.send_alert("🚨 VAULT DRAWDOWN PANIC 🚨\n-20% Limit Reached. All positions closed and bot disabled for today.")
+                    self._send_alert("🚨 VAULT DRAWDOWN PANIC 🚨\n-20% Limit Reached. All positions closed and bot disabled for today.")
             except Exception as e:
                 logger.error(f"Error checking vault drawdown: {e}")
 
@@ -659,10 +741,18 @@ class TradeManager:
                         ticket_display = f"{ticket} -> {position_id}"
                     else:
                         ticket_display = str(ticket)
-                        
-                    msg = f"🔔 Pending Order TRIGGERED | {pair} | Ticket: {ticket_display}"
-                    logger.info(msg)
-                    self.telegram.send_alert(msg)
+                    
+                    executed_price = trade.get("executed_price", 0.0)
+                    sl = trade.get("sl", 0.0)
+                    tp1 = trade.get("tp1", 0.0)
+                    msg = (
+                        f"🔔 *Pending Order TRIGGERED — Now OPEN*\n"
+                        f"Pair: `{pair}` | Ticket: `{ticket_display}`\n"
+                        f"Entry: `{executed_price:.5f}` | SL: `{sl:.5f}` | TP1: `{tp1:.5f}`\n"
+                        f"TradeManager is now managing this position."
+                    )
+                    logger.info(f"[{pair}] Pending order triggered: ticket {ticket_display}")
+                    self._send_alert(msg)
                     self.state.update_trade_status(trade_id, "OPEN", "PENDING_TRIGGERED", 0.0)
                     
                     if self.reporter:
@@ -674,9 +764,13 @@ class TradeManager:
                     # It was filled, but the position is already closed!
                     profit_usd = self.mt5.get_historical_profit(position_id)
                     result = "WIN" if profit_usd > 0 else "LOSS" if profit_usd < 0 else "BREAKEVEN"
-                    msg = f"⚡ Pending Order TRIGGERED & INSTANTLY CLOSED | {pair} | {result} ({profit_usd:.2f} USD)"
-                    logger.info(msg)
-                    self.telegram.send_alert(msg)
+                    icon = "✅" if result == "WIN" else "❌" if result == "LOSS" else "🟧"
+                    msg = (
+                        f"{icon} *Pending Order TRIGGERED & INSTANTLY CLOSED*\n"
+                        f"Pair: `{pair}` | Result: `{result}` | P&L: `{profit_usd:.2f} USD`"
+                    )
+                    logger.info(f"[{pair}] Pending triggered & instantly closed: {result} ({profit_usd:.2f} USD)")
+                    self._send_alert(msg)
                     self.state.update_trade_status(trade_id, "CLOSED", result, profit_usd)
                     
                     if self.reporter:
@@ -686,9 +780,17 @@ class TradeManager:
                     return
                     
             elif h_order.state in [mt5.ORDER_STATE_CANCELED, mt5.ORDER_STATE_REJECTED, mt5.ORDER_STATE_EXPIRED]:
-                msg = f"🗑️ Pending Order CANCELLED/EXPIRED | {pair} | Ticket: {ticket}"
-                logger.info(msg)
-                self.telegram.send_alert(msg)
+                state_name = {
+                    mt5.ORDER_STATE_CANCELED: "CANCELLED",
+                    mt5.ORDER_STATE_REJECTED: "REJECTED",
+                    mt5.ORDER_STATE_EXPIRED: "EXPIRED"
+                }.get(h_order.state, "CANCELLED")
+                msg = (
+                    f"🗑️ *Pending Order {state_name}*\n"
+                    f"Pair: `{pair}` | Ticket: `{ticket}`"
+                )
+                logger.info(f"[{pair}] Pending order {state_name}: ticket {ticket}")
+                self._send_alert(msg)
                 self.state.update_trade_status(trade_id, "CLOSED", "CANCELLED", 0.0)
                 
                 if self.reporter:
@@ -698,9 +800,12 @@ class TradeManager:
                 return
 
         # Fallback if it's somehow completely missing
-        msg = f"❓ Pending Order MISSING from MT5 | {pair} | Ticket: {ticket}"
-        logger.info(msg)
-        self.telegram.send_alert(msg)
+        msg = (
+            f"❓ *Pending Order Missing from MT5*\n"
+            f"Pair: `{pair}` | Ticket: `{ticket}` _(Marked as CANCELLED)_"
+        )
+        logger.info(f"[{pair}] Pending order missing from MT5: ticket {ticket}")
+        self._send_alert(msg)
         self.state.update_trade_status(trade_id, "CLOSED", "CANCELLED", 0.0)
         
         if self.reporter:

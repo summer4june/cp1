@@ -133,6 +133,111 @@ def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, sessi
             
         time.sleep(interval)
 
+def reconcile_open_positions(
+    state_engine: StateEngine,
+    telegram_bridge,
+    reporter=None
+) -> None:
+    """
+    Called once at bot startup.
+
+    Checks all OPEN trades in the DB against live MT5 positions.
+    If a trade is in OPEN status but the MT5 position no longer exists,
+    it means the position was closed (SL/TP/manual) while the bot was offline.
+    We mark it CLOSED in DB and send a Telegram alert so nothing is missed.
+
+    Trades still open get a resume notification so the user knows the bot
+    is managing them again, and what TP stage they are at.
+    """
+    import MetaTrader5 as mt5
+    logger.info("=" * 50)
+    logger.info("BOT STARTUP: Reconciling open positions from DB vs MT5...")
+
+    open_trades = state_engine.get_open_trades()
+    if not open_trades:
+        logger.info("Reconcile: No OPEN trades in DB.")
+        logger.info("=" * 50)
+        return
+
+    reconciled_closed = 0
+
+    for trade in open_trades:
+        trade_id = trade["trade_id"]
+        pair = trade.get("pair", "?")
+        direction = trade.get("direction", "?")
+        ticket_id_raw = str(trade.get("ticket_id", ""))
+        tp1_hit = int(trade.get("tp1_hit", 0))
+        tp2_hit = int(trade.get("tp2_hit", 0))
+        tp3 = float(trade.get("tp3") or 0.0)
+
+        tokens = [t.strip() for t in ticket_id_raw.split(",") if t.strip().isdigit()]
+        if not tokens:
+            logger.warning(f"[{pair}] Reconcile: trade {trade_id} has no valid ticket. Skipping.")
+            continue
+
+        ticket = int(tokens[0])
+        positions = mt5.positions_get(ticket=ticket)
+        position_alive = bool(positions and len(positions) > 0)
+
+        if position_alive:
+            if tp1_hit and tp2_hit and tp3 > 0:
+                stage = "Managing TP3 runner"
+            elif tp1_hit and tp2_hit:
+                stage = "TP2 hit — closing final lot"
+            elif tp1_hit:
+                stage = "TP1 hit — awaiting TP2/TP3"
+            else:
+                stage = "Awaiting TP1"
+            logger.info(f"[{pair}] Reconcile: Trade {trade_id} (ticket {ticket}) still OPEN. Stage: {stage}")
+            msg = (
+                f"\u267b\ufe0f *Bot Restarted \u2014 Resuming Trade*\n"
+                f"Pair: `{pair}` | Dir: `{direction}` | Ticket: `{ticket}`\n"
+                f"Stage: {stage} | TP1: `{'Yes' if tp1_hit else 'No'}` | TP2: `{'Yes' if tp2_hit else 'No'}`"
+            )
+            if telegram_bridge:
+                try:
+                    telegram_bridge.send_alert(msg)
+                except Exception:
+                    pass
+        else:
+            # Position gone from MT5 — closed while bot was offline
+            profit_usd = 0.0
+            try:
+                hist = mt5.history_deals_get(position=ticket)
+                if hist:
+                    profit_usd = round(sum(getattr(d, "profit", 0.0) for d in hist), 2)
+            except Exception:
+                pass
+
+            result = "WIN" if profit_usd > 0.01 else "LOSS" if profit_usd < -0.01 else "BREAKEVEN"
+            state_engine.update_trade_status(trade_id, "CLOSED", result, profit_usd)
+            state_engine.insert_event(trade_id, "MANUAL_CLOSE", 0.0)
+
+            icon = "\u2705" if result == "WIN" else "\u274c" if result == "LOSS" else "\U0001f7f6"
+            msg = (
+                f"{icon} *Missed Close Detected on Restart*\n"
+                f"Pair: `{pair}` | Dir: `{direction}` | Ticket: `{ticket}`\n"
+                f"Result: `{result}` | P&L: `{profit_usd:.2f} USD`\n"
+                f"_(Closed while bot was offline)_"
+            )
+            logger.info(f"[{pair}] Reconcile: Trade {trade_id} was closed offline. Result: {result} ({profit_usd:.2f} USD)")
+            if telegram_bridge:
+                try:
+                    telegram_bridge.send_alert(msg)
+                except Exception:
+                    pass
+            if reporter:
+                try:
+                    updated = state_engine.get_trade(trade_id)
+                    signal = state_engine.get_signal(trade.get("signal_id", ""))
+                    reporter.log_trade(updated, signal)
+                except Exception as e:
+                    logger.error(f"Reconcile: reporter.log_trade failed for {trade_id}: {e}")
+            reconciled_closed += 1
+
+    logger.info(f"Reconciliation done. {len(open_trades)} trade(s) checked, {reconciled_closed} detected as closed offline.")
+    logger.info("=" * 50)
+
 
 def scan_pair(
     pair: str,
@@ -187,12 +292,13 @@ def scan_pair(
             signals = result if isinstance(result, list) else [result]
             
             for signal in signals:
-                # Dedupe check for MULTI mode or general safety
-                # If we already generated a signal for this pair+direction recently, skip
-                # Set to 1440 minutes (24 hours) so we only send once per day, even if bot restarts
+                # Duplicate-send guard: only skip if a signal for this pair+direction was
+                # ACTUALLY sent to Telegram within the last 24h (telegram_alert_sent=1 in DB).
+                # Using has_signal_been_sent (not has_recent_signal) so that a signal which
+                # was detected but failed to send does NOT permanently block the next attempt.
                 direction = signal.get("direction", "")
-                if state_engine.has_recent_signal(pair, direction, cooldown_minutes=1440):
-                    logger.debug(f"[{pair}] {scanner_name} skipped — {direction} signal already sent today.")
+                if state_engine.has_signal_been_sent(pair, direction, cooldown_minutes=1440):
+                    logger.debug(f"[{pair}] {scanner_name} skipped — {direction} signal already sent to Telegram today.")
                     continue
 
                 signal_id = signal["signal_id"]
@@ -270,6 +376,8 @@ def scan_pair(
                 state_engine.insert_signal(signal)
                 sent = telegram_bridge.send_signal(signal, lot_size, usd_metrics)
                 if sent:
+                    # Mark signal as CONFIRMED sent to Telegram — prevents re-sending on restart
+                    state_engine.mark_signal_sent(signal_id)
                     logger.info(f"[{pair}] A+ signal {signal_id} ({scanner_name}) sent to Telegram. Awaiting approval.")
                     # We sent a valid signal, stop checking other scanners for this pair this cycle
                     break
@@ -360,6 +468,9 @@ def main():
     # ── Start TradeManager monitoring after Telegram is wired ────────
     trade_manager.start_monitoring()
     logger.info("TradeManager monitoring thread started.")
+
+    # ── Startup reconciliation: detect trades closed while bot was offline
+    reconcile_open_positions(state_engine, telegram_bridge, sheet_reporter)
 
     # ── 12. Scanners ─────────────────────────────────────────────────
     scanners = []

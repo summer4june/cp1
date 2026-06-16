@@ -57,11 +57,12 @@ class StateEngine:
                     tp1_price REAL, tp2_price REAL, tp3_price REAL, sl_pips REAL, tp_pips REAL, tp3_pips REAL,
                     spread_pips REAL, effective_rr REAL, score REAL,
                     detected_time TEXT, strategy TEXT, entry_mode TEXT, entry_leg TEXT,
-                    setup_type TEXT, fixed_lot_size REAL, skip_rr_check INTEGER, position_fraction REAL
+                    setup_type TEXT, fixed_lot_size REAL, skip_rr_check INTEGER, position_fraction REAL,
+                    telegram_alert_sent INTEGER DEFAULT 0
                 )
                 """)
 
-                # Migration: add 'strategy', 'entry_mode', 'entry_leg' to signals_detected if not exist
+                # Migration: add columns to signals_detected if they don't exist
                 cursor.execute("PRAGMA table_info(signals_detected)")
                 cols = [info[1] for info in cursor.fetchall()]
                 if cols and "strategy" not in cols:
@@ -84,8 +85,10 @@ class StateEngine:
                     cursor.execute("ALTER TABLE signals_detected ADD COLUMN tp3_pips REAL")
                 if cols and "killzone" not in cols:
                     cursor.execute("ALTER TABLE signals_detected ADD COLUMN killzone TEXT")
+                if cols and "telegram_alert_sent" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN telegram_alert_sent INTEGER DEFAULT 0")
 
-                # 2. trades_executed
+                # 2. trades_executed — full schema including tp3, tp2_hit, current_sl
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS trades_executed (
                     trade_id TEXT PRIMARY KEY, signal_id TEXT, ticket_id INTEGER,
@@ -93,17 +96,23 @@ class StateEngine:
                     executed_price REAL, sl REAL, tp1 REAL, tp2 REAL, tp3 REAL,
                     lot_total REAL, risk_amount REAL, execution_time TEXT,
                     status TEXT, result TEXT, profit_usd REAL,
-                    tp1_hit INTEGER DEFAULT 0, tp2_hit INTEGER DEFAULT 0, be_moved INTEGER DEFAULT 0
+                    tp1_hit INTEGER DEFAULT 0, tp2_hit INTEGER DEFAULT 0,
+                    be_moved INTEGER DEFAULT 0, current_sl REAL
                 )
                 """)
 
-                # Migration: add 'tp3' column to trades_executed if it doesn't exist
+                # Migration: add any columns missing from older DB versions
                 cursor.execute("PRAGMA table_info(trades_executed)")
                 cols = [info[1] for info in cursor.fetchall()]
-                if cols and "tp3" not in cols:
-                    cursor.execute("ALTER TABLE trades_executed ADD COLUMN tp3 REAL")
-                if cols and "tp2_hit" not in cols:
-                    cursor.execute("ALTER TABLE trades_executed ADD COLUMN tp2_hit INTEGER DEFAULT 0")
+                _te_migrations = {
+                    "tp3": "REAL",
+                    "tp2_hit": "INTEGER DEFAULT 0",
+                    "be_moved": "INTEGER DEFAULT 0",
+                    "current_sl": "REAL",
+                }
+                for col, col_type in _te_migrations.items():
+                    if cols and col not in cols:
+                        cursor.execute(f"ALTER TABLE trades_executed ADD COLUMN {col} {col_type}")
 
                 # 3. trades_skipped
                 cursor.execute("""
@@ -154,18 +163,63 @@ class StateEngine:
 
     # --- SIGNALS ---
 
+    # Known valid columns in signals_detected — used to sanitize signal dicts before INSERT
+    _SIGNAL_COLUMNS = {
+        "signal_id", "pair", "session", "killzone", "timeframe_bias", "timeframe_entry",
+        "direction", "bias_summary", "entry_price", "sl_price", "tp1_price", "tp2_price",
+        "tp3_price", "sl_pips", "tp_pips", "tp3_pips", "spread_pips", "effective_rr",
+        "score", "detected_time", "strategy", "entry_mode", "entry_leg", "setup_type",
+        "fixed_lot_size", "skip_rr_check", "position_fraction", "telegram_alert_sent",
+    }
+
+    def _sanitize_signal(self, signal: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Filters a signal dict to only include valid DB columns and converts
+        Python booleans to ints (SQLite has no bool type).
+        This prevents silent INSERT failures caused by extra/unknown keys or type mismatches.
+        """
+        sanitized = {}
+        for k, v in signal.items():
+            if k not in self._SIGNAL_COLUMNS:
+                continue  # drop unknown columns (e.g. internal-only keys)
+            if isinstance(v, bool):
+                v = int(v)  # True/False → 1/0 for SQLite
+            sanitized[k] = v
+        return sanitized
+
     def insert_signal(self, signal: Dict[str, Any]) -> None:
-        """Inserts a detected signal into the database."""
+        """Inserts a detected signal into the database, sanitizing types first."""
+        clean = self._sanitize_signal(signal)
+        if not clean.get("signal_id"):
+            logger.error("insert_signal: signal missing signal_id — skipping.")
+            return
         with self.lock:
             conn = self._get_connection()
             try:
-                columns = ', '.join(signal.keys())
-                placeholders = ', '.join(['?'] * len(signal))
-                sql = f"INSERT INTO signals_detected ({columns}) VALUES ({placeholders})"
-                conn.execute(sql, list(signal.values()))
+                columns = ', '.join(clean.keys())
+                placeholders = ', '.join(['?'] * len(clean))
+                sql = f"INSERT OR IGNORE INTO signals_detected ({columns}) VALUES ({placeholders})"
+                conn.execute(sql, list(clean.values()))
                 conn.commit()
+                logger.debug(f"Inserted signal {clean['signal_id']} into DB successfully.")
             except sqlite3.Error as e:
-                logger.error(f"Error inserting signal: {e}")
+                logger.error(f"FATAL Error inserting signal {clean.get('signal_id')}: {e}")
+            finally:
+                self._close_connection(conn)
+
+    def mark_signal_sent(self, signal_id: str) -> None:
+        """Marks a signal as successfully sent to Telegram (telegram_alert_sent=1)."""
+        with self.lock:
+            conn = self._get_connection()
+            try:
+                conn.execute(
+                    "UPDATE signals_detected SET telegram_alert_sent = 1 WHERE signal_id = ?",
+                    (signal_id,)
+                )
+                conn.commit()
+                logger.debug(f"Signal {signal_id} marked as sent to Telegram.")
+            except sqlite3.Error as e:
+                logger.error(f"Error marking signal {signal_id} as sent: {e}")
             finally:
                 self._close_connection(conn)
 
@@ -174,7 +228,9 @@ class StateEngine:
         with self.lock:
             conn = self._get_connection()
             try:
-                cursor = conn.execute("SELECT 1 FROM signals_detected WHERE signal_id = ?", (signal_id,))
+                cursor = conn.execute(
+                    "SELECT 1 FROM signals_detected WHERE signal_id = ?", (signal_id,)
+                )
                 return cursor.fetchone() is not None
             except sqlite3.Error as e:
                 logger.error(f"Error checking signal existence: {e}")
@@ -182,8 +238,36 @@ class StateEngine:
             finally:
                 self._close_connection(conn)
 
+    def has_signal_been_sent(self, pair: str, direction: str, cooldown_minutes: int) -> bool:
+        """
+        Returns True if a Telegram alert was SUCCESSFULLY sent for this pair+direction
+        within the given cooldown window. Uses the telegram_alert_sent=1 flag, not just
+        detected_time, so restart-safe: only blocks re-sending if the signal was actually
+        delivered to Telegram before the restart.
+        """
+        with self.lock:
+            conn = self._get_connection()
+            try:
+                cutoff_time = (datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)).isoformat()
+                cursor = conn.execute(
+                    """SELECT 1 FROM signals_detected
+                       WHERE pair = ? AND direction = ?
+                         AND telegram_alert_sent = 1
+                         AND detected_time >= ?""",
+                    (pair, direction, cutoff_time)
+                )
+                return cursor.fetchone() is not None
+            except sqlite3.Error as e:
+                logger.error(f"Error checking has_signal_been_sent: {e}")
+                return False
+            finally:
+                self._close_connection(conn)
+
     def has_recent_signal(self, pair: str, direction: str, cooldown_minutes: int) -> bool:
-        """Checks if a signal for the same pair and direction was generated within the cooldown window."""
+        """Checks if a signal for the same pair and direction was generated within the cooldown window.
+        NOTE: Prefer has_signal_been_sent() for duplicate-send protection — this method
+        checks detection time only, not whether Telegram delivery was confirmed.
+        """
         with self.lock:
             conn = self._get_connection()
             try:
