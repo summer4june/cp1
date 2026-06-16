@@ -915,12 +915,12 @@ def test_adr_sl_tp_dynamic_fx(mock_config):
     import pandas as pd
 
     connector = MagicMock()
-    # 7 D1 bars: completed range = 0.006 each → ADR(5) = 0.006 → sl_dist = 0.003 → 30 pips
+    # 7 D1 bars
     connector.get_candles.return_value = pd.DataFrame({
-        "high":  [1.1060] * 7,
-        "low":   [1.1000] * 7,
-        "open":  [1.1000] * 7,
-        "close": [1.1060] * 7,
+        "high":  [1.1020, 1.1030, 1.1040, 1.1050, 1.1060, 1.1060, 1.1060],
+        "low":   [1.1000, 1.1010, 1.1020, 1.1030, 1.1040, 1.1040, 1.1040],
+        "open":  [1.1010] * 7,
+        "close": [1.1010] * 7,
     })
     connector.get_current_spread.return_value = 0.0
 
@@ -936,9 +936,11 @@ def test_adr_sl_tp_dynamic_fx(mock_config):
     result = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", 1.1000, {}, zgmt_cfg)
     assert result is not None
 
-    # ADR(5) = 0.006 → sl_dist = 0.003 → sl_pips = 0.003 / 0.0001 = 30
-    expected_sl_pips = 30.0
-    expected_tp_pips = 60.0
+    # Completed candles indices 1 to 5
+    # highest_high = 1.1060, lowest_low = 1.1010
+    # diff = 0.0050, ADR = 0.0050 / 5 = 0.0010, sl_dist = 0.0005 -> 5 pips
+    expected_sl_pips = 5.0
+    expected_tp_pips = 10.0
     assert abs(result["sl_pips"] - expected_sl_pips) < 1.0, \
         f"FX sl_pips should be ≈{expected_sl_pips}, got {result['sl_pips']}"
     assert abs(result["tp_pips"] - expected_tp_pips) < 1.0, \
@@ -960,12 +962,12 @@ def test_adr_sl_tp_dynamic_gold(mock_config):
     import pandas as pd
 
     connector = MagicMock()
-    # 7 D1 bars: daily range = 2.0 → ADR(5) = 2.0 → sl_dist = 1.0 → 100 pips (0.01 pip)
+    # 7 D1 bars
     connector.get_candles.return_value = pd.DataFrame({
-        "high":  [2002.0] * 7,
-        "low":   [2000.0] * 7,
+        "high":  [2010.0, 2020.0, 2030.0, 2040.0, 2050.0, 2050.0, 2050.0],
+        "low":   [2000.0, 2010.0, 2020.0, 2030.0, 2040.0, 2040.0, 2040.0],
         "open":  [2000.0] * 7,
-        "close": [2002.0] * 7,
+        "close": [2000.0] * 7,
     })
     connector.get_current_spread.return_value = 0.0
 
@@ -981,9 +983,11 @@ def test_adr_sl_tp_dynamic_gold(mock_config):
     result = scanner._compute_entry_sl_tp("XAUUSD", "BULLISH", 2000.0, {}, zgmt_cfg)
     assert result is not None
 
-    # ADR(5) = 2.0 → sl_dist = 1.0 → sl_pips = 1.0 / 0.01 = 100
-    expected_sl_pips = 100.0
-    expected_tp_pips = 200.0
+    # Completed candles indices 1 to 5
+    # highest_high = 2050.0, lowest_low = 2010.0
+    # diff = 40.0, ADR = 40.0 / 5 = 8.0, sl_dist = 4.0 -> 400 pips
+    expected_sl_pips = 400.0
+    expected_tp_pips = 800.0
     assert abs(result["sl_pips"] - expected_sl_pips) < 2.0, \
         f"Gold sl_pips should be ≈{expected_sl_pips}, got {result['sl_pips']}"
     assert abs(result["tp_pips"] - expected_tp_pips) < 2.0, \
@@ -997,7 +1001,7 @@ def test_adr_sl_tp_dynamic_gold(mock_config):
     # Also verify XAGUSD behaves the same way
     result_ag = scanner._compute_entry_sl_tp("XAGUSD", "BULLISH", 30.0, {}, zgmt_cfg)
     assert result_ag is not None
-    assert abs(result_ag["sl_pips"] - 100.0) < 2.0, "XAGUSD sl_pips must match XAUUSD"
+    assert abs(result_ag["sl_pips"] - 400.0) < 2.0, "XAGUSD sl_pips must match XAUUSD"
 
 
 # ── Test 6: ADR fallback to fixed pips when D1 candles are insufficient ──────

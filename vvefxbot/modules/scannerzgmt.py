@@ -1071,6 +1071,11 @@ class ScannerZGMT:
 
         # Index 0 is the current forming candle — skip it; use next adr_days completed candles
         completed = d1.iloc[1: adr_days + 1]
-        daily_ranges = completed['high'] - completed['low']   # wick-to-wick as per strategy
-        adr = float(daily_ranges.mean())
+        
+        highest_high = float(completed['high'].max())
+        lowest_low = float(completed['low'].min())
+        
+        # New user requirement: ADR = (Highest of 5 days - Lowest of 5 days) / 5
+        adr = (highest_high - lowest_low) / adr_days
+        
         return adr / 2  # SL = ADR ÷ 2
