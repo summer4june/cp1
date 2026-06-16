@@ -230,8 +230,12 @@ class ScannerZGMT:
                 logger.debug(f"[{pair}] ZGMT: Found 0 GMT open price = {zgmt_price:.5f} at {candle_time}")
                 return zgmt_price, False
 
-        logger.debug(f"[{pair}] ZGMT: 0 GMT H1 candle not found in fetched data.")
-        return None, True
+        # If the candle is not found, determine if it's a permanent structural absence.
+        # If we are within the first 2 hours of 0 GMT (00:00 - 01:59 UTC), the candle might just be delayed
+        # or waiting for its first tick, so we should NOT permanently finalize the day.
+        is_structural = now_utc.hour >= 2
+        logger.debug(f"[{pair}] ZGMT: 0 GMT H1 candle not found in fetched data. is_structural={is_structural}")
+        return None, is_structural
 
     # ──────────────────────────────────────────────────────────────────
     # Step 2B — Check if 0 GMT level has already been tested today
