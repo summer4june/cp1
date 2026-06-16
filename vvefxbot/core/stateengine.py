@@ -117,6 +117,7 @@ class StateEngine:
                     "tp2_usd": "REAL DEFAULT 0.0",
                     "tp3_usd": "REAL DEFAULT 0.0",
                     "margin_used": "REAL DEFAULT 0.0",
+                    "execution_time": "TEXT",
                 }
                 for col, col_type in _te_migrations.items():
                     if cols and col not in cols:
