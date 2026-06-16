@@ -234,10 +234,11 @@ class GoogleSheetReporter:
             status = trade.get("status", "OPEN")
             row_data = self._build_row_data(trade, signal)
 
-            if status == "CLOSED":
-                # Try to find and update existing row
-                row_num = self._find_row_by_trade_id(trade_id)
-                if row_num > 0:
+            # Always try to find the row first
+            row_num = self._find_row_by_trade_id(trade_id)
+
+            if row_num > 0:
+                if status == "CLOSED":
                     # Update close_time (21), status (22), result (23), profit_usd (24), exit_reason (26), max_level (27)
                     updates = [
                         {"range": f"U{row_num}", "values": [[row_data[20]]]}, # 21. close_time
@@ -247,20 +248,21 @@ class GoogleSheetReporter:
                         {"range": f"Z{row_num}", "values": [[row_data[25]]]}, # 26. exit_reason
                         {"range": f"AA{row_num}", "values": [[row_data[26]]]}, # 27. max_level_reached
                     ]
-                    self.sheet.batch_update(updates)
-                    logger.info(f"Trade {trade_id} CLOSED — updated row {row_num} in Google Sheet.")
-                    return True
                 else:
-                    # Row not found (was never opened), append full row
-                    logger.warning(f"Trade {trade_id} row not found in Sheet — appending as new row.")
-                    self.sheet.append_row(row_data)
-                    logger.info(f"Trade {trade_id} appended to Google Sheet (fallback).")
+                    # Update open_time (19), status (22), result (23) when transitioning PENDING -> OPEN or TP hits
+                    updates = [
+                        {"range": f"S{row_num}", "values": [[row_data[18]]]}, # 19. open_time
+                        {"range": f"V{row_num}", "values": [[row_data[21]]]}, # 22. status
+                        {"range": f"W{row_num}", "values": [[row_data[22]]]}, # 23. result
+                    ]
+                self.sheet.batch_update(updates)
+                logger.info(f"Trade {trade_id} {status} — updated row {row_num} in Google Sheet.")
+                return True
             else:
-                # OPEN trade — always append new row
+                # Row not found, append full row
                 self.sheet.append_row(row_data)
-                logger.info(f"Trade {trade_id} OPEN — appended new row to Google Sheet.")
-
-            return True
+                logger.info(f"Trade {trade_id} {status} — appended new row to Google Sheet.")
+                return True
 
         except Exception as e:
             logger.error(f"Error logging trade to Google Sheet: {e}")
