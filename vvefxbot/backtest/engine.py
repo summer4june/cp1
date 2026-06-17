@@ -528,73 +528,56 @@ class BacktestEngine:
 
                     for lookback_i in range(idx, max(-1, idx - 25), -1):
                         bar_t = m1_data.iloc[lookback_i]["time"]
-                        if bar_t == target_0gmt:
-                            day_start_idx = lookback_i
-                            fill_time = bar_t
-                            break
 
-                    # Fetch live BE buffer and partial TP ratio from global config
-                    bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
-                    bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
+                entry_price = signal_entry  # Fill at the exact 0 GMT price
 
-                    # Leg A (DIRECT/ZGMT) = market fill at 0GMT open (not a limit).
-                    # Leg B (FILTER/manipulation) = pending limit order above/below 0GMT.
-                    entry_mode = signal.get("entry_mode", "DIRECT").upper()
-                    is_limit_order = (entry_mode == "FILTER")
-
-                    trade = SimulatedTrade(
-                        trade_id=str(uuid.uuid4()),
-                        signal_id=signal_id,
-                        pair=self.pair,
-                        direction=signal["direction"],
-                        entry=entry_price,
-                        sl=sl_price,
-                        tp1=tp1_price if is_zgmt_signal else signal.get("tp1_price", 0.0),
-                        tp2=tp2_price if is_zgmt_signal else signal.get("tp2_price", 0.0),
-                        tp3=tp3_price if is_zgmt_signal else signal.get("tp3_price", 0.0),
-                        lot=lot,
-                        bar_index=day_start_idx,
-                        bar_time=fill_time,
-                        pip_size=self.pip_size,
-                        use_partial_tp=True,
-                        partial_tp_fraction=bt_partial_tp_fraction,
-                        be_buffer_pips=bt_be_buffer_pips,
-                        session=killzone if killzone else signal.get("session", ""),
-                        entry_leg=signal.get("entry_leg", ""),
-                        is_limit=is_limit_order,
-                        rr_format=bt_rr_format,
-                        score=signal.get("score", 0.0),
-                    )
-
-                    order_type = "Pending Limit" if is_limit_order else "Market Fill (0GMT)"
-                    logger.info(
-                        f"[BT] Trade PLACED ({order_type}) | {self.pair} {signal['direction']} | "
-                        f"FillBar {day_start_idx} (0GMT) | Entry: {entry_price:.5f} | "
-                        f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
-                        f"Lot: {lot} | Score: {signal['score']} | Leg={entry_mode}"
-                    )
-
-                    # Retroactively replay exit checks for bars between 00:00 and now (inclusive)
-                    trade_closed_early = False
-                    for replay_i in range(day_start_idx, idx + 1):
-                        replay_bar = m1_data.iloc[replay_i]
-                        replay_t = replay_bar["time"]
-                        if self._check_exits(trade, replay_bar, replay_i, replay_t):
-                            trade_closed_early = True
-                            break
-
-                    if not trade_closed_early:
-                        self._open_trades.append(trade)
-
-                    bars_since_signal = 0
-                    continue  # Skip the generic trade creation below
-
+                # Compute SL/TP from the fill price using pip distances
+                sl_pips = signal["sl_pips"]
+                tp_pips = signal["tp_pips"]
+                tp3_pips = signal.get("tp3_pips", sl_pips * 3)
+                pip_size = self.pip_size
+                sl_diff = sl_pips * pip_size
+                tp_diff = tp_pips * pip_size
+                tp3_diff = tp3_pips * pip_size
+                if signal["direction"] == "BUY":
+                    sl_price  = round(entry_price - sl_diff, 5)
+                    tp1_price = round(entry_price + sl_diff, 5)   # TP1 = 1R
+                    tp2_price = round(entry_price + tp_diff, 5)   # TP2 = 2R
+                    tp3_price = round(entry_price + tp3_diff, 5)  # TP3 = 3R
                 else:
-                    entry_price = current_bar["close"]  # Market order at bar close
-                    sl_price  = signal["sl_price"]
-                    tp1_price = signal["tp1_price"]
-                    tp2_price = signal["tp2_price"]
-                    tp3_price = signal.get("tp3_price", 0.0)
+                    sl_price  = round(entry_price + sl_diff, 5)
+                    tp1_price = round(entry_price - sl_diff, 5)
+                    tp2_price = round(entry_price - tp_diff, 5)
+                    tp3_price = round(entry_price - tp3_diff, 5)
+
+                # Find the 00:00 UTC bar for today (scan back ≤ 25 bars)
+                if current_time.tzinfo is None:
+                    current_time_utc = current_time.replace(tzinfo=timezone.utc)
+                else:
+                    current_time_utc = current_time.astimezone(timezone.utc)
+
+                target_0gmt = current_time_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+                if target_0gmt.tzinfo is not None:
+                    target_0gmt = target_0gmt.replace(tzinfo=None)  # m1_data is naive UTC
+
+                day_start_idx = idx
+                fill_time = current_bar["time"]
+
+                for lookback_i in range(idx, max(-1, idx - 25), -1):
+                    bar_t = m1_data.iloc[lookback_i]["time"]
+                    if bar_t == target_0gmt:
+                        day_start_idx = lookback_i
+                        fill_time = bar_t
+                        break
+
+                # Fetch live BE buffer and partial TP ratio from global config
+                bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
+                bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
+
+                # Leg A (DIRECT/ZGMT) = market fill at 0GMT open (not a limit).
+                # Leg B (FILTER/manipulation) = pending limit order above/below 0GMT.
+                entry_mode = signal.get("entry_mode", "DIRECT").upper()
+                is_limit_order = (entry_mode == "FILTER")
 
                 trade = SimulatedTrade(
                     trade_id=str(uuid.uuid4()),
@@ -607,13 +590,39 @@ class BacktestEngine:
                     tp2=tp2_price,
                     tp3=tp3_price,
                     lot=lot,
-                    bar_index=idx,
-                    bar_time=current_time,
+                    bar_index=day_start_idx,
+                    bar_time=fill_time,
+                    pip_size=self.pip_size,
+                    use_partial_tp=True,
+                    partial_tp_fraction=bt_partial_tp_fraction,
+                    be_buffer_pips=bt_be_buffer_pips,
                     session=killzone if killzone else signal.get("session", ""),
                     entry_leg=signal.get("entry_leg", ""),
+                    is_limit=is_limit_order,
                     rr_format=bt_rr_format,
+                    score=signal.get("score", 0.0),
                 )
-                self._open_trades.append(trade)
+
+                order_type = "Pending Limit" if is_limit_order else "Market Fill (0GMT)"
+                logger.info(
+                    f"[BT] Trade PLACED ({order_type}) | {self.pair} {signal['direction']} | "
+                    f"FillBar {day_start_idx} (0GMT) | Entry: {entry_price:.5f} | "
+                    f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
+                    f"Lot: {lot} | Score: {signal['score']} | Leg={entry_mode}"
+                )
+
+                # Retroactively replay exit checks for bars between 00:00 and now (inclusive)
+                trade_closed_early = False
+                for replay_i in range(day_start_idx, idx + 1):
+                    replay_bar = m1_data.iloc[replay_i]
+                    replay_t = replay_bar["time"]
+                    if self._check_exits(trade, replay_bar, replay_i, replay_t):
+                        trade_closed_early = True
+                        break
+
+                if not trade_closed_early:
+                    self._open_trades.append(trade)
+
                 bars_since_signal = 0
 
                 logger.info(

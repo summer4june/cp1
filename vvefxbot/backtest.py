@@ -419,14 +419,8 @@ def main():
     if offset_hours != 0.0:
         logger.info(f"Applying broker server timezone offset of {offset_hours} hours to shift data to UTC.")
 
-    # Strategy to backtest (default MMXM for backward-compatibility)
-    strategy_name = bt_config.get("strategy", "MMXM").upper()
-    valid_strategies = ["MMXM", "OTE", "ZGMT"]
-    if strategy_name not in valid_strategies:
-        print(f"❌ Unknown strategy: '{strategy_name}'. Valid options: {', '.join(valid_strategies)}")
-        sys.exit(1)
-
-    logger.info(f"Backtesting strategy: {strategy_name}")
+    strategy_name = "ZGMT"
+    logger.info("Backtesting strategy: ZGMT (Exclusive)")
 
     # ── Load bot config ───────────────────────────────────────────────
     config_engine = ConfigEngine("config.json")
@@ -495,24 +489,11 @@ def main():
             from core.stateengine import StateEngine as _SE
             _bt_state = _SE(":memory:")
 
-            if strategy_name == "MMXM":
-                from modules.scannermmxm import ScannerMMXM
-                scanner = ScannerMMXM(config, connector, _bt_state)
-            elif strategy_name == "OTE":
-                from modules.scannerote import ScannerOTE
-                # Ensure OTE is enabled for the backtest run
-                if isinstance(config.ote_scanner, dict):
-                    config.ote_scanner["enabled"] = True
-                scanner = ScannerOTE(config, connector, _bt_state)
-            elif strategy_name == "ZGMT":
-                from modules.scannerzgmt import ScannerZGMT
-                # Ensure ZGMT is enabled for the backtest run
-                if isinstance(config.zgmt_scanner, dict):
-                    config.zgmt_scanner["enabled"] = True
-                scanner = ScannerZGMT(config, connector, _bt_state)
-            else:
-                from modules.scannermmxm import ScannerMMXM
-                scanner = ScannerMMXM(config, connector, _bt_state)
+            from modules.scannerzgmt import ScannerZGMT
+            # Ensure ZGMT is enabled for the backtest run
+            if isinstance(config.zgmt_scanner, dict):
+                config.zgmt_scanner["enabled"] = True
+            scanner = ScannerZGMT(config, connector, _bt_state)
 
             engine = BacktestEngine(config, connector, pair, scanner=scanner)
             trades = engine.run()
