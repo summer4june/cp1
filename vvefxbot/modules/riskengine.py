@@ -98,11 +98,7 @@ class RiskEngine:
             float: Lot size, constrained between 0.01 and 1.0.
         """
         if sl_pips <= 0:
-            return 0.01
-
-        if score < 80.0:
-            logger.info(f"[{pair}] Signal score {score} is below 80. Strictly using 0.01 lot size.")
-            return 0.01
+            return 0.04
 
         if self.vault:
             risk_amount = self.vault.get_current_risk_amount()
@@ -119,10 +115,10 @@ class RiskEngine:
         lot_size = round(lot_size, 2)
         
         # Min/Max constraints
-        lot_size = max(0.01, lot_size)
+        lot_size = max(0.04, lot_size)
         
         if trading_balance < 101.0:
-            lot_size = min(0.01, lot_size)
+            lot_size = min(0.04, lot_size)
         else:
             lot_size = min(1.0, lot_size)
         
