@@ -267,10 +267,10 @@ class MT5Connector:
             return spread_points * symbol_info.point / 0.0001
 
     def get_tick(self, symbol: str) -> Optional[Dict[str, float]]:
-        """Returns the current tick (bid/ask) for a symbol."""
+        """Returns the current tick (bid/ask/time) for a symbol."""
         tick = mt5.symbol_info_tick(symbol)
         if tick:
-            return {"bid": tick.bid, "ask": tick.ask}
+            return {"bid": tick.bid, "ask": tick.ask, "time": float(tick.time)}
         return None
 
     def get_symbol_point(self, symbol: str) -> float:
@@ -373,10 +373,19 @@ class MT5Connector:
         else:
             return {"success": False, "ticket": -1, "error": f"Invalid order type: {order_type}"}
 
+        info = mt5.symbol_info(symbol)
+        if not info:
+            return {"success": False, "ticket": -1, "error": f"Symbol {symbol} not found"}
+            
+        digits = info.digits
+        price = round(float(price), digits)
+        sl = round(float(sl), digits)
+        tp = round(float(tp), digits) if tp else 0.0
+
         request = {
             "action": ACTION_DEAL,
             "symbol": symbol,
-            "volume": lot,
+            "volume": float(lot),
             "type": mt5_type,
             "price": price,
             "sl": sl,
@@ -427,11 +436,19 @@ class MT5Connector:
             return {"success": False, "ticket": -1, "error": f"Invalid order type for limit: {order_type}"}
 
         # Expiration for pending orders set to end of current day (or next day)
-        # Using GTC (Good Till Cancelled) to align with existing logic; bot can cancel them manually if needed.
+        info = mt5.symbol_info(symbol)
+        if not info:
+            return {"success": False, "ticket": -1, "error": f"Symbol {symbol} not found"}
+            
+        digits = info.digits
+        entry_price = round(float(entry_price), digits)
+        sl = round(float(sl), digits)
+        tp = round(float(tp), digits) if tp else 0.0
+
         request = {
             "action": ACTION_PENDING,
             "symbol": symbol,
-            "volume": lot,
+            "volume": float(lot),
             "type": mt5_type,
             "price": entry_price,
             "sl": sl,
