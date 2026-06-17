@@ -45,21 +45,23 @@ class RiskEngine:
         if pair_upper.endswith("USD"):
             return 10.0
 
+        # Extract suffix for pairs like EURJPYm, GBPCHF.a, etc.
+        suffix = pair[6:] if len(pair) > 6 else ""
+
         # For JPY pairs (e.g. USDJPY, EURJPY, GBPJPY)
         # 1 pip = 0.01 JPY. Value in JPY = 100,000 * 0.01 = 1000 JPY
         # USD Value = 1000 / USDJPY
         if "JPY" in pair_upper:
-            candles = self.mt5.get_candles("USDJPY", "M1", count=1)
+            candles = self.mt5.get_candles(f"USDJPY{suffix}", "M1", count=1)
             if not candles.empty:
                 usdjpy_price = candles.iloc[-1]["close"]
                 return 1000.0 / usdjpy_price
             return 6.66  # Fallback based on ~150 USDJPY
 
         # For CAD pairs (e.g. EURCAD, GBPCAD)
-        # 1 pip = 0.0001 CAD. Value in CAD = 100,000 * 0.0001 = 10 CAD
         # USD Value = 10 / USDCAD
         if pair_upper.endswith("CAD"):
-            candles = self.mt5.get_candles("USDCAD", "M1", count=1)
+            candles = self.mt5.get_candles(f"USDCAD{suffix}", "M1", count=1)
             if not candles.empty:
                 usdcad_price = candles.iloc[-1]["close"]
                 return 10.0 / usdcad_price
@@ -67,7 +69,7 @@ class RiskEngine:
 
         # For CHF pairs (e.g. EURCHF, GBPCHF)
         if pair_upper.endswith("CHF"):
-            candles = self.mt5.get_candles("USDCHF", "M1", count=1)
+            candles = self.mt5.get_candles(f"USDCHF{suffix}", "M1", count=1)
             if not candles.empty:
                 usdchf_price = candles.iloc[-1]["close"]
                 return 10.0 / usdchf_price
@@ -76,7 +78,7 @@ class RiskEngine:
         # For GBP quotes (e.g. EURGBP)
         # USD Value = 10 * GBPUSD
         if pair_upper.endswith("GBP"):
-            candles = self.mt5.get_candles("GBPUSD", "M1", count=1)
+            candles = self.mt5.get_candles(f"GBPUSD{suffix}", "M1", count=1)
             if not candles.empty:
                 gbpusd_price = candles.iloc[-1]["close"]
                 return 10.0 * gbpusd_price
