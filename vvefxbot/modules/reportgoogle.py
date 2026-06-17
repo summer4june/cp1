@@ -159,7 +159,7 @@ class GoogleSheetReporter:
         sl_pips = float(trade.get("sl_pips") or signal.get("sl_pips", 0.0))
 
         # Calculate exact pips from prices if available
-        pip_size = self._pip_size(pair) if self._pip_size(pair) > 0 else 0.0001
+        pip_size = point
         
         if trade.get("tp1") and trade.get("executed_price"):
             tp1_pips = round(abs(trade.get("tp1") - trade.get("executed_price")) / pip_size, 2)
