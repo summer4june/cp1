@@ -1,4 +1,5 @@
 {
+  "require_telegram_approval": true,
   "strategy_mode": "ZGMT",
   "trade_management": {
     "rr_format": "1:3",

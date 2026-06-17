@@ -45,41 +45,41 @@ class RiskEngine:
         if pair_upper.endswith("USD"):
             return 10.0
 
-        # Extract suffix for pairs like EURJPYm, GBPCHF.a, etc.
+        base_pair = pair_upper[:6]
         suffix = pair[6:] if len(pair) > 6 else ""
 
         # For JPY pairs (e.g. USDJPY, EURJPY, GBPJPY)
         # 1 pip = 0.01 JPY. Value in JPY = 100,000 * 0.01 = 1000 JPY
         # USD Value = 1000 / USDJPY
-        if "JPY" in pair_upper:
+        if "JPY" in base_pair:
             candles = self.mt5.get_candles(f"USDJPY{suffix}", "M1", count=1)
-            if not candles.empty:
+            if candles is not None and not candles.empty:
                 usdjpy_price = candles.iloc[-1]["close"]
                 return 1000.0 / usdjpy_price
             return 6.66  # Fallback based on ~150 USDJPY
 
         # For CAD pairs (e.g. EURCAD, GBPCAD)
         # USD Value = 10 / USDCAD
-        if pair_upper.endswith("CAD"):
+        if base_pair.endswith("CAD"):
             candles = self.mt5.get_candles(f"USDCAD{suffix}", "M1", count=1)
-            if not candles.empty:
+            if candles is not None and not candles.empty:
                 usdcad_price = candles.iloc[-1]["close"]
                 return 10.0 / usdcad_price
             return 7.35
 
         # For CHF pairs (e.g. EURCHF, GBPCHF)
-        if pair_upper.endswith("CHF"):
+        if base_pair.endswith("CHF"):
             candles = self.mt5.get_candles(f"USDCHF{suffix}", "M1", count=1)
-            if not candles.empty:
+            if candles is not None and not candles.empty:
                 usdchf_price = candles.iloc[-1]["close"]
                 return 10.0 / usdchf_price
             return 11.23
 
         # For GBP quotes (e.g. EURGBP)
         # USD Value = 10 * GBPUSD
-        if pair_upper.endswith("GBP"):
+        if base_pair.endswith("GBP"):
             candles = self.mt5.get_candles(f"GBPUSD{suffix}", "M1", count=1)
-            if not candles.empty:
+            if candles is not None and not candles.empty:
                 gbpusd_price = candles.iloc[-1]["close"]
                 return 10.0 * gbpusd_price
             return 12.50

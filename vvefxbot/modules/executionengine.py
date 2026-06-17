@@ -226,6 +226,13 @@ class ExecutionEngine:
         # Exact USD calculations using MT5
         try:
             import MetaTrader5 as mt5_lib
+            
+            # Ensure conversion symbols are in Market Watch for cross pairs
+            pair_upper = pair.upper()
+            suffix = pair[6:] if len(pair) > 6 else ""
+            if "JPY" in pair_upper and pair_upper != f"USDJPY{suffix.upper()}":
+                mt5_lib.symbol_select(f"USDJPY{suffix}", True)
+            
             order_type_m = mt5_lib.ORDER_TYPE_BUY if direction == "BUY" else mt5_lib.ORDER_TYPE_SELL
             
             margin_usd = mt5_lib.order_calc_margin(order_type_m, pair, lot_size, executed_price)

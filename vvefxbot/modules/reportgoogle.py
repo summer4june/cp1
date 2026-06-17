@@ -150,16 +150,31 @@ class GoogleSheetReporter:
 
         # Pip distances
         point = 0.01 if ("JPY" in pair or "XAU" in pair or "XAG" in pair) else 0.0001
-        sl_pips = signal.get("sl_pips", round(abs(entry_price - sl_price) / point, 1)) if signal and point else 0.0
-        tp1_pips = signal.get("tp_pips", round(abs(entry_price - tp1_price) / point, 1)) if signal and point else 0.0
-        tp2_pips = round(abs(entry_price - tp2_price) / point, 1) if tp2_price > 0 and point else 0.0
-        tp3_pips = signal.get("tp3_pips", round(abs(entry_price - tp3_price) / point, 1)) if signal and tp3_price > 0 and point else 0.0
-
         # USD values (using exact metrics from MT5 if available)
         sl_usd = float(trade.get("sl_usd") or trade.get("risk_amount", 0.0))
         tp1_usd = float(trade.get("tp1_usd") or sl_usd)
         tp2_usd = float(trade.get("tp2_usd") or sl_usd * 2.0)
         tp3_usd = float(trade.get("tp3_usd") or sl_usd * 3.0)
+        
+        sl_pips = float(trade.get("sl_pips") or signal.get("sl_pips", 0.0))
+
+        # Calculate exact pips from prices if available
+        pip_size = self._pip_size(pair) if self._pip_size(pair) > 0 else 0.0001
+        
+        if trade.get("tp1") and trade.get("executed_price"):
+            tp1_pips = round(abs(trade.get("tp1") - trade.get("executed_price")) / pip_size, 2)
+        else:
+            tp1_pips = float(trade.get("tp1_pips") or sl_pips)
+            
+        if trade.get("tp2") and trade.get("executed_price"):
+            tp2_pips = round(abs(trade.get("tp2") - trade.get("executed_price")) / pip_size, 2)
+        else:
+            tp2_pips = float(trade.get("tp2_pips") or sl_pips * 2.0)
+            
+        if trade.get("tp3") and trade.get("executed_price"):
+            tp3_pips = round(abs(trade.get("tp3") - trade.get("executed_price")) / pip_size, 2)
+        else:
+            tp3_pips = float(trade.get("tp3_pips") or sl_pips * 3.0)
         margin_used = float(trade.get("margin_used") or 0.0)
 
         result = trade.get("result", "") or ""
@@ -197,7 +212,7 @@ class GoogleSheetReporter:
             tp1_price,                                                      # 9. tp1_price
             tp2_price,                                                      # 10. tp2_price
             tp3_price,                                                      # 11. tp3_price
-            signal.get("entry_mode", "DIRECT") if signal else "DIRECT",     # 12. entry
+            entry_price,                                                    # 12. entry
             sl_usd,                                                         # 13. sl_usd
             tp1_usd,                                                        # 14. tp1_usd
             tp2_usd,                                                        # 15. tp2_usd

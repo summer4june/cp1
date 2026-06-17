@@ -217,6 +217,11 @@ class ScannerZGMT:
         offset_hours = self._get_broker_utc_offset_hours(pair)
         target_broker_datetime = target_utc + timedelta(hours=offset_hours)
 
+        # Give MT5 a 3-minute grace period after 0GMT to ensure the open price is available
+        if now_utc < target_utc + timedelta(minutes=3):
+            logger.debug(f"[{pair}] ZGMT: Waiting 3 minutes past 0 GMT for MT5 data to stabilize.")
+            return None, False
+
         candles = self.mt5.get_candles(pair, "H1", count=30)
         if candles is None or candles.empty:
             logger.debug(f"[{pair}] ZGMT: No H1 candles returned.")
@@ -257,14 +262,13 @@ class ScannerZGMT:
         today_zgmt_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
 
         exclude_mins = zgmt_cfg.get("zgmt_test_exclude_first_mins", 15)
-        test_start_time = today_zgmt_utc + timedelta(minutes=exclude_mins)
+        test_start_time_utc = today_zgmt_utc + timedelta(minutes=exclude_mins)
 
         # Guard: if we haven't even passed the exclusion window yet, don't signal.
-        # Price hasn't had a chance to displace from the open — no meaningful data to evaluate.
-        if now_utc < test_start_time:
+        if now_utc < test_start_time_utc:
             logger.debug(
                 f"[{pair}] ZGMT Step 2B: Still inside exclusion window "
-                f"(now={now_utc.strftime('%H:%M')} UTC, window_ends={test_start_time.strftime('%H:%M')} UTC). "
+                f"(now={now_utc.strftime('%H:%M')} UTC, window_ends={test_start_time_utc.strftime('%H:%M')} UTC). "
                 f"Deferring check."
             )
             return True  # Treat as "not ready" → block signal until window elapses
@@ -279,13 +283,18 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT: No M1 candles for Step 2B test. Assuming untested.")
             return False
 
+        # MT5 M1 candles are returned in broker time (but parsed as UTC)
+        # So we must shift our test_start_time to broker time
+        offset_hours = self._get_broker_utc_offset_hours(pair)
+        test_start_broker_time = test_start_time_utc + timedelta(hours=offset_hours)
+
         for _, row in candles.iterrows():
             candle_time = row["time"]
             if candle_time.tzinfo is None:
                 candle_time = candle_time.replace(tzinfo=timezone.utc)
 
             # Only evaluate candles that opened after the exclusion window
-            if candle_time < test_start_time:
+            if candle_time < test_start_broker_time:
                 continue
 
             candle_low = float(row["low"])
@@ -1071,8 +1080,8 @@ class ScannerZGMT:
             logger.warning(f"[{pair}] ZGMT-EXCEPTION: Insufficient D1 candles for ADR ({len(d1) if d1 is not None else 0} available).")
             return None
 
-        # Index 0 is the current forming candle — skip it; use next adr_days completed candles
-        completed = d1.iloc[1: adr_days + 1]
+        # The last row (iloc[-1]) is the current forming candle. We want the `adr_days` candles before it.
+        completed = d1.iloc[-adr_days - 1 : -1]
         
         highest_high = float(completed['high'].max())
         lowest_low = float(completed['low'].min())

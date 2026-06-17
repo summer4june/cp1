@@ -499,6 +499,7 @@ class MT5Connector:
         
         pos = position[0]
         symbol = pos.symbol
+        pos_identifier = pos.identifier
         order_type = ORD_SELL if pos.type == ORD_BUY else ORD_BUY
         tick = mt5.symbol_info_tick(symbol)
         price = tick.bid if tick and pos.type == ORD_BUY else (tick.ask if tick else 0.0)
@@ -520,11 +521,31 @@ class MT5Connector:
         result = mt5.order_send(request)
         if result and result.retcode == RETCODE_DONE:
             logger.info(f"Partial close successful for ticket {ticket}")
-            return {"success": True, "error": ""}
+            
+            # Exness and some other brokers change the ticket upon partial close
+            # We must detect the new ticket for the remaining volume using position identifier
+            new_ticket = ticket
+            import time
+            for _ in range(10):  # Retry up to 10 times (5 seconds total)
+                time.sleep(0.5)
+                active_positions = mt5.positions_get(symbol=symbol)
+                if active_positions:
+                    found_updated = False
+                    for p in active_positions:
+                        if getattr(p, "identifier", None) == pos_identifier:
+                            new_ticket = p.ticket
+                            # If ticket changed, or volume decreased, it's updated!
+                            if p.ticket != ticket or p.volume < pos.volume:
+                                found_updated = True
+                            break
+                    if found_updated:
+                        break
+                        
+            return {"success": True, "error": "", "new_ticket": new_ticket}
         
         err_msg = f"Partial close failed: {result.comment if result else 'Unknown error'}"
         logger.error(err_msg)
-        return {"success": False, "error": err_msg}
+        return {"success": False, "error": err_msg, "new_ticket": ticket}
 
     def close_all_positions(self) -> None:
         """

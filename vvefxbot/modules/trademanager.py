@@ -379,17 +379,25 @@ class TradeManager:
             else:
                 tp1_close = self.mt5.close_partial(ticket, partial_lot)
                 if tp1_close["success"]:
+                    new_ticket = tp1_close.get("new_ticket", ticket)
+                    if str(new_ticket) != str(ticket):
+                        self.state.update_trade_ticket(trade_id, str(new_ticket))
+                        ticket_display = f"{ticket} -> {new_ticket}"
+                        ticket = new_ticket
+                    else:
+                        ticket_display = str(ticket)
+
                     partial_profit = self._get_profit_for_ticket(ticket)
                     remaining_lot = round(live_volume - partial_lot, 8)
                     self.state.update_trade_tp1_hit(trade_id)
                     self.state.insert_event(trade_id, "TP1_HIT", current_price)
                     msg = (
                         f"📊 *TP1 Hit — Partial Close*\n"
-                        f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                        f"Pair: `{pair}` | Ticket: `{ticket_display}`\n"
                         f"Closed: `{partial_lot:.4f}` lot ({self._partial_tp_fraction*100:.0f}%) | Remaining: `{remaining_lot:.4f}` lot\n"
                         f"Price: `{current_price:.5f}` | Float P&L: `{partial_profit:.2f} USD`"
                     )
-                    logger.info(f"[{pair}] TP1 Hit: closed {partial_lot:.4f} | remaining {remaining_lot:.4f}")
+                    logger.info(f"[{pair}] TP1 Hit: closed {partial_lot:.4f} | remaining {remaining_lot:.4f} | Ticket {ticket_display}")
                     self._send_alert(msg)
                 else:
                     logger.error(
@@ -456,7 +464,8 @@ class TradeManager:
             # ── 1:3 FORMAT: close 50% of REMAINING lot ─────────────────
             raw_partial = live_volume * 0.5
             close_lot = self._round_to_volume_step(pair, raw_partial)
-            if close_lot <= 0:
+            partial_lot = self._round_to_volume_step(pair, raw_partial)
+            if partial_lot <= 0:
                 logger.warning(f"[{pair}] Partial lot rounded to zero. Skipping TP2 close.")
                 self.state.update_trade_tp2_hit(trade_id)
                 self.state.insert_event(trade_id, "TP2_HIT", current_price)
@@ -487,6 +496,14 @@ class TradeManager:
             else:
                 close_result = self.mt5.close_partial(ticket, close_lot)
                 if close_result["success"]:
+                    new_ticket = close_result.get("new_ticket", ticket)
+                    if str(new_ticket) != str(ticket):
+                        self.state.update_trade_ticket(trade_id, str(new_ticket))
+                        ticket_display = f"{ticket} -> {new_ticket}"
+                        ticket = new_ticket
+                    else:
+                        ticket_display = str(ticket)
+
                     remaining_lot = round(live_volume - close_lot, 8)
                     self.state.update_trade_tp2_hit(trade_id)
                     self.state.insert_event(trade_id, "TP2_HIT", current_price)
@@ -499,11 +516,11 @@ class TradeManager:
                     
                     msg = (
                         f"✅ *TP2 Hit — Partial Close*\n"
-                        f"Pair: `{pair}` | Ticket: `{ticket}`\n"
+                        f"Pair: `{pair}` | Ticket: `{ticket_display}`\n"
                         f"Closed: `{close_lot:.4f}` lot | Remaining: `{remaining_lot:.4f}` lot\n"
                         f"SL moved to TP1: `{tp1_price:.5f}` | Riding TP3..."
                     )
-                    logger.info(f"[{pair}] TP2 Hit: closed {close_lot:.4f} | remaining {remaining_lot:.4f} | SL->TP1")
+                    logger.info(f"[{pair}] TP2 Hit: closed {close_lot:.4f} | remaining {remaining_lot:.4f} | Ticket {ticket_display} | SL->TP1")
                     self._send_alert(msg)
                 else:
                     logger.error(f"[{pair}] TP2 partial close failed: {close_result['error']}")
