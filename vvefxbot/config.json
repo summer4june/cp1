@@ -94,7 +94,6 @@
   "scan_frequency_seconds": 60,
   "demo_mode": false,
   "trading_pool_size": 400.0,
-  "require_telegram_approval": true,
   "correlation_groups": {},
   "zgmt_scanner": {
     "enabled": true,
