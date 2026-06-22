@@ -58,6 +58,7 @@ class SimulatedTrade:
         is_limit: bool = False,
         rr_format: str = "1:2",
         score: float = 0.0,
+        is_above_market: bool = False,
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
@@ -95,6 +96,7 @@ class SimulatedTrade:
         self.current_sl = sl
         self.remaining_lot = lot
         self.is_limit = is_limit
+        self.is_above_market = is_above_market
         self.status = "PENDING" if is_limit else "OPEN"    # PENDING | OPEN | CLOSED
         self.result = None      # WIN | LOSS | BREAKEVEN | CANCELLED
         self.profit_usd = 0.0
@@ -582,6 +584,7 @@ class BacktestEngine:
                     is_limit=is_limit_order,
                     rr_format=bt_rr_format,
                     score=signal.get("score", 0.0),
+                    is_above_market=(entry_price > current_bar["close"]),
                 )
 
                 order_type = "Pending Limit" if is_limit_order else "Market Fill"
@@ -661,10 +664,19 @@ class BacktestEngine:
 
         if trade.status == "PENDING":
             triggered = False
-            if direction == "BUY" and bar_low <= trade.entry:
-                triggered = True
-            elif direction == "SELL" and bar_high >= trade.entry:
-                triggered = True
+            
+            # Robust pending order trigger logic:
+            # If the order was placed ABOVE the market (e.g. Sell Limit, Buy Stop), 
+            # it triggers when the price goes UP and hits it (bar_high >= entry).
+            # If it was placed BELOW the market (e.g. Buy Limit, Sell Stop),
+            # it triggers when the price goes DOWN and hits it (bar_low <= entry).
+            # This perfectly handles both Limit and Stop orders, as well as gaps.
+            if trade.is_above_market:
+                if bar_high >= trade.entry:
+                    triggered = True
+            else:
+                if bar_low <= trade.entry:
+                    triggered = True
                 
             if triggered:
                 # Guard against filling limit orders outside of Killzones
