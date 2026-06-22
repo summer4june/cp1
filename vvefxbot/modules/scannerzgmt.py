@@ -1083,10 +1083,13 @@ class ScannerZGMT:
         # The last row (iloc[-1]) is the current forming candle. We want the `adr_days` candles before it.
         completed = d1.iloc[-adr_days - 1 : -1]
         
-        highest_high = float(completed['high'].max())
-        lowest_low = float(completed['low'].min())
+        adr_mode = self.zgmt_cfg.get("adr_mode", "HIGH_LOW_RANGE")
         
-        # New user requirement: ADR = (Highest of 5 days - Lowest of 5 days) / 5
-        adr = (highest_high - lowest_low) / adr_days
-        
+        if adr_mode == "HIGH_LOW_RANGE":
+            highest_high = float(completed['high'].max())
+            lowest_low = float(completed['low'].min())
+            adr = (highest_high - lowest_low) / adr_days
+        else:  # TRUE_AVERAGE
+            adr = float((completed['high'] - completed['low']).mean())
+            
         return adr / 2  # SL = ADR ÷ 2

@@ -138,6 +138,7 @@
     "zgmt_ob_fib_min": 0.50,
     "zgmt_ob_fib_max": 0.886,
     "zgmt_swing_lookback": 3,
-    "zgmt_adr_days": 5
+    "zgmt_adr_days": 5,
+    "adr_mode": "HIGH_LOW_RANGE"
   }
 }
