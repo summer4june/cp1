@@ -493,7 +493,13 @@ class BacktestEngine:
                 is_zgmt_signal = signal.get("strategy", "").startswith("ZGMT")
 
                 if is_zgmt_signal:
-                    entry_price = signal_entry  # Fill at the exact 0 GMT price
+                    entry_mode = signal.get("entry_mode", "DIRECT").upper()
+                    is_limit_order = (entry_mode == "FILTER")
+                    
+                    if is_limit_order:
+                        entry_price = signal_entry  # Limit order placed at exactly the specified price
+                    else:
+                        entry_price = current_bar["close"]  # Market order executes at exact current market price
 
                     # Compute SL/TP from the fill price using pip distances
                     sl_pips = signal["sl_pips"]
@@ -551,40 +557,40 @@ class BacktestEngine:
                     tp2_price = round(entry_price - tp_diff, 5)
                     tp3_price = round(entry_price - tp3_diff, 5)
 
-                # Find the 00:00 UTC bar for today (scan back ≤ 25 bars)
-                if current_time.tzinfo is None:
-                    current_time_utc = current_time.replace(tzinfo=timezone.utc)
-                else:
-                    current_time_utc = current_time.astimezone(timezone.utc)
+                    # For Limit Orders (Strategy B/C), we backdate placement to 0 GMT.
+                    # For Market Orders (Strategy A), we execute precisely at the current bar.
+                    if is_limit_order:
+                        if current_time.tzinfo is None:
+                            current_time_utc = current_time.replace(tzinfo=timezone.utc)
+                        else:
+                            current_time_utc = current_time.astimezone(timezone.utc)
 
-                target_0gmt = current_time_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-                if hasattr(self.scanner, "_get_broker_utc_offset_hours"):
-                    offset_hours = self.scanner._get_broker_utc_offset_hours(self.pair)
-                    target_0gmt = target_0gmt + timedelta(hours=offset_hours)
-                
-                if target_0gmt.tzinfo is not None:
-                    target_0gmt = target_0gmt.replace(tzinfo=None)  # m1_data is naive UTC
+                        target_0gmt = current_time_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+                        if hasattr(self.scanner, "_get_broker_utc_offset_hours"):
+                            offset_hours = self.scanner._get_broker_utc_offset_hours(self.pair)
+                            target_0gmt = target_0gmt + timedelta(hours=offset_hours)
+                        
+                        if target_0gmt.tzinfo is not None:
+                            target_0gmt = target_0gmt.replace(tzinfo=None)  # m1_data is naive UTC
 
-                day_start_idx = idx
-                fill_time = current_bar["time"]
+                        day_start_idx = idx
+                        fill_time = current_bar["time"]
 
-                for lookback_i in range(idx, max(-1, idx - 25), -1):
-                    bar_t = m1_data.iloc[lookback_i]["time"]
-                    if bar_t == target_0gmt:
-                        day_start_idx = lookback_i
-                        fill_time = bar_t
-                        break
+                        for lookback_i in range(idx, max(-1, idx - 25), -1):
+                            bar_t = m1_data.iloc[lookback_i]["time"]
+                            if bar_t == target_0gmt:
+                                day_start_idx = lookback_i
+                                fill_time = bar_t
+                                break
+                    else:
+                        day_start_idx = idx
+                        fill_time = current_bar["time"]
 
-                # Fetch live BE buffer and partial TP ratio from global config
-                bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
-                bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
+                    # Fetch live BE buffer and partial TP ratio from global config
+                    bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
+                    bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
 
-                # Leg A (DIRECT/ZGMT) = market fill at 0GMT open (not a limit).
-                # Leg B (FILTER/manipulation) = pending limit order above/below 0GMT.
-                entry_mode = signal.get("entry_mode", "DIRECT").upper()
-                is_limit_order = (entry_mode == "FILTER")
-
-                trade = SimulatedTrade(
+                    trade = SimulatedTrade(
                     trade_id=str(uuid.uuid4()),
                     signal_id=signal_id,
                     pair=self.pair,
@@ -608,22 +614,23 @@ class BacktestEngine:
                     score=signal.get("score", 0.0),
                 )
 
-                order_type = "Pending Limit" if is_limit_order else "Market Fill (0GMT)"
+                order_type = "Pending Limit" if is_limit_order else "Market Fill"
                 logger.info(
                     f"[BT] Trade PLACED ({order_type}) | {self.pair} {signal['direction']} | "
-                    f"FillBar {day_start_idx} (0GMT) | Entry: {entry_price:.5f} | "
+                    f"FillBar {day_start_idx} | Entry: {entry_price:.5f} | "
                     f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
                     f"Lot: {lot} | Score: {signal['score']} | Leg={entry_mode}"
                 )
 
-                # Retroactively replay exit checks for bars between 00:00 and now (inclusive)
+                # Retroactively replay exit checks only for backdated limit orders
                 trade_closed_early = False
-                for replay_i in range(day_start_idx, idx + 1):
-                    replay_bar = m1_data.iloc[replay_i]
-                    replay_t = replay_bar["time"]
-                    if self._check_exits(trade, replay_bar, replay_i, replay_t):
-                        trade_closed_early = True
-                        break
+                if is_limit_order:
+                    for replay_i in range(day_start_idx, idx + 1):
+                        replay_bar = m1_data.iloc[replay_i]
+                        replay_t = replay_bar["time"]
+                        if self._check_exits(trade, replay_bar, replay_i, replay_t):
+                            trade_closed_early = True
+                            break
 
                 if not trade_closed_early:
                     self._open_trades.append(trade)
