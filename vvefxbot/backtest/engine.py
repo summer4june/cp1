@@ -501,62 +501,6 @@ class BacktestEngine:
                     else:
                         entry_price = current_bar["close"]  # Market order executes at exact current market price
 
-                    # Compute SL/TP from the fill price using pip distances
-                    sl_pips = signal["sl_pips"]
-                    tp_pips = signal["tp_pips"]
-                    tp3_pips = signal.get("tp3_pips", sl_pips * 3)
-                    pip_size = self.pip_size
-                    sl_diff = sl_pips * pip_size
-                    tp_diff = tp_pips * pip_size
-                    tp3_diff = tp3_pips * pip_size
-                    if signal["direction"] == "BUY":
-                        sl_price  = round(entry_price - sl_diff, 5)
-                        tp1_price = round(entry_price + sl_diff, 5)   # TP1 = 1R
-                        tp2_price = round(entry_price + tp_diff, 5)   # TP2 = 2R
-                        tp3_price = round(entry_price + tp3_diff, 5)  # TP3 = 3R
-                    else:
-                        sl_price  = round(entry_price + sl_diff, 5)
-                        tp1_price = round(entry_price - sl_diff, 5)
-                        tp2_price = round(entry_price - tp_diff, 5)
-                        tp3_price = round(entry_price - tp3_diff, 5)
-
-                    # Find the 00:00 UTC bar for today (scan back ≤ 25 bars)
-                    if current_time.tzinfo is None:
-                        current_time_utc = current_time.replace(tzinfo=timezone.utc)
-                    else:
-                        current_time_utc = current_time.astimezone(timezone.utc)
-
-                    target_0gmt = current_time_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-                    if target_0gmt.tzinfo is not None:
-                        target_0gmt = target_0gmt.replace(tzinfo=None)  # m1_data is naive UTC
-
-                    day_start_idx = idx
-                    fill_time = current_bar["time"]
-
-                    for lookback_i in range(idx, max(-1, idx - 25), -1):
-                        bar_t = m1_data.iloc[lookback_i]["time"]
-
-                entry_price = signal_entry  # Fill at the exact 0 GMT price
-
-                # Compute SL/TP from the fill price using pip distances
-                sl_pips = signal["sl_pips"]
-                tp_pips = signal["tp_pips"]
-                tp3_pips = signal.get("tp3_pips", sl_pips * 3)
-                pip_size = self.pip_size
-                sl_diff = sl_pips * pip_size
-                tp_diff = tp_pips * pip_size
-                tp3_diff = tp3_pips * pip_size
-                if signal["direction"] == "BUY":
-                    sl_price  = round(entry_price - sl_diff, 5)
-                    tp1_price = round(entry_price + sl_diff, 5)   # TP1 = 1R
-                    tp2_price = round(entry_price + tp_diff, 5)   # TP2 = 2R
-                    tp3_price = round(entry_price + tp3_diff, 5)  # TP3 = 3R
-                else:
-                    sl_price  = round(entry_price + sl_diff, 5)
-                    tp1_price = round(entry_price - sl_diff, 5)
-                    tp2_price = round(entry_price - tp_diff, 5)
-                    tp3_price = round(entry_price - tp3_diff, 5)
-
                     # For Limit Orders (Strategy B/C), we backdate placement to 0 GMT.
                     # For Market Orders (Strategy A), we execute precisely at the current bar.
                     if is_limit_order:
@@ -585,12 +529,38 @@ class BacktestEngine:
                     else:
                         day_start_idx = idx
                         fill_time = current_bar["time"]
+                else:
+                    entry_mode = signal.get("entry_mode", "DIRECT").upper()
+                    is_limit_order = (entry_mode == "FILTER")
+                    entry_price = signal_entry
+                    day_start_idx = idx
+                    fill_time = current_bar["time"]
 
-                    # Fetch live BE buffer and partial TP ratio from global config
-                    bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
-                    bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
+                # Compute SL/TP from the fill price using pip distances
+                sl_pips = signal["sl_pips"]
+                tp_pips = signal["tp_pips"]
+                tp3_pips = signal.get("tp3_pips", sl_pips * 3)
+                pip_size = self.pip_size
+                sl_diff = sl_pips * pip_size
+                tp_diff = tp_pips * pip_size
+                tp3_diff = tp3_pips * pip_size
+                
+                if signal["direction"] == "BUY":
+                    sl_price  = round(entry_price - sl_diff, 5)
+                    tp1_price = round(entry_price + sl_diff, 5)   # TP1 = 1R
+                    tp2_price = round(entry_price + tp_diff, 5)   # TP2 = 2R
+                    tp3_price = round(entry_price + tp3_diff, 5)  # TP3 = 3R
+                else:
+                    sl_price  = round(entry_price + sl_diff, 5)
+                    tp1_price = round(entry_price - sl_diff, 5)
+                    tp2_price = round(entry_price - tp_diff, 5)
+                    tp3_price = round(entry_price - tp3_diff, 5)
 
-                    trade = SimulatedTrade(
+                # Fetch live BE buffer and partial TP ratio from global config
+                bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
+                bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
+
+                trade = SimulatedTrade(
                     trade_id=str(uuid.uuid4()),
                     signal_id=signal_id,
                     pair=self.pair,
@@ -624,7 +594,7 @@ class BacktestEngine:
 
                 # Retroactively replay exit checks only for backdated limit orders
                 trade_closed_early = False
-                if is_limit_order:
+                if is_limit_order and is_zgmt_signal:
                     for replay_i in range(day_start_idx, idx + 1):
                         replay_bar = m1_data.iloc[replay_i]
                         replay_t = replay_bar["time"]
