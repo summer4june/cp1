@@ -6809,3 +6809,40 @@
 [2026-06-17 00:15:30,032] [DEBUG] [ScannerZGMT] [EURUSD] ZGMT: PD array check disabled — using tick direction.
 [2026-06-17 00:15:30,034] [INFO] [ScannerZGMT] [EURUSD] ZGMT Signal ✅ BUY | Entry=1.10000 SL=1.09940 TP2=1.10120 | 0GMT=1.10000 | Mode=ZGMT-A | Score=84.0
 [2026-06-17 00:15:30,034] [INFO] [ScannerZGMT] [EURUSD] ZGMT Signal ✅ BUY | Entry=1.09750 SL=1.09690 TP2=1.09870 | 0GMT=1.10000 | Mode=ZGMT-C | Score=79.0
+[2026-06-22 15:34:48,011] [DEBUG] [StateEngine] Inserted signal sig_1 into DB successfully.
+[2026-06-22 15:34:48,250] [INFO] [MT5Connector] Attempting to force login to server...
+[2026-06-22 15:34:48,251] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4549726224'>
+[2026-06-22 15:34:48,254] [INFO] [MT5Connector] Attempting to force login to server...
+[2026-06-22 15:34:48,254] [ERROR] [MT5Connector] MT5 initialization failed: -1, Test error
+[2026-06-22 15:34:48,259] [WARNING] [MT5Connector] Missing M15 candles for EURUSD (Got 0/100, need 90). Forcing MT5 terminal to sync with broker...
+[2026-06-22 15:34:49,760] [WARNING] [MT5Connector] Sync failed for EURUSD. Attempting one-time reconnect...
+[2026-06-22 15:34:49,763] [INFO] [MT5Connector] Attempting to force login to server...
+[2026-06-22 15:34:49,764] [INFO] [MT5Connector] MT5 connected: <MagicMock name='mt5.account_info().login' id='4549730256'>
+[2026-06-22 15:34:50,768] [ERROR] [MT5Connector] Could not retrieve M15 candles for EURUSD after retry.
+[2026-06-22 15:34:50,796] [ERROR] [ExecutionEngine] Signal not found in DB: missing_id
+[2026-06-22 15:34:50,799] [WARNING] [ExecutionEngine] [EURUSD] EXECUTION_BLOCKED: spread too high at execution (5.0 > 2.0)
+[2026-06-22 15:34:50,802] [WARNING] [ExecutionEngine] [EURUSD] Bot disabled for today. Blocking execution.
+[2026-06-22 15:34:50,805] [INFO] [TelegramBridge] Telegram proxy configured: <MagicMock name='mock.telegram_proxy' id='4549733952'>
+[2026-06-22 15:34:50,806] [INFO] [TelegramBridge] Signal sent to Telegram broadcast list: sig_1
+[2026-06-22 15:34:50,809] [INFO] [TelegramBridge] Telegram proxy configured: <MagicMock name='mock.telegram_proxy' id='4549728240'>
+[2026-06-22 15:34:50,809] [ERROR] [TelegramBridge] Failed to record skip reason for sig_1: 'signal'
+[2026-06-22 15:34:50,817] [WARNING] [TradeManager] [EURUSD] Partial lot 0.00500 floored to 0.00000 < step 0.01000. Broker may not support this volume.
+[2026-06-22 15:34:50,825] [WARNING] [TradeManager] 🛑 Daily loss limit reached (250.00 USD). Bot disabled for today.
+[2026-06-22 15:34:50,834] [INFO] [GoogleSheetReporter] Added header row to main Google Sheet.
+[2026-06-22 15:34:50,835] [INFO] [GoogleSheetReporter] Successfully connected to main Google Sheet.
+[2026-06-22 15:34:50,836] [INFO] [GoogleSheetReporter] Added header row to Rejected Google Sheet tab.
+[2026-06-22 15:34:50,836] [INFO] [GoogleSheetReporter] Added header row to Vault Google Sheet tab.
+[2026-06-22 15:34:50,838] [ERROR] [GoogleSheetReporter] Google credentials file not found: dummy.json
+[2026-06-22 15:34:50,849] [DEBUG] [StateEngine] Inserted signal sig_123 into DB successfully.
+[2026-06-22 15:34:50,856] [ERROR] [ExecutionEngine] [EURUSD] Error calculating MT5 metrics: '>' not supported between instances of 'NoneType' and 'int'
+[2026-06-22 15:34:50,856] [ERROR] [StateEngine] Error inserting trade: Error binding parameter 12: type 'MagicMock' is not supported
+[2026-06-22 15:34:50,861] [INFO] [ExecutionEngine] ✅ Trade OPEN | EURUSD BUY | Ticket: 12345
+[2026-06-22 15:34:51,232] [INFO] [Backtest] Fetching EURUSD M1 from MT5: 2024-04-01 → 2024-04-01
+[2026-06-22 15:34:51,243] [INFO] [Backtest]   ✓ EURUSD M1: 10 bars fetched.
+[2026-06-22 15:34:51,561] [CRITICAL] [VaultEngine] 🛑 DRAWDOWN PANIC: Total PnL (-21.00) hit limit (-20.00). CLOSING ALL POSITIONS!
+[2026-06-22 15:34:51,573] [INFO] [VaultEngine] Vault injected $10.00 to restore minimum Trading Balance.
+[2026-06-22 15:34:51,574] [INFO] [VaultEngine] EOD Processed: Profit=$-40.00, Vault=$0.00, New TB=$70.00
+[2026-06-22 15:34:51,580] [WARNING] [VaultEngine] Vault depleted! Trading Balance below minimum.
+[2026-06-22 15:34:51,581] [INFO] [VaultEngine] EOD Processed: Profit=$-40.00, Vault=$0.00, New TB=$65.00
+[2026-06-22 15:34:51,587] [INFO] [VaultEngine] EOD Processed: Profit=$-10.00, Vault=$0.00, New TB=$90.00
+[2026-06-22 15:34:51,592] [INFO] [VaultEngine] EOD Processed: Profit=$10.00, Vault=$5.00, New TB=$105.00
