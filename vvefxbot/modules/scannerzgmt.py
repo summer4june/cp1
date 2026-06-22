@@ -560,9 +560,9 @@ class ScannerZGMT:
             if now_utc < test_start_time:
                 # Still inside exclusion window — price hasn't displaced yet.
                 logger.debug(
-                    f"[{pair}] ZGMT Step 2B: Inside exclusion window — deferring."
+                    f"[{pair}] ZGMT Step 2B: Inside exclusion window — deferring entirely."
                 )
-                strategy_a_valid = True
+                return None
             else:
                 # Level has genuinely been touched after the exclusion window → invalid for Strategy A.
                 logger.debug(
