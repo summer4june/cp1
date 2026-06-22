@@ -201,7 +201,7 @@ class ScannerZGMT:
         tick = self.mt5.get_tick(pair)
         if not tick or "time" not in tick:
             return 0
-        real_utc_ts = datetime.now(timezone.utc).timestamp()
+        real_utc_ts = self._utc_now().timestamp()
         broker_ts = tick["time"]
         offset_seconds = broker_ts - real_utc_ts
         return round(offset_seconds / 3600.0)
