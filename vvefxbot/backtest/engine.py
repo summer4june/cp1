@@ -558,6 +558,10 @@ class BacktestEngine:
                     current_time_utc = current_time.astimezone(timezone.utc)
 
                 target_0gmt = current_time_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+                if hasattr(self.scanner, "_get_broker_utc_offset_hours"):
+                    offset_hours = self.scanner._get_broker_utc_offset_hours(self.pair)
+                    target_0gmt = target_0gmt + timedelta(hours=offset_hours)
+                
                 if target_0gmt.tzinfo is not None:
                     target_0gmt = target_0gmt.replace(tzinfo=None)  # m1_data is naive UTC
 
