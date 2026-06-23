@@ -145,26 +145,24 @@ class ScannerZGMT:
     # Step 1 — Daily bias via PD Array Matrix
     # ──────────────────────────────────────────────────────────────────
 
-    def _get_daily_bias(self, pair: str, zgmt_cfg: dict) -> tuple[str | None, bool]:
+    def _get_daily_bias(self, pair: str, zgmt_cfg: dict, zgmt_price: float) -> tuple[str | None, bool]:
         """
-        Determine bullish or bearish bias using 20-day range midpoint.
+        Determine bullish or bearish bias for Leg A and Leg C.
+        Uses T-1 (Yesterday) 50% midpoint.
+        If 0 GMT > Midpoint -> BUY (Bullish).
+        If 0 GMT < Midpoint -> SELL (Bearish).
         Returns Tuple[bias_str_or_none, is_structural_absence].
         """
-        n = zgmt_cfg.get("d1_candles_for_range", 20)
-        candles = self.mt5.get_candles(pair, "D1", count=n + 1)
-        if candles is None:
-            logger.debug(f"[{pair}] ZGMT: No D1 candles returned.")
-            return None, False
-
-        if len(candles) < n:
-            logger.debug(f"[{pair}] ZGMT: Insufficient D1 candles for PD bias ({len(candles)}/{n}).")
+        candles = self.mt5.get_candles(pair, "D1", count=3)
+        if candles is None or len(candles) < 2:
+            logger.debug(f"[{pair}] ZGMT: Insufficient D1 candles for PD bias.")
             return None, True
 
-        # Use completed candles and current open candle
-        df = candles.tail(n)
+        # -1 is current day. -2 is exactly T-1 (the completely finished prior day)
+        yesterday = candles.iloc[-2]
 
-        range_high = df["high"].max()
-        range_low = df["low"].min()
+        range_high = float(yesterday["high"])
+        range_low = float(yesterday["low"])
 
         if range_high <= range_low:
             logger.debug(f"[{pair}] ZGMT: Invalid D1 range high={range_high} low={range_low}.")
@@ -172,23 +170,16 @@ class ScannerZGMT:
 
         midpoint = (range_high + range_low) / 2.0
 
-        tick = self.mt5.get_tick(pair)
-        if not tick:
-            logger.debug(f"[{pair}] ZGMT: No live tick for bias check.")
-            return None, False
-
-        current_bid = tick["bid"]
-
-        if current_bid < midpoint:
-            bias = "BULLISH"  # Discount zone → expect upward move
-        elif current_bid > midpoint:
-            bias = "BEARISH"  # Premium zone → expect downward move
+        if zgmt_price > midpoint:
+            bias = "BULLISH"  # 0 GMT opened above yesterday's 50%
+        elif zgmt_price < midpoint:
+            bias = "BEARISH"  # 0 GMT opened below yesterday's 50%
         else:
-            bias = None  # At exact equilibrium — ambiguous
+            bias = None  # Exactly at equilibrium
 
         logger.debug(
-            f"[{pair}] ZGMT: D1 Range High={range_high:.5f} Low={range_low:.5f} "
-            f"Mid={midpoint:.5f} BID={current_bid:.5f} → Bias={bias}"
+            f"[{pair}] ZGMT: T-1 Range High={range_high:.5f} Low={range_low:.5f} "
+            f"Mid={midpoint:.5f} 0GMT={zgmt_price:.5f} → Bias={bias}"
         )
         return bias, False
 
@@ -514,10 +505,18 @@ class ScannerZGMT:
                 f"({window_start}–{window_end} IST). Strategies B/C may still run."
             )
 
-        # ── Step 1: Daily bias ────────────────────────────────────────
+        # ── Step 1: 0 GMT open price ──────────────────────────────────
+        zgmt_price, is_structural = self._get_zgmt_price(pair)
+        if zgmt_price is None:
+            logger.info(f"[{pair}] ZGMT: 0 GMT open price not available — skipping.")
+            if is_structural or hasattr(self.mt5, "current_time"):
+                self._mark_daily_finalized(pair)
+            return None
+
+        # ── Step 2: Daily bias (Leg A & C) ────────────────────────────
         require_pd = zgmt_cfg.get("require_pd_array_check", True)
         if require_pd:
-            bias, is_structural = self._get_daily_bias(pair, zgmt_cfg)
+            bias, is_structural = self._get_daily_bias(pair, zgmt_cfg, zgmt_price)
             if bias is None:
                 logger.info(f"[{pair}] ZGMT: Could not determine D1 PD bias — skipping.")
                 if is_structural or hasattr(self.mt5, "current_time"):
@@ -527,7 +526,7 @@ class ScannerZGMT:
             # No bias check: infer from current price vs yesterday's close
             logger.debug(f"[{pair}] ZGMT: PD array check disabled — using tick direction.")
             tick = self.mt5.get_tick(pair)
-            bias = "BULLISH" if (tick and tick["bid"] > 0) else None
+            bias = "BULLISH" if (tick and tick["bid"] > zgmt_price) else "BEARISH"
             if bias is None:
                 return None
 
@@ -537,14 +536,6 @@ class ScannerZGMT:
             return None
         if bias == "BEARISH" and not allow_sell:
             logger.debug(f"[{pair}] ZGMT: Bearish bias but allow_sell=False.")
-            return None
-
-        # ── Step 2: 0 GMT open price ──────────────────────────────────
-        zgmt_price, is_structural = self._get_zgmt_price(pair)
-        if zgmt_price is None:
-            logger.info(f"[{pair}] ZGMT: 0 GMT open price not available — skipping.")
-            if is_structural or hasattr(self.mt5, "current_time"):
-                self._mark_daily_finalized(pair)
             return None
 
         # ── Step 2B: Untested condition ───────────────────────────────
