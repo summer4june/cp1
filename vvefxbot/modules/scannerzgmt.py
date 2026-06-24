@@ -680,7 +680,7 @@ class ScannerZGMT:
             signals_to_emit.append(ob_signal)
 
         # Strategy C (Manipulation / Judas Swing)
-        if not pd_swept_before_zgmt and zgmt_cfg.get("strategy_c_enabled", False):
+        if strategy_a_valid and not pd_swept_before_zgmt and zgmt_cfg.get("strategy_c_enabled", False):
             levs_filter = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="FILTER")
             if levs_filter:
                 signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C"))
