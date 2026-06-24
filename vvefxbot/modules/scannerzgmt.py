@@ -809,9 +809,13 @@ class ScannerZGMT:
 
         entry_price = best_ob["body_mid"]
 
-        # ADR-based dynamic SL
-        sl_distance = self._calculate_adr_sl(pair)
-        if not sl_distance or sl_distance <= 0:
+        # OB-based dynamic SL (distance from entry to OB extreme)
+        if direction == "BUY":
+            sl_distance = entry_price - best_ob["body_low"]
+        else:
+            sl_distance = best_ob["body_high"] - entry_price
+
+        if sl_distance <= 0:
             return None
 
         sl_pips = sl_distance / pip_size   # use pip_size not symbol_point — point ≠ pip on 5-decimal brokers
