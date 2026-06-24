@@ -674,9 +674,13 @@ class ScannerZGMT:
 
         # Strategy A (0 GMT Liquidity)
         if strategy_a_valid and not pd_swept_before_zgmt and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
-            levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
-            if levs_direct:
-                signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
+            # Only take Strategy A in the Asian Killzone
+            if killzone.lower() == "asia":
+                levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
+                if levs_direct:
+                    signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
+            else:
+                logger.debug(f"[{pair}] ZGMT: Skipping Strategy A because killzone '{killzone}' is not Asia.")
 
         # Strategy B (0 GMT + OB Model)
         if ob_signal is not None:

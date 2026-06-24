@@ -1100,7 +1100,7 @@ def test_split_mode_two_signals(mock_config):
     scanner._is_zgmt_level_tested = MagicMock(return_value=False)
 
     # Call scan
-    result = scanner.scan("EURUSD", "LONDON", "OPEN")
+    result = scanner.scan("EURUSD", "Asia", "Asia")
 
     # Should return a list of two dicts
     assert result is not None
