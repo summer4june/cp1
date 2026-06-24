@@ -145,18 +145,18 @@ class ScannerZGMT:
     # Step 1 — Daily bias via PD Array Matrix
     # ──────────────────────────────────────────────────────────────────
 
-    def _get_daily_bias(self, pair: str, zgmt_cfg: dict, zgmt_price: float) -> tuple[str | None, bool]:
+    def _get_daily_bias(self, pair: str, zgmt_cfg: dict, zgmt_price: float) -> tuple[str | None, bool, float, float]:
         """
         Determine bullish or bearish bias for Leg A and Leg C.
         Uses T-1 (Yesterday) 50% midpoint.
         If 0 GMT > Midpoint -> SELL (Bearish).
         If 0 GMT < Midpoint -> BUY (Bullish).
-        Returns Tuple[bias_str_or_none, is_structural_absence].
+        Returns Tuple[bias_str_or_none, is_structural_absence, range_high, range_low].
         """
         candles = self.mt5.get_candles(pair, "D1", count=3)
         if candles is None or len(candles) < 2:
             logger.debug(f"[{pair}] ZGMT: Insufficient D1 candles for PD bias.")
-            return None, True
+            return None, True, 0.0, 0.0
 
         # -1 is current day. -2 is exactly T-1 (the completely finished prior day)
         yesterday = candles.iloc[-2]
@@ -166,7 +166,7 @@ class ScannerZGMT:
 
         if range_high <= range_low:
             logger.debug(f"[{pair}] ZGMT: Invalid D1 range high={range_high} low={range_low}.")
-            return None, True
+            return None, True, 0.0, 0.0
 
         midpoint = (range_high + range_low) / 2.0
 
@@ -181,7 +181,40 @@ class ScannerZGMT:
             f"[{pair}] ZGMT: T-1 Range High={range_high:.5f} Low={range_low:.5f} "
             f"Mid={midpoint:.5f} 0GMT={zgmt_price:.5f} → Bias={bias}"
         )
-        return bias, False
+        return bias, False, range_high, range_low
+
+    def _is_pd_array_swept_before_zgmt(self, pair: str, range_high: float, range_low: float) -> bool:
+        """
+        Check if the T-1 High or Low was swept between the broker's daily open
+        (00:00 broker time) and 0 GMT today.
+        """
+        now_utc = self._utc_now()
+        target_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        offset_hours = self._get_broker_utc_offset_hours(pair)
+        
+        # If broker offset <= 0, the day starts at or after 0 GMT, so there's no "before 0 GMT" on the current broker day.
+        if offset_hours <= 0:
+            return False
+            
+        target_broker_datetime = target_utc + timedelta(hours=offset_hours)
+            
+        candles = self.mt5.get_candles(pair, "M15", count=96)
+        if candles is None or candles.empty:
+            return False
+            
+        for _, row in candles.iterrows():
+            candle_time = row["time"]
+            if candle_time.tzinfo is None:
+                candle_time = candle_time.replace(tzinfo=timezone.utc)
+                
+            # Check if this candle is on the SAME broker day as the 0 GMT target
+            if candle_time.date() == target_broker_datetime.date():
+                # Check if this candle occurred BEFORE the 0 GMT time
+                if candle_time < target_broker_datetime:
+                    # If high touched previous high, or low touched previous low
+                    if float(row["high"]) >= range_high or float(row["low"]) <= range_low:
+                        return True
+        return False
 
     # ──────────────────────────────────────────────────────────────────
     # Step 2 — Identify 0 GMT open price from today's H1 candles
@@ -515,13 +548,19 @@ class ScannerZGMT:
 
         # ── Step 2: Daily bias (Leg A & C) ────────────────────────────
         require_pd = zgmt_cfg.get("require_pd_array_check", True)
+        pd_swept_before_zgmt = False
+        
         if require_pd:
-            bias, is_structural = self._get_daily_bias(pair, zgmt_cfg, zgmt_price)
+            bias, is_structural, range_high, range_low = self._get_daily_bias(pair, zgmt_cfg, zgmt_price)
             if bias is None:
                 logger.info(f"[{pair}] ZGMT: Could not determine D1 PD bias — skipping.")
                 if is_structural or hasattr(self.mt5, "current_time"):
                     self._mark_daily_finalized(pair)
                 return None
+                
+            if self._is_pd_array_swept_before_zgmt(pair, range_high, range_low):
+                pd_swept_before_zgmt = True
+                logger.info(f"[{pair}] ZGMT: PD Array swept before 0 GMT. Leg A and C invalidated.")
         else:
             # No bias check: infer from current price vs yesterday's close
             logger.debug(f"[{pair}] ZGMT: PD array check disabled — using tick direction.")
@@ -631,7 +670,7 @@ class ScannerZGMT:
             }
 
         # Strategy A (0 GMT Liquidity)
-        if strategy_a_valid and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
+        if strategy_a_valid and not pd_swept_before_zgmt and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
             levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
             if levs_direct:
                 signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
@@ -641,7 +680,7 @@ class ScannerZGMT:
             signals_to_emit.append(ob_signal)
 
         # Strategy C (Manipulation / Judas Swing)
-        if zgmt_cfg.get("strategy_c_enabled", False):
+        if not pd_swept_before_zgmt and zgmt_cfg.get("strategy_c_enabled", False):
             levs_filter = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="FILTER")
             if levs_filter:
                 signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C"))
