@@ -118,16 +118,20 @@ class SimulatedTrade:
             pip_value = 50.0  # $50/pip/lot
         else:
             contract_size = 100000
-            margin_used = (self.lot * contract_size) / 200
+            raw_margin = (self.lot * contract_size) / 200
             base_pair = pair_upper[:6]
+            base_currency = pair_upper[:3]
+            
+            # Fixed standard conversion rates to USD for margin
+            rates = {
+                "EUR": 1.08, "GBP": 1.25, "AUD": 0.65, "NZD": 0.60,
+                "USD": 1.00, "CAD": 0.735, "CHF": 1.12
+            }
+            margin_used = raw_margin * rates.get(base_currency, 1.0)
+            
+            # Fixed pip values strictly enforced for backtest and live parity
             if "JPY" in base_pair:
-                # In backtesting, if pair is USDJPY we can use self.entry.
-                # If it's a cross pair (EURJPY, GBPJPY), we can't use self.entry (e.g. 160) because conversion is USDJPY.
-                # It's safer to use a dynamic approximation based on pair, or a static ~6.66 (150 USDJPY)
-                if base_pair == "USDJPY":
-                    pip_value = round(1000.0 / self.entry, 6) if self.entry > 0 else 6.66
-                else:
-                    pip_value = 6.66  # Represents ~150 USDJPY
+                pip_value = 6.66
             elif base_pair.endswith("CAD"):
                 pip_value = 7.35
             elif base_pair.endswith("CHF"):

@@ -32,59 +32,31 @@ class RiskEngine:
     def _get_pip_value(self, pair: str) -> float:
         """
         Calculate the pip value in USD for a standard lot (100,000 units).
+        Strictly uses fixed pip values for parity with backtest.
         """
         pair_upper = pair.upper()
         if "XAU" in pair_upper:
-            # Gold: 1 pip = 0.01, standard lot contract size = 100 oz.
-            # Pip Value = 100 * 0.01 = 1.00 USD
             return 1.0
         elif "XAG" in pair_upper:
-            # Silver: 1 pip = 0.01, contract = 5000 oz.
             return 50.0
 
         if pair_upper.endswith("USD"):
             return 10.0
 
         base_pair = pair_upper[:6]
-        suffix = pair[6:] if len(pair) > 6 else ""
 
-        # For JPY pairs (e.g. USDJPY, EURJPY, GBPJPY)
-        # 1 pip = 0.01 JPY. Value in JPY = 100,000 * 0.01 = 1000 JPY
-        # USD Value = 1000 / USDJPY
         if "JPY" in base_pair:
-            candles = self.mt5.get_candles(f"USDJPY{suffix}", "M1", count=1)
-            if candles is not None and not candles.empty:
-                usdjpy_price = candles.iloc[-1]["close"]
-                return 1000.0 / usdjpy_price
-            return 6.66  # Fallback based on ~150 USDJPY
-
-        # For CAD pairs (e.g. EURCAD, GBPCAD)
-        # USD Value = 10 / USDCAD
+            return 6.66
+        
         if base_pair.endswith("CAD"):
-            candles = self.mt5.get_candles(f"USDCAD{suffix}", "M1", count=1)
-            if candles is not None and not candles.empty:
-                usdcad_price = candles.iloc[-1]["close"]
-                return 10.0 / usdcad_price
             return 7.35
 
-        # For CHF pairs (e.g. EURCHF, GBPCHF)
         if base_pair.endswith("CHF"):
-            candles = self.mt5.get_candles(f"USDCHF{suffix}", "M1", count=1)
-            if candles is not None and not candles.empty:
-                usdchf_price = candles.iloc[-1]["close"]
-                return 10.0 / usdchf_price
             return 11.23
 
-        # For GBP quotes (e.g. EURGBP)
-        # USD Value = 10 * GBPUSD
         if base_pair.endswith("GBP"):
-            candles = self.mt5.get_candles(f"GBPUSD{suffix}", "M1", count=1)
-            if candles is not None and not candles.empty:
-                gbpusd_price = candles.iloc[-1]["close"]
-                return 10.0 * gbpusd_price
             return 12.50
             
-        # Default fallback
         return 10.0
 
     def calculate_lot_size(self, sl_pips: float, pair: str, score: float = 100.0) -> float:
