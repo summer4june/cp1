@@ -31,10 +31,11 @@ class BacktestConnector:
         connector.set_bar_index(idx)   # advance replay cursor
     """
 
-    def __init__(self, config: Config, data: Dict[str, pd.DataFrame], symbol: str):
+    def __init__(self, config: Config, data: Dict[str, pd.DataFrame], symbol: str, offset_hours: float = 0.0):
         self.config = config
         self.data = data          # {'M1': df, 'M15': df, 'H1': df}
         self.symbol = symbol
+        self.offset_hours = offset_hours
         self.current_bar_idx = 0  # Index in M1 timeline
 
         # Simulated MT5 state
@@ -51,8 +52,11 @@ class BacktestConnector:
         self.current_bar_idx = idx
 
     def current_time(self) -> datetime:
-        """Return the timestamp of the current M1 replay bar."""
-        return self.data["M1"].iloc[self.current_bar_idx]["time"]
+        """Return the timestamp of the current M1 replay bar in UTC."""
+        broker_time = self.data["M1"].iloc[self.current_bar_idx]["time"]
+        if self.offset_hours != 0.0:
+            return broker_time - pd.to_timedelta(self.offset_hours, unit="h")
+        return broker_time
 
     # ------------------------------------------------------------------
     # MT5Connector INTERFACE — used by ScannerMMXM
@@ -120,18 +124,24 @@ class BacktestConnector:
             logger.warning(f"No data for timeframe {timeframe}")
             return pd.DataFrame()
 
-        now = self.current_time()
+        # df["time"] is in Broker Time! We must compare against current broker time.
+        now_utc = self.current_time()
+        if self.offset_hours != 0.0:
+            now_broker = now_utc + pd.to_timedelta(self.offset_hours, unit="h")
+        else:
+            now_broker = now_utc
+
         if not pd.api.types.is_datetime64_any_dtype(df["time"]):
             df["time"] = pd.to_datetime(df["time"], utc=True)
-        if now.tzinfo is not None and hasattr(df["time"].iloc[0], "tzinfo"):
-            # Ensure timezone-aware comparison works
+            
+        if now_broker.tzinfo is not None and hasattr(df["time"].iloc[0], "tzinfo"):
             try:
-                available = df[df["time"] <= now].tail(count).reset_index(drop=True)
+                available = df[df["time"] <= now_broker].tail(count).reset_index(drop=True)
             except TypeError:
                 df["time"] = df["time"].dt.tz_localize("UTC")
-                available = df[df["time"] <= now].tail(count).reset_index(drop=True)
+                available = df[df["time"] <= now_broker].tail(count).reset_index(drop=True)
         else:
-            available = df[df["time"] <= now].tail(count).reset_index(drop=True)
+            available = df[df["time"] <= now_broker].tail(count).reset_index(drop=True)
         return available
 
     def get_current_spread(self, symbol: str) -> float:

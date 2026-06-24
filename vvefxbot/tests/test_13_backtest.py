@@ -194,7 +194,7 @@ def test_zgmt_daily_finalization_logic(mock_config):
         "max_daily_trades": 1
     }
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     # Mocking current_time to return a UTC datetime inside the window
     # 05:30 IST is 00:00 UTC
     connector.current_time.return_value = datetime(2024, 1, 1, 1, 0, tzinfo=timezone.utc)
@@ -229,7 +229,7 @@ def test_zgmt_structural_absence_finalization(mock_config):
         "require_pd_array_check": True
     }
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     connector.current_time.return_value = datetime(2024, 1, 1, 1, 0, tzinfo=timezone.utc)
     
     # 1. Test case: Insufficient D1 candles (returns len < n)
@@ -440,10 +440,9 @@ def test_backtest_timezone_offset_handling():
     assert args[2] == datetime(2024, 4, 1, 3, 0)
     assert args[3] == datetime(2024, 4, 1, 4, 0)
     
-    # 2. Assert returned DataFrame time is shifted back by 3 hours
+    # 2. Assert returned DataFrame time is NOT shifted back (kept as Broker Time)
     # Raw time in rates is 1711930800 -> 2024-04-01 00:20:00 UTC
-    # Shifted by -3 hours -> 2024-03-31 21:20:00 UTC
-    expected_time = pd.to_datetime(1711930800, unit="s", utc=True) - pd.to_timedelta(3.0, unit="h")
+    expected_time = pd.to_datetime(1711930800, unit="s", utc=True)
     assert df.iloc[0]["time"] == expected_time
 
 
@@ -468,6 +467,7 @@ def test_zgmt_level_tested_exclusion(mock_config):
     # ── Case 1: now < exclusion window end (still at 0 GMT open, 00:05 UTC) ─
     # Must return True (block) regardless of candle data — price hasn't displaced yet.
     connector1 = MagicMock()
+    connector1.offset_hours = 0
     connector1.current_time.return_value = datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc)
     connector1.get_candles.return_value = pd.DataFrame({
         "time": [datetime(2026, 5, 21, 0, 0, tzinfo=timezone.utc)],
@@ -479,6 +479,7 @@ def test_zgmt_level_tested_exclusion(mock_config):
 
     # ── Case 2: now past exclusion window, touch only inside excluded period → untested ─
     connector2 = MagicMock()
+    connector2.offset_hours = 0
     connector2.current_time.return_value = datetime(2026, 5, 21, 1, 0, tzinfo=timezone.utc)
     # Touch at 00:05 (inside excluded window), second candle far away
     connector2.get_candles.return_value = pd.DataFrame({
@@ -495,6 +496,7 @@ def test_zgmt_level_tested_exclusion(mock_config):
 
     # ── Case 3: now past exclusion window, touch after excluded period → tested ─
     connector3 = MagicMock()
+    connector3.offset_hours = 0
     connector3.current_time.return_value = datetime(2026, 5, 21, 1, 0, tzinfo=timezone.utc)
     # First candle far away, second candle (00:20) touches the level
     connector3.get_candles.return_value = pd.DataFrame({
@@ -517,7 +519,7 @@ def test_zgmt_skip_rr_check_in_risk_engine(mock_config):
 
     mock_config.effective_rr_min = 1.9  # Global threshold that would normally block ZGMT
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     engine = RiskEngine(mock_config, connector)
 
     # GBPUSD ZGMT signal: SL=25, TP=50, spread=2 → effective RR=1.78 (below 1.9)
@@ -550,7 +552,7 @@ def test_zgmt_gold_spread_vs_sl_bypass(mock_config):
     mock_config.effective_rr_min = 1.9
     mock_config.spread_limits = {"XAUUSD": 30.0}
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     engine = RiskEngine(mock_config, connector)
 
     # XAUUSD ZGMT signal: spread=30 pips, SL=95 → 31.6% ratio fails 10% check without bypass
@@ -605,7 +607,8 @@ def test_zgmt_direct_entry_at_zgmt_price(mock_config):
     mock_time = datetime(2026, 5, 21, 1, 0, tzinfo=timezone.utc)
     zgmt_price_open = 1.35000  # The 0 GMT open price
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
+    connector.offset_hours = 0
     connector.current_time.return_value = mock_time
     connector.get_current_spread.return_value = 2.0
     connector.get_tick.return_value = {"bid": 1.35200, "ask": 1.35202}  # Drifted 20 pips away
@@ -866,7 +869,7 @@ def test_filter_pips_metal_vs_fx(mock_config):
             "close": [100 + price_range] * 8,
         })
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     connector.get_current_spread.return_value = 0.0
 
     scanner = _make_scanner(mock_config, connector)
@@ -916,7 +919,7 @@ def test_adr_sl_tp_dynamic_fx(mock_config):
     from unittest.mock import MagicMock
     import pandas as pd
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     # 7 D1 bars
     connector.get_candles.return_value = pd.DataFrame({
         "time": pd.to_datetime(["2025-01-01"] * 7, utc=True),
@@ -964,7 +967,7 @@ def test_adr_sl_tp_dynamic_gold(mock_config):
     from unittest.mock import MagicMock
     import pandas as pd
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     # 7 D1 bars
     connector.get_candles.return_value = pd.DataFrame({
         "time": pd.to_datetime(["2025-01-01"] * 7, utc=True),
@@ -1019,7 +1022,7 @@ def test_adr_sl_strict_cancellation_on_missing_data(mock_config):
     from unittest.mock import MagicMock
     import pandas as pd
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     # Only 2 D1 bars: insufficient for ADR(5)
     connector.get_candles.return_value = pd.DataFrame({
         "time": pd.to_datetime(["2025-01-01"] * 2, utc=True),
@@ -1058,7 +1061,7 @@ def test_split_mode_two_signals(mock_config):
     import pandas as pd
     from datetime import datetime, timezone
 
-    connector = MagicMock()
+    connector = MagicMock(); connector.offset_hours = 0
     # 7 D1 bars with range 0.006 → ADR OK
     connector.get_candles.return_value = pd.DataFrame({
         "time": pd.to_datetime(["2025-01-01"] * 7, utc=True),

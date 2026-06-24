@@ -94,8 +94,9 @@ def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: d
         )
 
     df = pd.DataFrame(rates)
-    # Convert broker local times to actual UTC timestamps
-    df["time"] = pd.to_datetime(df["time"], unit="s", utc=True) - pd.to_timedelta(offset_hours, unit="h")
+    df["time"] = pd.to_datetime(df["time"], unit="s", utc=True)
+    # Keep time in Broker Time disguised as UTC, do NOT shift!
+    
     df = df[["time", "open", "high", "low", "close", "tick_volume"]].copy()
     df.sort_values("time", inplace=True)
     df.reset_index(drop=True, inplace=True)
@@ -185,8 +186,8 @@ def load_from_csv(csv_dir: str, symbol: str,
             return pd.DataFrame()
         logger.info(f"Loading CSV: {path}")
         df = _parse_csv(path)
-        if not df.empty and offset_hours != 0.0:
-            df["time"] = df["time"] - pd.to_timedelta(offset_hours, unit="h")
+        if not df.empty:
+            pass # Keep in Broker Time
         return df
 
     m1 = _load("M1")
@@ -483,7 +484,7 @@ def main():
                 print(f"⚠️  Skipping {pair}: {e}")
                 continue
 
-            connector = BacktestConnector(config, data, pair)
+            connector = BacktestConnector(config, data, pair, offset_hours=offset_hours)
 
             # ── Instantiate the chosen scanner ───────────────────────────
             from core.stateengine import StateEngine as _SE

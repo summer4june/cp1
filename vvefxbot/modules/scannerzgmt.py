@@ -222,6 +222,9 @@ class ScannerZGMT:
 
     def _get_broker_utc_offset_hours(self, pair: str) -> int:
         """Calculate the broker's offset from UTC in hours."""
+        if hasattr(self.mt5, "offset_hours"):
+            return int(self.mt5.offset_hours)
+            
         tick = self.mt5.get_tick(pair)
         if not tick or "time" not in tick:
             return 0
