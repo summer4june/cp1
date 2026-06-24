@@ -648,7 +648,7 @@ class ScannerZGMT:
                 "session": session,
                 "killzone": killzone,
                 "entry_leg": {"ZGMT-A": "A", "ZGMT-B": "B", "ZGMT-C": "C"}.get(strat_id, "A"),
-                "entry_mode": "FILTER",
+                "entry_mode": "DIRECT" if strat_id == "ZGMT-A" else "FILTER",
                 "timeframe_bias": zgmt_cfg.get("timeframe_bias", "D1"),
                 "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
                 "direction": "BUY" if bias == "BULLISH" else "SELL",
