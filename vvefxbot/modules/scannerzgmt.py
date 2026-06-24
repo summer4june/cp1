@@ -799,7 +799,7 @@ class ScannerZGMT:
         # Get 25 days to ensure we have at least 20 trading days (filtering out Sundays)
         d1_candles = self.mt5.get_candles(pair, "D1", count=25)
         if d1_candles is None or len(d1_candles) < 20:
-            logger.debug(f"[{pair}] ZGMT-B: Insufficient D1 candles for 20-day bias.")
+            logger.debug(f"[{pair}] ZGMT-B: Insufficient D1 candles for 20-day bias. (Found {len(d1_candles) if d1_candles is not None else 'None'})")
             return None
             
         import pandas as pd
@@ -809,7 +809,7 @@ class ScannerZGMT:
         # Filter out Sundays (weekday == 6)
         d1_filtered = d1_candles[d1_candles['time'].dt.weekday != 6]
         if len(d1_filtered) < 21:
-            logger.debug(f"[{pair}] ZGMT-B: Insufficient valid D1 trading days for 20-day bias.")
+            logger.debug(f"[{pair}] ZGMT-B: Insufficient valid D1 trading days for 20-day bias. (Found {len(d1_filtered)})")
             return None
             
         # Take the last 20 completed days (excluding the current forming day)
@@ -830,12 +830,14 @@ class ScannerZGMT:
         
         # Enforce that Leg B trades in the SAME direction as the 20-Day Bias
         if direction != leg_b_bias:
-            logger.debug(f"[{pair}] ZGMT-B: OB direction ({direction}) does not match 20-Day Bias ({leg_b_bias}). Skipping.")
+            logger.debug(f"[{pair}] ZGMT-B: OB direction ({direction}) does not match 20-Day Bias ({leg_b_bias}). (Current price={current_price}, 20d_mid={midpoint_20d}) Skipping.")
             return None
 
         if direction == "BUY" and not zgmt_cfg.get("allow_buy", True):
+            logger.debug(f"[{pair}] ZGMT-B: direction BUY but allow_buy=False")
             return None
         if direction == "SELL" and not zgmt_cfg.get("allow_sell", True):
+            logger.debug(f"[{pair}] ZGMT-B: direction SELL but allow_sell=False")
             return None
 
         entry_price = best_ob["body_mid"]
@@ -938,10 +940,8 @@ class ScannerZGMT:
 
             # Bullish Normal OB: bearish candle followed by strong upward displacement
             if candle['close'] < candle['open']:
-                prior_high = float(df.iloc[i-1]['high']) if i > 0 else body_high
                 for j in range(i + 1, min(i + 6, len(df))):
-                    # Require displacement to close above the prior candle's high (minor break of structure)
-                    if float(df.iloc[j]['close']) > prior_high:
+                    if float(df.iloc[j]['close']) > body_high:
                         is_mitigated = self._check_mitigated(df, i, "BUY", body_low)
                         obs.append({
                             "ob_type": "NORMAL",
@@ -957,10 +957,8 @@ class ScannerZGMT:
 
             # Bearish Normal OB: bullish candle followed by strong downward displacement
             elif candle['close'] > candle['open']:
-                prior_low = float(df.iloc[i-1]['low']) if i > 0 else body_low
                 for j in range(i + 1, min(i + 6, len(df))):
-                    # Require displacement to close below the prior candle's low
-                    if float(df.iloc[j]['close']) < prior_low:
+                    if float(df.iloc[j]['close']) < body_low:
                         is_mitigated = self._check_mitigated(df, i, "SELL", body_high)
                         obs.append({
                             "ob_type": "NORMAL",
