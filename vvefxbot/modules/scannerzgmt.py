@@ -795,43 +795,6 @@ class ScannerZGMT:
         best_ob = fib_valid_obs[0]
 
         direction = best_ob["direction"]
-        # --- 20-Day Range Bias Calculation specifically for Leg B ---
-        # Get 25 days to ensure we have at least 20 trading days (filtering out Sundays)
-        d1_candles = self.mt5.get_candles(pair, "D1", count=25)
-        if d1_candles is None or len(d1_candles) < 20:
-            logger.debug(f"[{pair}] ZGMT-B: Insufficient D1 candles for 20-day bias. (Found {len(d1_candles) if d1_candles is not None else 'None'})")
-            return None
-            
-        import pandas as pd
-        if d1_candles['time'].dt.tz is None:
-            d1_candles['time'] = d1_candles['time'].dt.tz_localize('UTC')
-        
-        # Filter out Sundays (weekday == 6)
-        d1_filtered = d1_candles[d1_candles['time'].dt.weekday != 6]
-        if len(d1_filtered) < 21:
-            logger.debug(f"[{pair}] ZGMT-B: Insufficient valid D1 trading days for 20-day bias. (Found {len(d1_filtered)})")
-            return None
-            
-        # Take the last 20 completed days (excluding the current forming day)
-        completed_20d = d1_filtered.iloc[-21:-1]
-        
-        highest_20d = float(completed_20d['high'].max())
-        lowest_20d = float(completed_20d['low'].min())
-        midpoint_20d = (highest_20d + lowest_20d) / 2.0
-        
-        # Above 50% = SELL bias, Below 50% = BUY bias
-        if current_price > midpoint_20d:
-            leg_b_bias = "SELL"
-        elif current_price < midpoint_20d:
-            leg_b_bias = "BUY"
-        else:
-            logger.debug(f"[{pair}] ZGMT-B: Price is exactly at 20-day 50% midpoint. Skipping.")
-            return None
-        
-        # Enforce that Leg B trades in the SAME direction as the 20-Day Bias
-        if direction != leg_b_bias:
-            logger.debug(f"[{pair}] ZGMT-B: OB direction ({direction}) does not match 20-Day Bias ({leg_b_bias}). (Current price={current_price}, 20d_mid={midpoint_20d}) Skipping.")
-            return None
 
         if direction == "BUY" and not zgmt_cfg.get("allow_buy", True):
             logger.debug(f"[{pair}] ZGMT-B: direction BUY but allow_buy=False")
