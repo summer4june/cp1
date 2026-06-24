@@ -20,15 +20,21 @@ def test_integration_full_trade_mocked(config_mock, temp_db):
     state_engine = StateEngine(db_path=temp_db)
     mt5_mock = MagicMock()
     mt5_mock.get_current_spread.return_value = 1.0
+    mt5_mock.order_calc_profit.return_value = 10.0
+    mt5_mock.order_calc_margin.return_value = 5.0
     mt5_mock.place_order.return_value = {"success": True, "ticket": 12345}
 
     mock_pos = MagicMock()
     mock_pos.price_open = 1.0000
-    with patch("MetaTrader5.positions_get", return_value=[mock_pos]):
-    
+    with patch("MetaTrader5.positions_get", return_value=[mock_pos]), \
+         patch("MetaTrader5.order_calc_profit", return_value=10.0), \
+         patch("MetaTrader5.order_calc_margin", return_value=5.0), \
+         patch("MetaTrader5.symbol_info_tick", return_value=MagicMock(ask=1.0000, bid=1.0000)):
+        
         risk_engine = MagicMock()
         risk_engine.run_all_checks.return_value = {"pass": True, "lot_size": 0.1}
         risk_engine.check_slippage.return_value = True
+        risk_engine._get_pip_value.return_value = 10.0
         
         engine = ExecutionEngine(config_mock, mt5_mock, risk_engine, state_engine, MagicMock())
         

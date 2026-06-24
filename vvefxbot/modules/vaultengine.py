@@ -2,7 +2,7 @@ import os
 import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from core.logger import get_logger
 from core.stateengine import StateEngine
@@ -52,17 +52,33 @@ class VaultEngine:
         with open(self.config_path, "w") as f:
             json.dump(data, f, indent=4)
 
-    def get_current_risk_amount(self) -> float:
+    def get_current_risk_amount(self, mt5: Optional[MT5Connector] = None) -> float:
         """
         Calculates the amount to risk per trade.
         Formula: Trading Balance / Divide Factor
         """
         config = self.get_vault_config()
-        trading_balance = config.get("trading_balance", 70.0)
         divide_factor = config.get("divide_factor", 15)
-        
         if divide_factor <= 0:
             divide_factor = 15
+
+        trading_balance = config.get("trading_balance", 70.0)
+        vault_balance = config.get("vault_balance", 0.0)
+
+        # Sync with actual MT5 balance
+        if mt5 is not None:
+            try:
+                import MetaTrader5 as mt5_lib
+                account_info = mt5_lib.account_info()
+                if account_info is not None:
+                    real_balance = float(account_info.balance)
+                    # Live trading balance is real MT5 balance minus what we've mathematically secured in the vault
+                    live_trading_balance = real_balance - vault_balance
+                    
+                    min_tb = config.get("min_trading_balance", 70.0)
+                    trading_balance = max(live_trading_balance, min_tb)
+            except Exception as e:
+                logger.warning(f"VaultEngine: Could not fetch live MT5 balance: {e}")
 
         return trading_balance / divide_factor
 
@@ -97,21 +113,33 @@ class VaultEngine:
             
         return False
 
-    def process_end_of_day(self, state: StateEngine, reporter=None) -> None:
+    def process_end_of_day(self, state: StateEngine, mt5: Optional[MT5Connector] = None, reporter=None) -> None:
         """
         Calculates EOD profit split, updates balances, saves history, and logs to Google Sheets.
         """
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         daily_state = state.get_daily_state(today)
         
-        # We assume daily_profit_usd accurately reflects all closed trades today
-        daily_profit = daily_state.get("daily_profit_usd", 0.0)
-        
         config = self.get_vault_config()
         trading_balance = config.get("trading_balance", 100.0)
         vault_balance = config.get("vault_balance", 0.0)
         min_trading_balance = config.get("min_trading_balance", 70.0)
         vault_pct = config.get("vault_percentage", 0.50)
+        
+        # Determine actual daily profit. If mt5 is provided, sync against the live balance to capture
+        # exact total account growth/loss including manual trades or missed DB updates.
+        daily_profit = daily_state.get("daily_profit_usd", 0.0)
+        
+        if mt5 is not None:
+            try:
+                import MetaTrader5 as mt5_lib
+                account_info = mt5_lib.account_info()
+                if account_info is not None:
+                    real_balance = float(account_info.balance)
+                    last_total_balance = trading_balance + vault_balance
+                    daily_profit = real_balance - last_total_balance
+            except Exception as e:
+                logger.warning(f"VaultEngine EOD: Could not fetch live MT5 balance: {e}")
         
         transferred_to_vault = 0.0
         
@@ -120,7 +148,7 @@ class VaultEngine:
             remaining_profit = daily_profit - transferred_to_vault
             trading_balance += remaining_profit
             vault_balance += transferred_to_vault
-        else:
+        elif daily_profit < 0:
             # Loss scenario
             trading_balance += daily_profit  # daily_profit is negative
             
@@ -142,7 +170,7 @@ class VaultEngine:
         self.save_vault_config(config)
 
         # Log to DB
-        risk_amount = self.get_current_risk_amount()
+        risk_amount = self.get_current_risk_amount(mt5)
         conn = sqlite3.connect(self.db_path)
         try:
             conn.execute("""

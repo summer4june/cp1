@@ -226,6 +226,10 @@ class TelegramBridge:
                 except Exception as e:
                     logger.error(f"Failed to send signal to chat {cid}: {e}")
                     
+            if not sent_messages:
+                logger.error(f"Failed to deliver signal {signal_id} to any Telegram chat ID.")
+                return False
+
             with self._lock:
                 self._pending[signal_id] = {
                     "signal": signal,

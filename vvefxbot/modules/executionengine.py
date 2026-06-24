@@ -244,11 +244,11 @@ class ExecutionEngine:
             tp1_usd = mt5_lib.order_calc_profit(order_type_m, pair, lot_size, executed_price, signal["tp1_price"])
             tp1_usd = abs(tp1_usd) if tp1_usd else 0.0
 
-            tp2_price = signal.get("tp2_price", 0.0)
+            tp2_price = signal.get("tp2_price") or 0.0
             tp2_usd = mt5_lib.order_calc_profit(order_type_m, pair, lot_size, executed_price, tp2_price) if tp2_price > 0 else 0.0
             tp2_usd = abs(tp2_usd) if tp2_usd else 0.0
 
-            tp3_price = signal.get("tp3_price", 0.0)
+            tp3_price = signal.get("tp3_price") or 0.0
             tp3_usd = mt5_lib.order_calc_profit(order_type_m, pair, lot_size, executed_price, tp3_price) if tp3_price > 0 else 0.0
             tp3_usd = abs(tp3_usd) if tp3_usd else 0.0
         except Exception as e:
@@ -278,6 +278,9 @@ class ExecutionEngine:
             "tp3_usd": tp3_usd,
             "margin_used": margin_usd,
         }
+        for i, (k, v) in enumerate(trade_data.items(), 1):
+            if hasattr(v, 'mock_calls') or 'MagicMock' in str(type(v)):
+                logger.error(f"Parameter {i} ({k}) is a MagicMock: {v}")
         self.state.insert_trade(trade_data)
 
         # Log to Google Sheets if reporter is available

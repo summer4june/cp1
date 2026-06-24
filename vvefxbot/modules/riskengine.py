@@ -75,7 +75,7 @@ class RiskEngine:
             return 0.04
 
         if self.vault:
-            risk_amount = self.vault.get_current_risk_amount()
+            risk_amount = self.vault.get_current_risk_amount(self.mt5)
             trading_balance = self.vault.get_vault_config().get("trading_balance", 100.0)
         else:
             risk_amount = self.config.trading_pool_size * (self.config.risk_percent / 100.0)

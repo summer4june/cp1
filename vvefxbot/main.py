@@ -62,7 +62,7 @@ def session_monitor_loop(session_engine: SessionEngine, interval: int = 60):
         time.sleep(interval)
 
 
-def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, session_engine: SessionEngine, reporter, telegram_bridge, interval: int = 60):
+def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, session_engine: SessionEngine, reporter, telegram_bridge, mt5_connector, interval: int = 60):
     """
     Daemon thread: Triggers End of Day Vault calculations right after LondonClose killzone ends.
     """
@@ -90,7 +90,7 @@ def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, sessi
                     old_config = vault_engine.get_vault_config()
                     start_balance = old_config.get("trading_balance", 100.0)
                     
-                    vault_engine.process_end_of_day(state_engine, reporter=reporter)
+                    vault_engine.process_end_of_day(state_engine, mt5=mt5_connector, reporter=reporter)
                     last_eod_date = today
                     
                     # Gather stats for Telegram
@@ -98,7 +98,7 @@ def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, sessi
                     new_trading_balance = new_config.get("trading_balance", 100.0)
                     new_vault_balance = new_config.get("vault_balance", 0.0)
                     total_wealth = new_trading_balance + new_vault_balance
-                    current_lot_size = vault_engine.get_current_risk_amount()
+                    current_lot_size = vault_engine.get_current_risk_amount(mt5_connector)
                     
                     daily_state = state_engine.get_daily_state(today)
                     daily_profit = daily_state.get("daily_profit_usd", 0.0)
@@ -356,12 +356,17 @@ def scan_pair(
                 tp1_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp1_price"])
                 tp1_usd = abs(tp1_usd) if tp1_usd else 0.0
                 
-                tp2_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp2_price"])
-                tp2_usd = abs(tp2_usd) if tp2_usd else 0.0
+                tp2_price = signal.get("tp2_price") or 0.0
+                tp2_usd = 0.0
+                if tp2_price > 0:
+                    tp2_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], tp2_price)
+                    tp2_usd = abs(tp2_usd) if tp2_usd else 0.0
                 
                 tp3_usd = 0.0
-                if "tp3_price" in signal and signal["tp3_price"] > 0:
-                    tp3_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp3_price"])
+                tp3_price = signal.get("tp3_price") or 0.0
+                tp3_usd = 0.0
+                if tp3_price > 0:
+                    tp3_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], tp3_price)
                     tp3_usd = abs(tp3_usd) if tp3_usd else 0.0
 
                 # Margin USD
@@ -517,9 +522,11 @@ def main():
     sess_thread.start()
     logger.info("Session monitor thread started (60s interval).")
 
-    # ── 14.5 EOD Vault monitor thread ────────────────────────────────
+    # ── 14.5 EOD Vault monitor thread    # 8. Start End-Of-Day Vault Monitor
     eod_thread = threading.Thread(
-        target=eod_monitor_loop, args=(vault_engine, state_engine, session_engine, sheet_reporter, telegram_bridge), daemon=True, name="EODMonitor"
+        target=eod_monitor_loop,
+        args=(vault_engine, state_engine, session_engine, sheet_reporter, telegram_bridge, mt5_connector, 60),
+        daemon=True
     )
     eod_thread.start()
     logger.info("EOD Vault monitor thread started.")

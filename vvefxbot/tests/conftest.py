@@ -11,6 +11,8 @@ sys.modules["MetaTrader5"] = mock_mt5_module
 mock_pos = MagicMock()
 mock_pos.price_open = 1.0
 mock_mt5_module.positions_get.return_value = [mock_pos]
+mock_mt5_module.order_calc_profit.return_value = 10.0
+mock_mt5_module.order_calc_margin.return_value = 5.0
 
 from core.configengine import Config
 
@@ -56,6 +58,8 @@ def config_mock():
         "NewYork": {"start": "18:30", "end": "21:30"},
         "LondonClose": {"start": "21:30", "end": "23:30"}
     }
+    config.trading_pool_size = 1000.0
+    config.risk_percent = 1.0
     config.correlation_groups = {
         "A": ["EURUSD", "GBPUSD"],
         "B": ["USDJPY", "EURJPY", "GBPJPY"],

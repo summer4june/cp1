@@ -253,6 +253,22 @@ class GoogleSheetReporter:
             logger.warning(f"Could not search trade_id column: {e}")
         return -1
 
+    def _get_col_letter(self, col_idx: int) -> str:
+        """Convert 1-based column index to A, B, C... Z, AA..."""
+        string = ""
+        while col_idx > 0:
+            col_idx, remainder = divmod(col_idx - 1, 26)
+            string = chr(65 + remainder) + string
+        return string
+
+    def _get_column_map(self) -> Dict[str, str]:
+        """Fetch header row and map header name to its A1 notation column letter."""
+        try:
+            headers = self.sheet.row_values(1)
+            return {h.strip(): self._get_col_letter(i + 1) for i, h in enumerate(headers) if h.strip()}
+        except Exception:
+            return {}
+
     def _log_trade_with_retry(self, trade: Dict[str, Any], signal: Dict[str, Any], retry_count: int) -> bool:
         """Internal method with retry logic."""
         if self.sheet is None:
@@ -268,25 +284,34 @@ class GoogleSheetReporter:
             row_num = self._find_row_by_trade_id(trade_id)
 
             if row_num > 0:
+                col_map = self._get_column_map()
+                
+                # Fallbacks in case Google Sheet headers were deleted or renamed
+                col_open_time = col_map.get("open_time", "S")
+                col_close_time = col_map.get("close_time", "U")
+                col_status = col_map.get("status", "V")
+                col_result = col_map.get("result", "W")
+                col_profit_usd = col_map.get("profit_usd", "X")
+                col_exit_reason = col_map.get("exit_reason", "Z")
+                col_max_level = col_map.get("max_level_reached", "AA")
+
                 if status == "CLOSED":
-                    # Update close_time (21), status (22), result (23), profit_usd (24), exit_reason (26), max_level (27)
                     updates = [
-                        {"range": f"U{row_num}", "values": [[row_data[20]]]}, # 21. close_time
-                        {"range": f"V{row_num}", "values": [[row_data[21]]]}, # 22. status
-                        {"range": f"W{row_num}", "values": [[row_data[22]]]}, # 23. result
-                        {"range": f"X{row_num}", "values": [[row_data[23]]]}, # 24. profit_usd
-                        {"range": f"Z{row_num}", "values": [[row_data[25]]]}, # 26. exit_reason
-                        {"range": f"AA{row_num}", "values": [[row_data[26]]]}, # 27. max_level_reached
+                        {"range": f"{col_close_time}{row_num}", "values": [[row_data[20]]]},
+                        {"range": f"{col_status}{row_num}", "values": [[row_data[21]]]},
+                        {"range": f"{col_result}{row_num}", "values": [[row_data[22]]]},
+                        {"range": f"{col_profit_usd}{row_num}", "values": [[row_data[23]]]},
+                        {"range": f"{col_exit_reason}{row_num}", "values": [[row_data[25]]]},
+                        {"range": f"{col_max_level}{row_num}", "values": [[row_data[26]]]},
                     ]
                 else:
-                    # Update open_time (19), status (22), result (23) when transitioning PENDING -> OPEN or TP hits
                     updates = [
-                        {"range": f"S{row_num}", "values": [[row_data[18]]]}, # 19. open_time
-                        {"range": f"V{row_num}", "values": [[row_data[21]]]}, # 22. status
-                        {"range": f"W{row_num}", "values": [[row_data[22]]]}, # 23. result
+                        {"range": f"{col_open_time}{row_num}", "values": [[row_data[18]]]},
+                        {"range": f"{col_status}{row_num}", "values": [[row_data[21]]]},
+                        {"range": f"{col_result}{row_num}", "values": [[row_data[22]]]},
                     ]
                 self.sheet.batch_update(updates)
-                logger.info(f"Trade {trade_id} {status} — updated row {row_num} in Google Sheet.")
+                logger.info(f"Trade {trade_id} {status} — updated row {row_num} dynamically in Google Sheet.")
                 return True
             else:
                 # Row not found, append full row
