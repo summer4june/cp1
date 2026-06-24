@@ -1059,20 +1059,33 @@ class ScannerZGMT:
 
     def _calculate_adr_sl(self, pair: str) -> float | None:
         """
-        Dynamic SL using the previous 5-day ADR (wick-to-wick).
+        Dynamic SL using the previous N-day ADR (wick-to-wick).
         ADR = average of (daily high − daily low) over the last N completed days.
         SL distance = ADR ÷ 2.
         Returns price-unit distance, or None if data is insufficient.
         """
         adr_days = self.zgmt_cfg.get("zgmt_adr_days", 5)
-        d1 = self.mt5.get_candles(pair, "D1", count=adr_days + 2)
+        # Fetch extra days to account for weekends/Sundays
+        d1 = self.mt5.get_candles(pair, "D1", count=adr_days + 5)
 
-        if d1 is None or len(d1) < adr_days + 1:
-            logger.warning(f"[{pair}] ZGMT-EXCEPTION: Insufficient D1 candles for ADR ({len(d1) if d1 is not None else 0} available).")
+        if d1 is None or len(d1) < 2:
             return None
 
-        # The last row (iloc[-1]) is the current forming candle. We want the `adr_days` candles before it.
-        completed = d1.iloc[-adr_days - 1 : -1]
+        import pandas as pd
+        # Ensure datetime is timezone-aware and parse day of week
+        if d1['time'].dt.tz is None:
+            d1['time'] = d1['time'].dt.tz_localize('UTC')
+            
+        # Filter out Sunday candles (weekday == 6) because they represent a tiny 2-hour window
+        # which heavily skews the True Average and High-Low range calculations.
+        d1_filtered = d1[d1['time'].dt.weekday != 6]
+        
+        if len(d1_filtered) < adr_days + 1:
+            logger.warning(f"[{pair}] ZGMT-EXCEPTION: Insufficient valid D1 trading days for ADR.")
+            return None
+
+        # The last row is the current forming candle. We want `adr_days` COMPLETED candles before it.
+        completed = d1_filtered.iloc[-adr_days - 1 : -1]
         
         adr_mode = self.zgmt_cfg.get("adr_mode", "HIGH_LOW_RANGE")
         
