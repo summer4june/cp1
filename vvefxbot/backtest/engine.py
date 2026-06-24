@@ -596,11 +596,12 @@ class BacktestEngine:
                 )
 
                 order_type = "Pending Limit" if is_limit_order else "Market Fill"
+                ob_info = f" | {signal['bias_summary']}" if "bias_summary" in signal else ""
                 logger.info(
                     f"[BT] Trade PLACED ({order_type}) | {self.pair} {signal['direction']} | "
                     f"FillBar {day_start_idx} | Entry: {entry_price:.5f} | "
                     f"SL: {trade.sl:.5f} | TP: {trade.tp2:.5f} (2R) | "
-                    f"Lot: {lot} | Score: {signal['score']} | Leg={entry_mode}"
+                    f"Lot: {lot} | Score: {signal['score']} | Leg={entry_mode}{ob_info}"
                 )
 
                 # Retroactively replay exit checks only for backdated limit orders

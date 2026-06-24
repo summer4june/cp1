@@ -867,8 +867,11 @@ class ScannerZGMT:
             "direction": direction,
             "bias_summary": (
                 f"ZGMT-EXCEPTION | {best_ob['ob_type']} OB | "
-                f"{best_ob['timeframe']} | Zone: {zone_label} | ADR SL"
+                f"{best_ob['timeframe']} | Zone: {zone_label} | "
+                f"OB H/L: {round(best_ob['body_high'], 5)} / {round(best_ob['body_low'], 5)}"
             ),
+            "ob_high": round(best_ob["body_high"], 5),
+            "ob_low": round(best_ob["body_low"], 5),
             "entry_price": round(entry_price, 5),
             "sl_price":    round(sl_price,    5),
             "tp1_price":   round(tp1_price,   5),   # TP1 = 1R (partial close here)
