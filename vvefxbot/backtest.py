@@ -368,7 +368,10 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
         for col in ["open_time", "close_time"]:
             if col in df.columns:
                 try:
-                    df[col] = pd.to_datetime(df[col]).dt.tz_convert("Asia/Kolkata").dt.strftime("%Y-%m-%d %H:%M:%S IST")
+                    # df[col] is Broker Time disguised as UTC. Shift back to true UTC before converting to IST.
+                    offset_val = float(bt_config.get("broker_timezone_offset_hours", 0.0))
+                    true_utc = pd.to_datetime(df[col]) - pd.to_timedelta(offset_val, unit="h")
+                    df[col] = true_utc.dt.tz_convert("Asia/Kolkata").dt.strftime("%Y-%m-%d %H:%M:%S IST")
                 except Exception:
                     pass
         

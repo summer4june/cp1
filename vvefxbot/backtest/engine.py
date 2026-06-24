@@ -368,7 +368,11 @@ class BacktestEngine:
         for idx in range(_WARMUP_BARS, total_bars):
             self.connector.set_bar_index(idx)
             current_bar = m1_data.iloc[idx]
-            current_time = current_bar["time"]
+            # Use the connector's current_time() which accounts for broker offset and returns REAL UTC
+            if hasattr(self.connector, "current_time"):
+                current_time = self.connector.current_time()
+            else:
+                current_time = current_bar["time"]
 
             # ── Check existing open trades first ───────────────────────
             still_open = []
