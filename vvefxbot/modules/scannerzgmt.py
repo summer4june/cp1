@@ -149,8 +149,8 @@ class ScannerZGMT:
         """
         Determine bullish or bearish bias for Leg A and Leg C.
         Uses T-1 (Yesterday) 50% midpoint.
-        If 0 GMT > Midpoint -> BUY (Bullish).
-        If 0 GMT < Midpoint -> SELL (Bearish).
+        If 0 GMT > Midpoint -> SELL (Bearish).
+        If 0 GMT < Midpoint -> BUY (Bullish).
         Returns Tuple[bias_str_or_none, is_structural_absence].
         """
         candles = self.mt5.get_candles(pair, "D1", count=3)
@@ -171,9 +171,9 @@ class ScannerZGMT:
         midpoint = (range_high + range_low) / 2.0
 
         if zgmt_price > midpoint:
-            bias = "BULLISH"  # 0 GMT opened above yesterday's 50%
+            bias = "BEARISH"  # 0 GMT opened above yesterday's 50% (sell side)
         elif zgmt_price < midpoint:
-            bias = "BEARISH"  # 0 GMT opened below yesterday's 50%
+            bias = "BULLISH"  # 0 GMT opened below yesterday's 50% (buy side)
         else:
             bias = None  # Exactly at equilibrium
 
@@ -583,7 +583,7 @@ class ScannerZGMT:
         # Strategy B: HTF OB Exception
         ob_signal = None
         if zgmt_cfg.get("strategy_b_enabled", False):
-            ob_signal = self._check_htf_ob_exception(pair, session, killzone)
+            ob_signal = self._check_htf_ob_exception(pair, bias, session, killzone)
             if ob_signal is not None:
                 ob_signal["setup_type"] = "ZGMT-B"
                 ob_signal["strategy"] = "ZGMT-B"
@@ -670,7 +670,7 @@ class ScannerZGMT:
     # HTF Order Block Exception — private methods
     # ══════════════════════════════════════════════════════════════════
 
-    def _check_htf_ob_exception(self, pair: str, session: str, killzone: str) -> dict | None:
+    def _check_htf_ob_exception(self, pair: str, bias: str, session: str, killzone: str) -> dict | None:
         """
         Checks if a valid unmitigated HTF Order Block on H4 or H1 overrides the 0-GMT setup.
         Returns signal dict if valid OB found inside correct Fibonacci zone, else None.
@@ -749,6 +749,13 @@ class ScannerZGMT:
         best_ob = fib_valid_obs[0]
 
         direction = best_ob["direction"]
+        
+        # Enforce that Leg B trades in the SAME direction as the Daily Bias
+        expected_direction = "BUY" if bias == "BULLISH" else "SELL"
+        if direction != expected_direction:
+            logger.debug(f"[{pair}] ZGMT-B: OB direction ({direction}) does not match Daily Bias ({expected_direction}). Skipping.")
+            return None
+
         if direction == "BUY" and not zgmt_cfg.get("allow_buy", True):
             return None
         if direction == "SELL" and not zgmt_cfg.get("allow_sell", True):

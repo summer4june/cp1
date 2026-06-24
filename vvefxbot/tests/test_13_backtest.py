@@ -641,7 +641,7 @@ def test_zgmt_direct_entry_at_zgmt_price(mock_config):
     signal = scanner.scan("GBPUSD", "Asia", "Asia")
 
     assert isinstance(signal, dict), "Should produce a signal dict"
-    assert signal["direction"] == "SELL", "Bias should be BEARISH because 0GMT < mid"
+    assert signal["direction"] == "BUY", "Bias should be BULLISH because 0GMT < mid"
     # DIRECT mode must use zgmt_price, NOT the drifted tick ask (1.35202)
     assert signal["entry_price"] == round(zgmt_price_open, 5), \
         f"DIRECT entry must be at zgmt_price ({zgmt_price_open}), got {signal['entry_price']}"
