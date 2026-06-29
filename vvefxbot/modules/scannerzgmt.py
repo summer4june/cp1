@@ -632,7 +632,7 @@ class ScannerZGMT:
                 ob_signal["setup_type"] = "ZGMT-B"
                 ob_signal["strategy"] = "ZGMT-B"
                 ob_signal["bias_summary"] = ob_signal["bias_summary"].replace("ZGMT-EXCEPTION", "ZGMT-B")
-                logger.info(f"[{pair}] ZGMT-B: HTF OB condition met.")
+                logger.info(f"[{pair}] ZGMT-B: HTF OB condition met ({ob_signal['timeframe_entry']} timeframe).")
 
         signals_to_emit = []
 
