@@ -648,7 +648,7 @@ class ScannerZGMT:
                 "session": session,
                 "killzone": killzone,
                 "entry_leg": {"ZGMT-A": "A", "ZGMT-B": "B", "ZGMT-C": "C"}.get(strat_id, "A"),
-                "entry_mode": "DIRECT" if strat_id == "ZGMT-A" else "FILTER",
+                "entry_mode": "FILTER",  # ZGMT-A and ZGMT-C both use Limit (Pending) Orders
                 "timeframe_bias": zgmt_cfg.get("timeframe_bias", "D1"),
                 "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
                 "direction": "BUY" if bias == "BULLISH" else "SELL",
@@ -676,9 +676,17 @@ class ScannerZGMT:
         if strategy_a_valid and not pd_swept_before_zgmt and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
             # Only take Strategy A in the Asian Killzone
             if killzone.lower() == "asia":
-                levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
-                if levs_direct:
-                    signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
+                # Ensure we are at least 3 minutes into the window to fetch & place the limit order
+                today_ist = now_ist.date()
+                window_start_dt = datetime.combine(today_ist, window_start).replace(tzinfo=now_ist.tzinfo)
+                if now_ist >= window_start_dt + timedelta(minutes=3):
+                    # We use DIRECT calculation to ensure entry_price == 0GMT price (no offset)
+                    levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
+                    if levs_direct:
+                        signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
+                        logger.info(f"[{pair}] ZGMT-A VALID: Limit order at 0 GMT price scheduled.")
+                else:
+                    logger.debug(f"[{pair}] ZGMT-A: Waiting for 3 minutes into window ({window_start}) to emit limit order.")
             else:
                 logger.debug(f"[{pair}] ZGMT: Skipping Strategy A because killzone '{killzone}' is not Asia.")
 
