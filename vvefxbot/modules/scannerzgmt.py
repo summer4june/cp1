@@ -1117,20 +1117,20 @@ class ScannerZGMT:
         fib_range = swing_high - swing_low
 
         if ob["direction"] == "SELL":
-            # Premium zone: fib drawn from high → low.
-            # 50% from top = swing_high - fib_range * 0.50
-            # 61.8% from top = swing_high - fib_range * 0.618
             fib_zone_top    = swing_high - fib_range * fib_min   # closer to high (50%)
             fib_zone_bottom = swing_high - fib_range * fib_max   # deeper (61.8%)
-            return fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
+            is_valid = fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
+            if is_valid:
+                logger.debug(f"Fib Match (SELL OB): SwingHigh={swing_high:.5f}, SwingLow={swing_low:.5f}. Mid={ob['body_mid']:.5f} is in Premium zone [{fib_zone_bottom:.5f} - {fib_zone_top:.5f}]")
+            return is_valid
 
         else:  # BUY
-            # Discount zone: fib drawn from low → high.
-            # 50% from bottom = swing_low + fib_range * 0.50
-            # 61.8% from bottom = swing_low + fib_range * 0.618
             fib_zone_bottom = swing_low + fib_range * fib_min    # 50%
             fib_zone_top    = swing_low + fib_range * fib_max    # 61.8%
-            return fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
+            is_valid = fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
+            if is_valid:
+                logger.debug(f"Fib Match (BUY OB): SwingHigh={swing_high:.5f}, SwingLow={swing_low:.5f}. Mid={ob['body_mid']:.5f} is in Discount zone [{fib_zone_bottom:.5f} - {fib_zone_top:.5f}]")
+            return is_valid
 
     # ──────────────────────────────────────────────────────────────────
 
