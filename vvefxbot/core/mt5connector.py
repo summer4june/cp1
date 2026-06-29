@@ -32,6 +32,8 @@ ORD_BUY = getattr(mt5, 'ORDER_TYPE_BUY', 0)
 ORD_SELL = getattr(mt5, 'ORDER_TYPE_SELL', 1)
 ORD_BUY_LIMIT = getattr(mt5, 'ORDER_TYPE_BUY_LIMIT', 2)
 ORD_SELL_LIMIT = getattr(mt5, 'ORDER_TYPE_SELL_LIMIT', 3)
+ORD_BUY_STOP = getattr(mt5, 'ORDER_TYPE_BUY_STOP', 4)
+ORD_SELL_STOP = getattr(mt5, 'ORDER_TYPE_SELL_STOP', 5)
 
 # Trade Actions
 ACTION_DEAL = getattr(mt5, 'TRADE_ACTION_DEAL', 1)
@@ -426,14 +428,18 @@ class MT5Connector:
 
     def place_pending_order(self, symbol: str, order_type: str, lot: float, entry_price: float, sl: float, tp: float, comment: str = "VvE_Limit") -> Dict[str, Any]:
         """
-        Place a pending Limit order (Buy Limit or Sell Limit).
+        Place a pending order (Limit or Stop). Automatically chooses based on current market price.
         """
+        tick = mt5.symbol_info_tick(symbol)
+        if not tick:
+            return {"success": False, "ticket": -1, "error": f"Could not get tick for {symbol}"}
+
         if order_type.upper() == "BUY":
-            mt5_type = ORD_BUY_LIMIT
+            mt5_type = ORD_BUY_LIMIT if entry_price < tick.ask else ORD_BUY_STOP
         elif order_type.upper() == "SELL":
-            mt5_type = ORD_SELL_LIMIT
+            mt5_type = ORD_SELL_LIMIT if entry_price > tick.bid else ORD_SELL_STOP
         else:
-            return {"success": False, "ticket": -1, "error": f"Invalid order type for limit: {order_type}"}
+            return {"success": False, "ticket": -1, "error": f"Invalid order type for limit/stop: {order_type}"}
 
         # Expiration for pending orders set to end of current day (or next day)
         info = mt5.symbol_info(symbol)
