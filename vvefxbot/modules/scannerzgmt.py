@@ -582,7 +582,9 @@ class ScannerZGMT:
 
         # ── Step 2B: Untested condition ───────────────────────────────
         is_tested = self._is_zgmt_level_tested(pair, zgmt_price, zgmt_cfg)
+        
         strategy_a_valid = not is_tested
+        strategy_c_valid = not is_tested
 
         if is_tested:
             now_utc = self._utc_now()
@@ -591,21 +593,21 @@ class ScannerZGMT:
             test_start_time = today_zgmt_utc + timedelta(minutes=exclude_mins)
 
             if now_utc < test_start_time:
-                # Still inside exclusion window — price hasn't displaced yet.
-                logger.debug(
-                    f"[{pair}] ZGMT Step 2B: Inside exclusion window — deferring entirely."
-                )
-                return None
+                # Inside exclusion window. Price hasn't displaced yet.
+                # Leg A: We MUST allow it so it can place the Limit order 3 mins into the Killzone.
+                strategy_a_valid = True
+                # Leg C: Not allowed yet (needs displacement first)
+                strategy_c_valid = False
+                logger.debug(f"[{pair}] ZGMT Step 2B: Inside exclusion window. Leg A allowed, Leg C deferred.")
             else:
-                # Level has genuinely been touched after the exclusion window → invalid for Strategy A.
-                logger.debug(
-                    f"[{pair}] ZGMT Step 2B: 0 GMT level already tested "
-                    f"({zgmt_price:.5f}) — Strategy A invalid for today."
-                )
+                # Level has genuinely been touched after the exclusion window → invalid for A & C
+                strategy_a_valid = False
+                strategy_c_valid = False
+                logger.debug(f"[{pair}] ZGMT Step 2B: 0 GMT level already tested ({zgmt_price:.5f}) — A & C invalid.")
                 
-                # Optimization: if B and C are disabled, finalize the day early
-                if not zgmt_cfg.get("strategy_b_enabled", False) and not zgmt_cfg.get("strategy_c_enabled", False):
-                    logger.info(f"[{pair}] ZGMT Step 2B: 0 GMT level tested and B/C disabled. Finalizing for today.")
+                # Optimization: if B is disabled, finalize the day early
+                if not zgmt_cfg.get("strategy_b_enabled", False):
+                    logger.info(f"[{pair}] ZGMT Step 2B: 0 GMT level tested and B disabled. Finalizing for today.")
                     self._mark_daily_finalized(pair)
                     return None
 
@@ -696,8 +698,8 @@ class ScannerZGMT:
 
         # Strategy C (Manipulation / Judas Swing)
         if zgmt_cfg.get("strategy_c_enabled", False):
-            if not strategy_a_valid:
-                logger.debug(f"[{pair}] ZGMT-C INVALID: Strategy A is invalid (0 GMT level already tested).")
+            if not strategy_c_valid:
+                logger.debug(f"[{pair}] ZGMT-C INVALID: Strategy C is invalid (0 GMT level already tested or in exclusion window).")
             elif pd_swept_before_zgmt:
                 logger.debug(f"[{pair}] ZGMT-C INVALID: PD array already swept before 0 GMT.")
             else:
