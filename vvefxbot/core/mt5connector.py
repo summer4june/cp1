@@ -51,6 +51,7 @@ TF_D1  = getattr(mt5, 'TIMEFRAME_D1',  16408)
 
 # Other Constants
 TIME_GTC = getattr(mt5, 'ORDER_TIME_GTC', 0)
+TIME_SPECIFIED_DAY = getattr(mt5, 'ORDER_TIME_SPECIFIED_DAY', 3)
 
 class MT5Connector:
     """Connector class for MetaTrader 5 terminal interaction."""
@@ -441,7 +442,7 @@ class MT5Connector:
         else:
             return {"success": False, "ticket": -1, "error": f"Invalid order type for limit/stop: {order_type}"}
 
-        # Expiration for pending orders set to end of current day (or next day)
+        # Expiration for pending orders set to end of next day
         info = mt5.symbol_info(symbol)
         if not info:
             return {"success": False, "ticket": -1, "error": f"Symbol {symbol} not found"}
@@ -450,6 +451,11 @@ class MT5Connector:
         entry_price = round(float(entry_price), digits)
         sl = round(float(sl), digits)
         tp = round(float(tp), digits) if tp else 0.0
+
+        # Set expiration to the end of tomorrow (broker time)
+        # Using TIME_SPECIFIED_DAY means it expires at 00:00 of the specified date.
+        # So setting it to today + 2 days means it lasts through tomorrow and expires when the day after tomorrow begins.
+        expiration_time = int((datetime.now() + timedelta(days=2)).replace(hour=0, minute=0, second=0).timestamp())
 
         request = {
             "action": ACTION_PENDING,
@@ -462,7 +468,8 @@ class MT5Connector:
             "deviation": 20,
             "magic": 123456,
             "comment": comment,
-            "type_time": TIME_GTC,
+            "type_time": TIME_SPECIFIED_DAY,
+            "expiration": expiration_time,
             "type_filling": self._get_filling_mode(symbol),
         }
 
