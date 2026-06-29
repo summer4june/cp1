@@ -247,9 +247,9 @@ class StateEngine:
             finally:
                 self._close_connection(conn)
 
-    def has_signal_been_sent(self, pair: str, direction: str, cooldown_minutes: int) -> bool:
+    def has_signal_been_sent(self, pair: str, direction: str, cooldown_minutes: int, strategy: str = None) -> bool:
         """
-        Returns True if a Telegram alert was SUCCESSFULLY sent for this pair+direction
+        Returns True if a Telegram alert was SUCCESSFULLY sent for this pair+direction(+strategy)
         within the given cooldown window. Uses the telegram_alert_sent=1 flag, not just
         detected_time, so restart-safe: only blocks re-sending if the signal was actually
         delivered to Telegram before the restart.
@@ -258,13 +258,23 @@ class StateEngine:
             conn = self._get_connection()
             try:
                 cutoff_time = (datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)).isoformat()
-                cursor = conn.execute(
-                    """SELECT 1 FROM signals_detected
-                       WHERE pair = ? AND direction = ?
-                         AND telegram_alert_sent = 1
-                         AND detected_time >= ?""",
-                    (pair, direction, cutoff_time)
-                )
+                
+                if strategy:
+                    cursor = conn.execute(
+                        """SELECT 1 FROM signals_detected
+                           WHERE pair = ? AND direction = ? AND strategy = ?
+                             AND telegram_alert_sent = 1
+                             AND detected_time >= ?""",
+                        (pair, direction, strategy, cutoff_time)
+                    )
+                else:
+                    cursor = conn.execute(
+                        """SELECT 1 FROM signals_detected
+                           WHERE pair = ? AND direction = ?
+                             AND telegram_alert_sent = 1
+                             AND detected_time >= ?""",
+                        (pair, direction, cutoff_time)
+                    )
                 return cursor.fetchone() is not None
             except sqlite3.Error as e:
                 logger.error(f"Error checking has_signal_been_sent: {e}")

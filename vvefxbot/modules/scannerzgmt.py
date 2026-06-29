@@ -687,10 +687,18 @@ class ScannerZGMT:
             signals_to_emit.append(ob_signal)
 
         # Strategy C (Manipulation / Judas Swing)
-        if strategy_a_valid and not pd_swept_before_zgmt and zgmt_cfg.get("strategy_c_enabled", False):
-            levs_filter = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="FILTER")
-            if levs_filter:
-                signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C"))
+        if zgmt_cfg.get("strategy_c_enabled", False):
+            if not strategy_a_valid:
+                logger.debug(f"[{pair}] ZGMT-C INVALID: Strategy A is invalid (0 GMT level already tested).")
+            elif pd_swept_before_zgmt:
+                logger.debug(f"[{pair}] ZGMT-C INVALID: PD array already swept before 0 GMT.")
+            else:
+                levs_filter = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="FILTER")
+                if levs_filter:
+                    signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C"))
+                    logger.info(f"[{pair}] ZGMT-C VALID: Judas swing limit order added.")
+                else:
+                    logger.debug(f"[{pair}] ZGMT-C INVALID: Failed to compute entry/sl/tp levels.")
 
         if not signals_to_emit:
             return None
@@ -758,6 +766,7 @@ class ScannerZGMT:
         valid_obs = [ob for ob in all_obs if not ob["is_mitigated"]]
         logger.debug(f"[{pair}] _check_htf_ob_exception: {len(valid_obs)} OBs survived unmitigated filter")
         if not valid_obs:
+            logger.debug(f"[{pair}] ZGMT-B INVALID: No unmitigated OBs found.")
             return None
 
         # Filter 2: price must currently be tapping into the OB zone
@@ -769,6 +778,7 @@ class ScannerZGMT:
             # Just log periodically so it doesn't spam every minute
             pass
         if not tapping_obs:
+            logger.debug(f"[{pair}] ZGMT-B INVALID: Current price {current_price} is not tapping any valid OBs.")
             return None
         logger.debug(f"[{pair}] _check_htf_ob_exception: {len(tapping_obs)} OBs tapping current price {current_price}")
 
@@ -788,6 +798,7 @@ class ScannerZGMT:
 
         logger.debug(f"[{pair}] _check_htf_ob_exception: {len(fib_valid_obs)} OBs survived Fib Filter")
         if not fib_valid_obs:
+            logger.debug(f"[{pair}] ZGMT-B INVALID: No valid OBs found in Premium/Discount zones.")
             return None
 
         # Select best OB: prefer H4 over H1, then most recent (highest candle_index)

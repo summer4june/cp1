@@ -300,8 +300,9 @@ def scan_pair(
                 # Using has_signal_been_sent (not has_recent_signal) so that a signal which
                 # was detected but failed to send does NOT permanently block the next attempt.
                 direction = signal.get("direction", "")
-                if state_engine.has_signal_been_sent(pair, direction, cooldown_minutes=1440):
-                    logger.debug(f"[{pair}] {scanner_name} skipped — {direction} signal already sent to Telegram today.")
+                strategy = signal.get("strategy", "")
+                if state_engine.has_signal_been_sent(pair, direction, cooldown_minutes=1440, strategy=strategy):
+                    logger.debug(f"[{pair}] {scanner_name} skipped — {strategy} {direction} signal already sent to Telegram today.")
                     continue
 
                 signal_id = signal["signal_id"]

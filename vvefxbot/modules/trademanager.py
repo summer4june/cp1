@@ -192,6 +192,7 @@ class TradeManager:
             alert = f"⚠️ 3 consecutive losses reached for {pair}. Session paused."
             logger.warning(alert)
             self._send_alert(alert)
+            self.state.disable_bot_today(today)
 
         max_loss = self.config.trading_pool_size * (_DAILY_LOSS_THRESHOLD_PCT / 100.0)
         if daily.get("total_loss_usd", 0.0) >= max_loss:
