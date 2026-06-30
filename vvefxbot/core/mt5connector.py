@@ -601,21 +601,22 @@ class MT5Connector:
         Returns:
             float: Total profit/loss in account currency. Returns 0.0 if not found.
         """
-        # Search history for this ticket (from 24h ago to now)
-        from_date = datetime.now() - timedelta(days=1)
-        deals = mt5.history_deals_get(from_date, datetime.now(), group=f"*{ticket}*")
+        # First, try fetching by position ID directly (most accurate)
+        deals = mt5.history_deals_get(position=ticket)
         
         if not deals:
-            # Try searching by position ID directly if group filter fails
-            deals = mt5.history_deals_get(position=ticket)
+            # Fallback: fetch last 48 hours of deals and manually filter (prevents MT5 group filter bug)
+            from_date = datetime.now() - timedelta(days=2)
+            all_deals = mt5.history_deals_get(from_date, datetime.now())
+            if all_deals:
+                deals = [d for d in all_deals if getattr(d, 'position_id', 0) == ticket or getattr(d, 'order', 0) == ticket]
 
         if not deals:
             return 0.0
 
         total_profit = 0.0
         for deal in deals:
-            # We only care about deals that have a profit value (actual trades)
-            total_profit += (deal.profit + deal.commission + deal.swap)
+            total_profit += (getattr(deal, 'profit', 0.0) + getattr(deal, 'commission', 0.0) + getattr(deal, 'swap', 0.0))
             
         return round(total_profit, 2)
 
