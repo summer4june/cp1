@@ -789,6 +789,21 @@ class TradeManager:
             if h_order.state == mt5.ORDER_STATE_FILLED:
                 # Order was filled! Find the position ID.
                 position_id = getattr(h_order, "position_id", ticket)
+                if not position_id or position_id == 0:
+                    position_id = ticket
+                
+                # Robust fallback: some brokers assign a new position ID but don't attach it to the history order
+                if not self._ticket_exists_in_mt5(position_id):
+                    try:
+                        from_d = datetime.now() - timedelta(days=2)
+                        deals = mt5.history_deals_get(from_d, datetime.now())
+                        if deals:
+                            for d in deals:
+                                if getattr(d, 'order', 0) == ticket and getattr(d, 'position_id', 0) > 0:
+                                    position_id = d.position_id
+                                    break
+                    except Exception as e:
+                        logger.warning(f"[{pair}] Fallback deal fetch failed: {e}")
                 
                 # Check if this position is actually open in MT5
                 if self._ticket_exists_in_mt5(position_id):
