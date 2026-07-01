@@ -605,11 +605,19 @@ class MT5Connector:
         deals = mt5.history_deals_get(position=ticket)
         
         if not deals:
-            # Fallback: fetch last 48 hours of deals and manually filter (prevents MT5 group filter bug)
-            from_date = datetime.now() - timedelta(days=2)
+            # Fallback: fetch last 5 days of deals and manually filter (prevents MT5 group filter bug & handles ticket changes)
+            from_date = datetime.now() - timedelta(days=5)
             all_deals = mt5.history_deals_get(from_date, datetime.now())
             if all_deals:
-                deals = [d for d in all_deals if getattr(d, 'position_id', 0) == ticket or getattr(d, 'order', 0) == ticket]
+                # If the ticket passed is a NEW ticket (from partial close), its true 'position_id' is the original ticket.
+                true_position_id = ticket
+                for d in all_deals:
+                    if getattr(d, 'order', 0) == ticket or getattr(d, 'ticket', 0) == ticket:
+                        true_position_id = getattr(d, 'position_id', ticket)
+                        if true_position_id > 0:
+                            break
+                            
+                deals = [d for d in all_deals if getattr(d, 'position_id', 0) == true_position_id]
 
         if not deals:
             return 0.0

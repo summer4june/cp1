@@ -684,8 +684,18 @@ class TradeManager:
         Determines LOSS vs BREAKEVEN and applies daily guards.
         """
         profit_usd = self.mt5.get_historical_profit(ticket)
+        tp1_hit = int(trade.get("tp1_hit", 0))
 
-        if profit_usd >= -0.01 and int(trade.get("be_moved", 0)) and profit_usd < 5.0:
+        if tp1_hit == 1:
+            result = "WIN" if profit_usd > 0 else "LOSS"
+            if result == "WIN":
+                if float(trade.get("tp3", 0.0)) > 0:
+                    event_type = "TP3_HIT"
+                else:
+                    event_type = "TP2_HIT"
+            else:
+                event_type = "SL_HIT"
+        elif profit_usd >= -0.01 and int(trade.get("be_moved", 0)) and profit_usd < 5.0:
             result = "BREAKEVEN"
             event_type = "BREAKEVEN"
         else:
@@ -712,6 +722,12 @@ class TradeManager:
                 f"🟧 *Trade CLOSED BREAKEVEN*\n"
                 f"Pair: `{pair}` | Ticket: `{ticket}` | Price: `{current_price:.5f}`\n"
                 f"P&L: `{profit_usd:.2f} USD` _(SL at breakeven)_"
+            )
+        elif result == "WIN":
+            msg = (
+                f"✅ *Trade CLOSED WIN*\n"
+                f"Pair: `{pair}` | Ticket: `{ticket}` | Price: `{current_price:.5f}`\n"
+                f"P&L: `+{profit_usd:.2f} USD` _(Runner stopped out)_"
             )
         else:
             msg = (

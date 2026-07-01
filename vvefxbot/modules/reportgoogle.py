@@ -161,30 +161,36 @@ class GoogleSheetReporter:
         # Calculate exact pips from prices if available
         pip_size = point
         
-        if trade.get("tp1") and trade.get("executed_price"):
-            tp1_pips = round(abs(trade.get("tp1") - trade.get("executed_price")) / pip_size, 2)
+        exec_price = float(trade.get("executed_price", 0.0) or 0.0)
+        
+        tp1 = trade.get("tp1")
+        if tp1 and exec_price:
+            tp1_pips = round(abs(float(tp1) - exec_price) / pip_size, 2)
         else:
             tp1_pips = float(trade.get("tp1_pips") or sl_pips)
             
-        if trade.get("tp2") and trade.get("executed_price"):
-            tp2_pips = round(abs(trade.get("tp2") - trade.get("executed_price")) / pip_size, 2)
+        tp2 = trade.get("tp2")
+        if tp2 and exec_price:
+            tp2_pips = round(abs(float(tp2) - exec_price) / pip_size, 2)
         else:
             tp2_pips = float(trade.get("tp2_pips") or sl_pips * 2.0)
             
-        if trade.get("tp3") and trade.get("executed_price"):
-            tp3_pips = round(abs(trade.get("tp3") - trade.get("executed_price")) / pip_size, 2)
+        tp3 = trade.get("tp3")
+        if tp3 and exec_price:
+            tp3_pips = round(abs(float(tp3) - exec_price) / pip_size, 2)
         else:
             tp3_pips = float(trade.get("tp3_pips") or sl_pips * 3.0)
+            
         margin_used = float(trade.get("margin_used") or 0.0)
 
         result = trade.get("result", "") or ""
         max_level = ""
-        if result == "TP1_HIT":
-            max_level = "tp1"
-        elif result == "TP2_HIT":
-            max_level = "tp2"
-        elif result == "TP3_HIT":
+        if int(trade.get("tp3_hit", 0)) == 1:
             max_level = "tp3"
+        elif int(trade.get("tp2_hit", 0)) == 1:
+            max_level = "tp2"
+        elif int(trade.get("tp1_hit", 0)) == 1:
+            max_level = "tp1"
 
         # Calculate proper open time
         exec_time_str = trade.get("execution_time")
@@ -315,7 +321,15 @@ class GoogleSheetReporter:
                 return True
             else:
                 # Row not found, append full row
-                self.sheet.append_row(row_data)
+                try:
+                    self.sheet.append_row(row_data, value_input_option='USER_ENTERED')
+                except Exception as e:
+                    if 'exceeds grid limits' in str(e):
+                        logger.info("Grid limit exceeded. Adding 100 rows to the sheet...")
+                        self.sheet.add_rows(100)
+                        self.sheet.append_row(row_data, value_input_option='USER_ENTERED')
+                    else:
+                        raise e
                 logger.info(f"Trade {trade_id} {status} — appended new row to Google Sheet.")
                 return True
 

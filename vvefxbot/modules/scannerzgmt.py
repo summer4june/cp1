@@ -713,10 +713,6 @@ class ScannerZGMT:
         if not signals_to_emit:
             return None
 
-        # ── Register signals ───────────────────────────────────────────
-        self._last_signal_time[pair] = self._utc_now()
-        self._increment_daily_count(pair)
-
         for s in signals_to_emit:
             logger.info(
                 f"[{pair}] ZGMT Signal ✅ {s['direction']} | "
@@ -724,8 +720,6 @@ class ScannerZGMT:
                 f"TP2={s['tp2_price']:.5f} | 0GMT={zgmt_price:.5f} | "
                 f"Mode={s.get('setup_type', 'ZGMT')} | Score={s['score']}"
             )
-
-        self._mark_daily_finalized(pair)
 
         return signals_to_emit if len(signals_to_emit) > 1 else signals_to_emit[0]
 
