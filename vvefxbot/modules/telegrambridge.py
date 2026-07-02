@@ -205,9 +205,9 @@ class TelegramBridge:
             f"TP3 USD : `${tp3_usd:.2f}`\n\n"
             f"Margin will use : `${margin_usd:.2f}`\n"
             f"Lot: `{lot_size}`\n"
-            f"Spread: `{signal['spread_pips']}`\n"
-            f"Eff RR: `{signal['effective_rr']}`\n"
-            f"Score: `{signal['score']}`\n\n"
+            f"Spread: `{signal.get('spread_pips', 'N/A')}`\n"
+            f"Eff RR: `{signal.get('effective_rr', 'N/A')}`\n"
+            f"Score: `{signal.get('score', 0)}`\n\n"
             f"Signal ID: `{signal_id}`"
         )
 

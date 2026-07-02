@@ -203,10 +203,14 @@ class ScannerMacro:
         
         lot_size = float(self.macro_cfg.get("fixed_lot_size", 0.04))
         
+        spr = self.mt5.get_current_spread(pair)
+        den = sl_pips + spr
+        eff_rr = (tp_pips - spr) / den if den > 0 else 0.0
+        
         logger.info(f"[{pair}] MACRO HYDRA SIGNAL: {direction} | Window: {w_name} ({w_type}) | Entry: {entry} | SL: {sl} | TP: {tp}")
 
         return {
-            "ticket": ticket_id,
+            "signal_id": ticket_id,
             "pair": pair,
             "direction": direction,
             "entry_price": round(entry, 5),
@@ -215,6 +219,8 @@ class ScannerMacro:
             "tp2_price": round(tp, 5),
             "sl_pips": round(sl_pips, 1),
             "tp_pips": round(tp_pips, 1),
+            "spread_pips": spr,
+            "effective_rr": round(eff_rr, 2),
             "score": 90.0,
             "detected_time": now_utc.isoformat(),
             "strategy": "MACRO-HYDRA",
