@@ -687,26 +687,23 @@ class TradeManager:
         tp1_hit = int(trade.get("tp1_hit", 0))
 
         if tp1_hit == 1:
-            result = "WIN" if profit_usd > 0 else "LOSS"
-            if result == "WIN":
-                if float(trade.get("tp3", 0.0)) > 0:
-                    event_type = "TP3_HIT"
-                else:
-                    event_type = "TP2_HIT"
+            # If TP1 was already hit, a subsequent unexpected close means the runner was stopped out 
+            # (either at Breakeven, or at TP1 if TP2 was hit).
+            if profit_usd > 0:
+                result = "WIN"
+                event_type = "RUNNER_CLOSED_WIN"
+            elif profit_usd > -0.01:
+                result = "BREAKEVEN"
+                event_type = "BREAKEVEN"
             else:
+                result = "LOSS"
                 event_type = "SL_HIT"
         elif profit_usd >= -0.01 and int(trade.get("be_moved", 0)) and profit_usd < 5.0:
             result = "BREAKEVEN"
             event_type = "BREAKEVEN"
         else:
             result = "WIN" if profit_usd > 0 else "LOSS"
-            if result == "WIN":
-                if float(trade.get("tp3", 0.0)) > 0:
-                    event_type = "TP3_HIT"
-                else:
-                    event_type = "TP2_HIT"
-            else:
-                event_type = "SL_HIT"
+            event_type = "MANUAL_WIN" if result == "WIN" else "SL_HIT"
 
         self.state.update_trade_status(trade_id, "CLOSED", result, round(profit_usd, 2))
         self.state.insert_event(trade_id, event_type, current_price)
