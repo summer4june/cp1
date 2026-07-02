@@ -1026,30 +1026,34 @@ class ScannerZGMT:
 
             if ob["direction"] == "SELL":
                 # Bullish Breaker: bearish OB that was broken to the upside
-                if len(subsequent) > 0 and any(subsequent['close'] > ob["body_high"]):
+                break_candles = subsequent[subsequent['close'] > ob["body_high"]]
+                if not break_candles.empty:
+                    break_idx = break_candles.index[0]
                     breakers.append({
                         "ob_type": "BREAKER",
                         "direction": "BUY",
                         "body_high": ob["body_high"],
                         "body_low": ob["body_low"],
                         "body_mid": ob["body_mid"],
-                        "candle_index": ob["candle_index"],
+                        "candle_index": break_idx,  # The block is established at the break
                         "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, idx, "BUY", ob["body_low"]),
+                        "is_mitigated": self._check_mitigated(df, break_idx, "BUY", ob["body_low"]),
                     })
 
             elif ob["direction"] == "BUY":
                 # Bearish Breaker: bullish OB that was broken to the downside
-                if len(subsequent) > 0 and any(subsequent['close'] < ob["body_low"]):
+                break_candles = subsequent[subsequent['close'] < ob["body_low"]]
+                if not break_candles.empty:
+                    break_idx = break_candles.index[0]
                     breakers.append({
                         "ob_type": "BREAKER",
                         "direction": "SELL",
                         "body_high": ob["body_high"],
                         "body_low": ob["body_low"],
                         "body_mid": ob["body_mid"],
-                        "candle_index": ob["candle_index"],
+                        "candle_index": break_idx,  # The block is established at the break
                         "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, idx, "SELL", ob["body_high"]),
+                        "is_mitigated": self._check_mitigated(df, break_idx, "SELL", ob["body_high"]),
                     })
 
         return breakers
