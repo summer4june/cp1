@@ -423,8 +423,8 @@ def main():
     if offset_hours != 0.0:
         logger.info(f"Applying broker server timezone offset of {offset_hours} hours to shift data to UTC.")
 
-    strategy_name = "ZGMT"
-    logger.info("Backtesting strategy: ZGMT (Exclusive)")
+    strategy_name = bt_config.get("strategy", "ZGMT").upper()
+    logger.info(f"Backtesting strategy: {strategy_name} (Exclusive)")
 
     # ── Load bot config ───────────────────────────────────────────────
     config_engine = ConfigEngine("config.json")
@@ -493,12 +493,18 @@ def main():
             from core.stateengine import StateEngine as _SE
             _bt_state = _SE(":memory:")
 
-            from modules.scannerzgmt import ScannerZGMT
-            # Ensure ZGMT is enabled for the backtest run
-            if isinstance(config.zgmt_scanner, dict):
-                config.zgmt_scanner["enabled"] = True
-            scanner = ScannerZGMT(config, connector, _bt_state)
-
+            # Init scanner based on config
+            if strategy_name == "MACRO":
+                if isinstance(config.macro_strategy, dict):
+                    config.macro_strategy["enabled"] = True
+                from modules.scannermacro import ScannerMacro
+                scanner = ScannerMacro(config, connector, _bt_state)
+            else:
+                if isinstance(config.zgmt_scanner, dict):
+                    config.zgmt_scanner["enabled"] = True
+                from modules.scannerzgmt import ScannerZGMT
+                scanner = ScannerZGMT(config, connector, _bt_state)
+            
             engine = BacktestEngine(config, connector, pair, scanner=scanner)
             trades = engine.run()
             all_trades.extend(trades)

@@ -64,7 +64,10 @@ class ScannerMacro:
         if not self.macro_cfg.get("enabled", False):
             return None
 
-        now_utc = datetime.now(timezone.utc)
+        # Use mt5 connector time to support both live (real time) and backtest (simulated time)
+        now_utc = self.mt5.current_time()
+        if now_utc.tzinfo is None:
+            now_utc = now_utc.replace(tzinfo=timezone.utc)
         now_ist = now_utc + self._IST_OFFSET
         
         active_macro = self._get_active_macro(now_ist)
@@ -151,7 +154,7 @@ class ScannerMacro:
                             tp_pips = sl_pips * rr_target
                             tp_price = current_price + (tp_pips * self._pip_size(pair))
                             
-                            return self._build_signal("BUY", pair, current_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips)
+                            return self._build_signal("BUY", pair, current_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
 
         # --- CHECK SHORT SETUP ---
         if highest_idx > acc_lookback:
@@ -185,11 +188,11 @@ class ScannerMacro:
                             tp_pips = sl_pips * rr_target
                             tp_price = current_price - (tp_pips * self._pip_size(pair))
                             
-                            return self._build_signal("SELL", pair, current_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips)
+                            return self._build_signal("SELL", pair, current_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
 
         return None
 
-    def _build_signal(self, direction: str, pair: str, entry: float, sl: float, tp: float, w_name: str, w_type: str, sl_pips: float, tp_pips: float) -> dict:
+    def _build_signal(self, direction: str, pair: str, entry: float, sl: float, tp: float, w_name: str, w_type: str, sl_pips: float, tp_pips: float, now_utc: datetime) -> dict:
         ticket_id = f"MACRO-{uuid.uuid4().hex[:8].upper()}"
         
         lot_size = float(self.macro_cfg.get("fixed_lot_size", 0.04))
@@ -207,7 +210,7 @@ class ScannerMacro:
             "sl_pips": round(sl_pips, 1),
             "tp_pips": round(tp_pips, 1),
             "score": 90.0,
-            "detected_time": datetime.now(timezone.utc).isoformat(),
+            "detected_time": now_utc.isoformat(),
             "strategy": "MACRO-HYDRA",
             "setup_type": f"{w_name} ({w_type})",
             "fixed_lot_size": lot_size

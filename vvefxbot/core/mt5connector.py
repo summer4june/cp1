@@ -245,6 +245,10 @@ class MT5Connector:
         df['time'] = pd.to_datetime(df['time'], unit='s', utc=True)
         return df[['time', 'open', 'high', 'low', 'close', 'tick_volume']]
 
+    def current_time(self) -> datetime:
+        """Return the current time in UTC. Abstracted for backtest compatibility."""
+        return datetime.now(timezone.utc)
+
     def get_current_spread(self, symbol: str) -> float:
         """
         Calculate current spread in pips.
