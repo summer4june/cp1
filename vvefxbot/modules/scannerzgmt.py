@@ -185,18 +185,15 @@ class ScannerZGMT:
 
     def _is_pd_array_swept_before_zgmt(self, pair: str, range_high: float, range_low: float) -> bool:
         """
-        Check if the T-1 High or Low was swept between the broker's daily open
-        (00:00 broker time) and 0 GMT today.
+        Check if the T-1 High or Low was swept in the 4 hours immediately preceding 0 GMT today.
+        This represents the Asian session (Sydney Open to 0 GMT), which is true regardless of broker timezone.
         """
         now_utc = self._utc_now()
         target_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-        offset_hours = self._get_broker_utc_offset_hours(pair)
         
-        # If broker offset <= 0, the day starts at or after 0 GMT, so there's no "before 0 GMT" on the current broker day.
-        if offset_hours <= 0:
-            return False
-            
-        target_broker_datetime = target_utc + timedelta(hours=offset_hours)
+        # Look back 4 hours before 0 GMT (e.g. 20:00 UTC to 00:00 UTC)
+        window_start = target_utc - timedelta(hours=4)
+        window_end = target_utc
             
         candles = self.mt5.get_candles(pair, "M15", count=96)
         if candles is None or candles.empty:
@@ -207,13 +204,9 @@ class ScannerZGMT:
             if candle_time.tzinfo is None:
                 candle_time = candle_time.replace(tzinfo=timezone.utc)
                 
-            # Check if this candle is on the SAME broker day as the 0 GMT target
-            if candle_time.date() == target_broker_datetime.date():
-                # Check if this candle occurred BEFORE the 0 GMT time
-                if candle_time < target_broker_datetime:
-                    # If high touched previous high, or low touched previous low
-                    if float(row["high"]) >= range_high or float(row["low"]) <= range_low:
-                        return True
+            if window_start <= candle_time < window_end:
+                if float(row["high"]) >= range_high or float(row["low"]) <= range_low:
+                    return True
         return False
 
     # ──────────────────────────────────────────────────────────────────
