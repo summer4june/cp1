@@ -156,11 +156,11 @@ class ScannerMacro:
                         # Entry condition: price retraced to or below 61.8% but above sweep low
                         if lowest_low < current_price <= fib_618_price:
                             sl = lowest_low
-                            sl_pips = (current_price - sl) / self._pip_size(pair)
+                            sl_pips = (fib_618_price - sl) / self._pip_size(pair)
                             tp_pips = sl_pips * rr_target
-                            tp_price = current_price + (tp_pips * self._pip_size(pair))
+                            tp_price = fib_618_price + (tp_pips * self._pip_size(pair))
                             
-                            return self._build_signal("BUY", pair, current_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
+                            return self._build_signal("BUY", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
 
         # --- CHECK SHORT SETUP ---
         if highest_idx > acc_lookback:
@@ -190,11 +190,11 @@ class ScannerMacro:
                         # Entry condition: price retraced to or above 61.8% but below sweep high
                         if fib_618_price <= current_price < highest_high:
                             sl = highest_high
-                            sl_pips = (sl - current_price) / self._pip_size(pair)
+                            sl_pips = (sl - fib_618_price) / self._pip_size(pair)
                             tp_pips = sl_pips * rr_target
-                            tp_price = current_price - (tp_pips * self._pip_size(pair))
+                            tp_price = fib_618_price - (tp_pips * self._pip_size(pair))
                             
-                            return self._build_signal("SELL", pair, current_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
+                            return self._build_signal("SELL", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
 
         return None
 
@@ -219,7 +219,8 @@ class ScannerMacro:
             "detected_time": now_utc.isoformat(),
             "strategy": "MACRO-HYDRA",
             "setup_type": f"{w_name} ({w_type})",
-            "fixed_lot_size": lot_size
+            "fixed_lot_size": lot_size,
+            "entry_mode": "FILTER"
         }
 
     def _pip_size(self, pair: str) -> float:
