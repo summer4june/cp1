@@ -64,6 +64,12 @@ class ScannerMacro:
         if not self.macro_cfg.get("enabled", False):
             return None
 
+        # If a specific list of pairs is defined for this strategy, filter by it.
+        # Otherwise, if it's not defined or empty, it allows all global pairs.
+        allowed_pairs = self.macro_cfg.get("pairs", [])
+        if allowed_pairs and pair not in allowed_pairs:
+            return None
+
         # Use mt5 connector time to support both live (real time) and backtest (simulated time)
         now_utc = self.mt5.current_time()
         if now_utc.tzinfo is None:
