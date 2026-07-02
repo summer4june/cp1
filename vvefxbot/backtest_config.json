@@ -13,7 +13,10 @@
     "EURJPYm",
     "USDCADm",
     "XAUUSDm",
-    "XAGUSDm"
+    "XAGUSDm",
+    "US100m",
+    "US500m",
+    "US30m"
   ],
   "_comment_dates": "Full backtest range",
   "date_from": "2024-01-01",

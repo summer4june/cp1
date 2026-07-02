@@ -21,7 +21,10 @@
     "EURJPY",
     "USDCAD",
     "XAUUSD",
-    "XAGUSD"
+    "XAGUSD",
+    "US100",
+    "US500",
+    "US30"
   ],
   "session_timings": {
     "Asia": {
@@ -87,7 +90,10 @@
     "EURJPY": 99.0,
     "USDCAD": 99.0,
     "XAUUSD": 999.0,
-    "XAGUSD": 999.0
+    "XAGUSD": 999.0,
+    "US100": 999.0,
+    "US500": 999.0,
+    "US30": 999.0
   },
   "effective_rr_min": 0.0,
   "aplus_threshold": 75.0,
@@ -98,6 +104,16 @@
   "correlation_groups": {},
   "zgmt_scanner": {
     "enabled": true,
+    "pairs": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "GBPJPY",
+      "EURJPY",
+      "USDCAD",
+      "XAUUSD",
+      "XAGUSD"
+    ],
     "timeframe_bias": "D1",
     "timeframe_entry": "H1",
     "d1_candles_for_range": 20,
@@ -150,6 +166,10 @@
     "accumulation_lookback": 20,
     "magic_number": 202413,
     "fixed_lot_size": 0.04,
-    "pairs": []
+    "pairs": [
+      "US100",
+      "US500",
+      "US30"
+    ]
   }
 }

@@ -494,7 +494,6 @@ class ScannerZGMT:
             "entry_mode":       entry_mode,
             "filter_pips":      filter_pips,
         }
-
     # ──────────────────────────────────────────────────────────────────
     # Main scan method
     # ──────────────────────────────────────────────────────────────────
@@ -504,6 +503,12 @@ class ScannerZGMT:
         Execute the ZGMT scan for a single pair.
         Returns a signal dict (or list of dicts for SPLIT) on success, None otherwise.
         """
+        # If a specific list of pairs is defined for ZGMT, filter by it.
+        zgmt_cfg = self.config.zgmt_scanner
+        allowed_pairs = zgmt_cfg.get("pairs", [])
+        if allowed_pairs and pair not in allowed_pairs:
+            return None
+
         # ── Check if already finalized/invalidated today ─────────────
         if self._is_daily_finalized(pair):
             return None
