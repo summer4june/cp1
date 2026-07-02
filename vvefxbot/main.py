@@ -506,6 +506,10 @@ def main():
         from modules.scannerzgmt import ScannerZGMT
         scanners.append(("ScannerZGMT", ScannerZGMT(config, mt5_connector, state_engine)))
         
+    if enabled.get("macro", False):
+        from modules.scannermacro import ScannerMacro
+        scanners.append(("ScannerMacro", ScannerMacro(config, mt5_connector, state_engine)))
+        
     logger.info(f"[Main] Strategy mode: {mode}")
     logger.info(f"[Main] Enabled scanners: {', '.join([s[0] for s in scanners])}")
 
