@@ -157,6 +157,7 @@ class ScannerMacro:
         accumulation_broken = False
         broken_idx = -1
         break_direction = None
+        min_acc_candles = int(self.macro_cfg.get("min_accumulation_candles", 10))
         
         for i in range(1, len(macro_df)):
             row = macro_df.iloc[i]
@@ -189,8 +190,8 @@ class ScannerMacro:
         if not accumulation_broken:
             return None # Still accumulating, no sweep/manipulation yet
             
-        if broken_idx < 10:
-            logger.debug(f"[{pair}] MACRO INVALID: Accumulation broken at candle {broken_idx} (less than 10 mins).")
+        if broken_idx < min_acc_candles:
+            logger.debug(f"[{pair}] MACRO INVALID: Accumulation broken at candle {broken_idx} (less than {min_acc_candles} mins).")
             return None
             
         # 5. Track Manipulation & MSS Phase
