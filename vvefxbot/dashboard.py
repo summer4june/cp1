@@ -1096,7 +1096,13 @@ HTML_TEMPLATE = """
             if (poolEl) poolEl.value = fullConfig.trading_pool_size !== undefined ? fullConfig.trading_pool_size : 1000.0;
             
             const pairsEl = document.getElementById("cfg-pairs");
-            if (pairsEl && fullConfig.pairs) pairsEl.value = fullConfig.pairs.join(", ");
+            if (pairsEl) {
+                if (fullConfig.assets) {
+                    pairsEl.value = Object.keys(fullConfig.assets).join(", ");
+                } else if (fullConfig.pairs) {
+                    pairsEl.value = fullConfig.pairs.join(", ");
+                }
+            }
             
             const mmxmCheck = document.getElementById("cfg-scanner-mmxm");
             if (mmxmCheck && fullConfig.enabled_scanners) mmxmCheck.checked = !!fullConfig.enabled_scanners.mmxm;
@@ -1144,7 +1150,15 @@ HTML_TEMPLATE = """
                 fullConfig.enabled_scanners.mmxm = document.getElementById("cfg-scanner-mmxm").checked;
                 fullConfig.enabled_scanners.ote = document.getElementById("cfg-scanner-ote").checked;
                 
-                fullConfig.pairs = document.getElementById("cfg-pairs").value.split(",").map(p => p.trim()).filter(p => p);
+                const newPairs = document.getElementById("cfg-pairs").value.split(",").map(p => p.trim()).filter(p => p);
+                fullConfig.pairs = newPairs;
+                if (fullConfig.assets) {
+                    const newAssets = {};
+                    newPairs.forEach(p => {
+                        newAssets[p] = fullConfig.assets[p] || { "max_spread": 99.0, "strategies": [] };
+                    });
+                    fullConfig.assets = newAssets;
+                }
                 
                 if (!fullConfig.ote_scanner) fullConfig.ote_scanner = {};
                 fullConfig.ote_scanner.timeframe_signal = document.getElementById("cfg-ote-timeframe_signal").value;

@@ -20,7 +20,10 @@ import argparse
 import pandas as pd
 from datetime import datetime, timezone
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -36,13 +39,15 @@ logger = get_logger("Backtest")
 # MT5 DATA FETCHER
 # ──────────────────────────────────────────────────────────────────────
 
-_TF_MAP = {
-    "M1":  mt5.TIMEFRAME_M1,
-    "M15": mt5.TIMEFRAME_M15,
-    "H1":  mt5.TIMEFRAME_H1,
-    "H4":  mt5.TIMEFRAME_H4,
-    "D1":  mt5.TIMEFRAME_D1,
-}
+_TF_MAP = {}
+if mt5:
+    _TF_MAP = {
+        "M1":  mt5.TIMEFRAME_M1,
+        "M15": mt5.TIMEFRAME_M15,
+        "H1":  mt5.TIMEFRAME_H1,
+        "H4":  mt5.TIMEFRAME_H4,
+        "D1":  mt5.TIMEFRAME_D1,
+    }
 
 
 def _fetch_from_mt5(symbol: str, timeframe: str, date_from: datetime, date_to: datetime, offset_hours: float = 0.0) -> pd.DataFrame:
@@ -125,17 +130,32 @@ def fetch_all_timeframes(symbol: str, date_from: datetime, date_to: datetime, of
 # CSV DATA LOADER
 # ──────────────────────────────────────────────────────────────────────
 
-def _parse_csv(path: str) -> pd.DataFrame:
+def _parse_csv(path: str, offset_hours: float = 0.0) -> pd.DataFrame:
     """
     Parse an OHLCV CSV file.
-    Supports MT5 tab-export and standard comma-separated CSV.
+    Supports MT5 tab-export and standard comma-separated CSV, including UTF-16.
     """
-    with open(path, "r") as f:
+    encoding = "utf-8"
+    with open(path, "rb") as f:
+        raw_head = f.read(2)
+        if raw_head == b'\xff\xfe' or raw_head == b'\xfe\xff':
+            encoding = "utf-16"
+
+    with open(path, "r", encoding=encoding) as f:
         first_line = f.readline()
     sep = "\t" if "\t" in first_line else ","
 
-    df = pd.read_csv(path, sep=sep, header=0)
-    df.columns = [c.strip().lstrip("<").rstrip(">").lower() for c in df.columns]
+    # Check if header exists by looking for alphabetical characters typical in headers
+    # "2023.07.04" doesn't have "time", "date", "open", etc.
+    if "time" not in first_line.lower() and "date" not in first_line.lower():
+        # No header, it's raw data
+        # Assume format: Time, Open, High, Low, Close, TickVol, Spread (or Vol/Spread)
+        cols = first_line.split(sep)
+        names = ["time", "open", "high", "low", "close", "tick_volume", "spread", "real_volume"]
+        df = pd.read_csv(path, sep=sep, header=None, names=names[:len(cols)], encoding=encoding)
+    else:
+        df = pd.read_csv(path, sep=sep, header=0, encoding=encoding)
+        df.columns = [c.strip().lstrip("<").rstrip(">").lower() for c in df.columns]
 
     rename_map = {"tickvol": "tick_volume", "tick_vol": "tick_volume",
                   "vol": "tick_volume", "volume": "tick_volume"}
@@ -153,6 +173,9 @@ def _parse_csv(path: str) -> pd.DataFrame:
 
     if df["time"].dt.tz is None:
         df["time"] = df["time"].dt.tz_localize("UTC")
+        
+    if offset_hours != 0.0:
+        df["time"] = df["time"] - pd.to_timedelta(offset_hours, unit="h")
 
     if "tick_volume" not in df.columns:
         df["tick_volume"] = 0
@@ -185,7 +208,7 @@ def load_from_csv(csv_dir: str, symbol: str,
         if not os.path.exists(path):
             return pd.DataFrame()
         logger.info(f"Loading CSV: {path}")
-        df = _parse_csv(path)
+        df = _parse_csv(path, offset_hours=offset_hours)
         if not df.empty:
             pass # Keep in Broker Time
         return df
@@ -457,6 +480,11 @@ def main():
     mt5_connected = False
 
     if ds_mode == "mt5":
+        if not mt5:
+            print("❌ MetaTrader5 package is not installed (likely because you are on macOS/Linux).")
+            print("   Please use 'csv' mode in backtest_config.json instead.")
+            sys.exit(1)
+            
         logger.info("Data source: MT5 (auto-fetch). Connecting...")
         if not mt5.initialize():
             print(f"❌ MT5 initialization failed: {mt5.last_error()}")
@@ -510,11 +538,13 @@ def main():
             if strategy_name == "MACRO":
                 if isinstance(config.macro_strategy, dict):
                     config.macro_strategy["enabled"] = True
+                    config.macro_strategy["pairs"] = pairs
                 from modules.scannermacro import ScannerMacro
                 scanner = ScannerMacro(config, connector, _bt_state)
             else:
                 if isinstance(config.zgmt_scanner, dict):
                     config.zgmt_scanner["enabled"] = True
+                    config.zgmt_scanner["pairs"] = pairs
                 from modules.scannerzgmt import ScannerZGMT
                 scanner = ScannerZGMT(config, connector, _bt_state)
             

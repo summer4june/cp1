@@ -145,8 +145,17 @@ class BacktestConnector:
         return available
 
     def get_current_spread(self, symbol: str) -> float:
-        """Return configured spread limit as a fixed spread for simulation."""
-        return self.config.spread_limits.get(symbol, 1.5)
+        """Return a reasonable fixed spread for simulation."""
+        sym_upper = symbol.upper()
+        if "XAU" in sym_upper:
+            return 2.0
+        if "XAG" in sym_upper:
+            return 3.0
+        if "JPY" in sym_upper:
+            return 1.5
+        if any(idx in sym_upper for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+            return 1.0
+        return 1.0
 
     def get_tick(self, symbol: str) -> dict:
         """
@@ -156,32 +165,62 @@ class BacktestConnector:
         bar = self.data["M1"].iloc[self.current_bar_idx]
         close = float(bar["close"])
         # Simulate a minimal spread: use configured spread limit
-        half_spread = self.config.spread_limits.get(symbol, 1.5) * (
-            0.01 if ("JPY" in symbol.upper() or "XAU" in symbol.upper()) else 0.0001
-        ) / 2.0
+        sym_upper = symbol.upper()
+        if "JPY" in sym_upper or "XAU" in sym_upper or "XAG" in sym_upper:
+            pip_size = 0.01
+        elif any(idx in sym_upper for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+            pip_size = 1.0
+        else:
+            pip_size = 0.0001
+            
+        half_spread = self.get_current_spread(symbol) * pip_size / 2.0
         return {"bid": round(close - half_spread, 5),
                 "ask": round(close + half_spread, 5)}
 
     def get_symbol_point(self, symbol: str) -> float:
         """Return the point size for a symbol (for pip calculations)."""
-        if "JPY" in symbol.upper():
+        sym_upper = symbol.upper()
+        if "JPY" in sym_upper:
             return 0.001
-        if "XAU" in symbol.upper():
+        if "XAU" in sym_upper or "XAG" in sym_upper:
             return 0.01
+        if any(idx in sym_upper for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+            return 0.1
         return 0.00001
 
     def get_current_bid(self, symbol: str) -> float:
         """
         Return the current bar's close as the bid price.
-        Used by ScannerZGMT._check_htf_ob_exception() during backtesting.
         """
         bar = self.data["M1"].iloc[self.current_bar_idx]
         close = float(bar["close"])
-        # Subtract half spread to simulate bid (slightly below close)
-        half_spread = self.config.spread_limits.get(symbol, 1.5) * (
-            0.01 if ("JPY" in symbol.upper() or "XAU" in symbol.upper()) else 0.0001
-        ) / 2.0
+        sym_upper = symbol.upper()
+        if "JPY" in sym_upper or "XAU" in sym_upper or "XAG" in sym_upper:
+            pip_size = 0.01
+        elif any(idx in sym_upper for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+            pip_size = 1.0
+        else:
+            pip_size = 0.0001
+            
+        half_spread = self.config.spread_limits.get(symbol, 1.5) * pip_size / 2.0
         return round(close - half_spread, 5)
+
+    def get_current_ask(self, symbol: str) -> float:
+        """
+        Return the current bar's close + spread as the ask price.
+        """
+        bar = self.data["M1"].iloc[self.current_bar_idx]
+        close = float(bar["close"])
+        sym_upper = symbol.upper()
+        if "JPY" in sym_upper or "XAU" in sym_upper or "XAG" in sym_upper:
+            pip_size = 0.01
+        elif any(idx in sym_upper for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+            pip_size = 1.0
+        else:
+            pip_size = 0.0001
+            
+        half_spread = self.config.spread_limits.get(symbol, 1.5) * pip_size / 2.0
+        return round(close + half_spread, 5)
 
     def get_volume_step(self, symbol: str) -> float:
         """

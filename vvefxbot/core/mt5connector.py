@@ -1,4 +1,7 @@
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None
 import pandas as pd
 import time
 from datetime import datetime, timezone, timedelta

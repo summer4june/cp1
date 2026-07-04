@@ -61,13 +61,16 @@ class ScannerMacro:
         return None
 
     def scan(self, pair: str, session: str = None, killzone: str = None) -> dict | None:
+        # logger.debug(f"ScannerMacro.scan called for {pair} at IST: {self.mt5.current_time()}")
         if not self.macro_cfg.get("enabled", False):
+            logger.info(f"[{pair}] ScannerMacro disabled in config. macro_cfg={self.macro_cfg}")
             return None
 
         # If a specific list of pairs is defined for this strategy, filter by it.
         # Otherwise, if it's not defined or empty, it allows all global pairs.
         allowed_pairs = self.macro_cfg.get("pairs", [])
         if allowed_pairs and pair not in allowed_pairs:
+            logger.info(f"[{pair}] not in allowed_pairs: {allowed_pairs}")
             return None
 
         # Use mt5 connector time to support both live (real time) and backtest (simulated time)
@@ -76,9 +79,13 @@ class ScannerMacro:
             now_utc = now_utc.replace(tzinfo=timezone.utc)
         now_ist = now_utc + self._IST_OFFSET
         
+        # logger.debug(f"[{pair}] now_utc: {now_utc}, now_ist: {now_ist}")
+        
         active_macro = self._get_active_macro(now_ist)
         if not active_macro:
             return None
+            
+        logger.info(f"[{pair}] Entering active macro window: {active_macro} at IST: {now_ist.time()}")
             
         window_name, window_type = active_macro
 
@@ -143,34 +150,42 @@ class ScannerMacro:
         macro_df = macro_df.reset_index(drop=True)
         
         # 3. Apply Pair-specific Pip Limits for Accumulation Range
-        if pair in ["US30m", "USTECm", "US100m"]:
+        pair_upper = pair.upper()
+        if any(idx in pair_upper for idx in ["US30", "USTEC", "US100", "NAS100"]):
             max_pips = float(self.macro_cfg.get("max_acc_pips_us30_ustec", 600.0))
-        elif pair == "US500m":
+        elif "US500" in pair_upper or "SPX" in pair_upper:
             max_pips = float(self.macro_cfg.get("max_acc_pips_us500", 60.0))
         else:
             max_pips = float(self.macro_cfg.get("max_acc_pips_fx", 20.0))
             
-        # 4. Forward Track Accumulation
-        highest_wick = float(macro_df.iloc[0]['high'])
-        lowest_wick = float(macro_df.iloc[0]['low'])
+        # 4. Define Accumulation Range using lookback before macro window
+        acc_lookback = int(self.macro_cfg.get("accumulation_lookback", 20))
+        
+        # Get candles before the macro window
+        pre_macro_df = df[df['time'] < macro_start_utc].tail(acc_lookback)
+        if len(pre_macro_df) < acc_lookback:
+            # Not enough history
+            return None
+            
+        highest_wick = float(pre_macro_df['high'].max())
+        lowest_wick = float(pre_macro_df['low'].min())
         
         accumulation_broken = False
         broken_idx = -1
         break_direction = None
-        min_acc_candles = int(self.macro_cfg.get("min_accumulation_candles", 10))
-        
-        for i in range(1, len(macro_df)):
+        break_direction = None
+        # Validate accumulation range pip size
+        current_range_pips = (highest_wick - lowest_wick) / self._pip_size(pair)
+        if current_range_pips > max_pips:
+            # logger.info(f"[{pair}] MACRO INVALID: Accumulation range {current_range_pips:.1f} pips exceeded limit {max_pips}")
+            return None
+
+        for i in range(len(macro_df)):
             row = macro_df.iloc[i]
             close = float(row['close'])
             high = float(row['high'])
             low = float(row['low'])
             
-            # Check pip limit dynamically
-            current_range_pips = (highest_wick - lowest_wick) / self._pip_size(pair)
-            if current_range_pips > max_pips:
-                logger.debug(f"[{pair}] MACRO INVALID: Accumulation range {current_range_pips:.1f} pips exceeded limit {max_pips}")
-                return None
-                
             if close > highest_wick:
                 accumulation_broken = True
                 broken_idx = i
@@ -182,16 +197,8 @@ class ScannerMacro:
                 break_direction = "LONG" # Broke below accumulation -> manipulating lows -> look to buy
                 break
                 
-            if high > highest_wick:
-                highest_wick = high
-            if low < lowest_wick:
-                lowest_wick = low
-                
         if not accumulation_broken:
-            return None # Still accumulating, no sweep/manipulation yet
-            
-        if broken_idx < min_acc_candles:
-            logger.debug(f"[{pair}] MACRO INVALID: Accumulation broken at candle {broken_idx} (less than {min_acc_candles} mins).")
+            # MACRO WAIT: Accumulation not broken yet
             return None
             
         # 5. Track Manipulation & MSS Phase
@@ -218,6 +225,10 @@ class ScannerMacro:
                         tp_price = fib_618_price + (tp_pips * self._pip_size(pair))
                         
                         return self._build_signal("BUY", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
+                    else:
+                        logger.info(f"[{pair}] MACRO WAIT: LONG MSS confirmed, waiting for 618 pull back. Current: {current_price}, Fib618: {fib_618_price}")
+            else:
+                logger.info(f"[{pair}] MACRO WAIT: LONG Manipulation sweeping low {lowest_low} but no MSS above {local_high} yet.")
                         
         elif break_direction == "SHORT":
             manipulation_df = macro_df.iloc[broken_idx:]
@@ -242,6 +253,10 @@ class ScannerMacro:
                         tp_price = fib_618_price - (tp_pips * self._pip_size(pair))
                         
                         return self._build_signal("SELL", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
+                    else:
+                        logger.info(f"[{pair}] MACRO WAIT: SHORT MSS confirmed, waiting for 618 pull back. Current: {current_price}, Fib618: {fib_618_price}")
+            else:
+                logger.info(f"[{pair}] MACRO WAIT: SHORT Manipulation sweeping high {highest_high} but no MSS below {local_low} yet.")
 
         return None
 
