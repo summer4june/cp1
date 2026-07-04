@@ -414,7 +414,9 @@ def main():
     with open(args.config) as f:
         bt_config = json.load(f)
 
-    pairs     = bt_config["pairs"]
+    strategy_name = bt_config.get("strategy", "ZGMT").upper()
+    logger.info(f"Backtesting strategy: {strategy_name} (Exclusive)")
+
     date_from = datetime.fromisoformat(bt_config["date_from"]).replace(tzinfo=timezone.utc)
     date_to   = datetime.fromisoformat(bt_config["date_to"]).replace(tzinfo=timezone.utc)
 
@@ -423,8 +425,17 @@ def main():
     if offset_hours != 0.0:
         logger.info(f"Applying broker server timezone offset of {offset_hours} hours to shift data to UTC.")
 
-    strategy_name = bt_config.get("strategy", "ZGMT").upper()
-    logger.info(f"Backtesting strategy: {strategy_name} (Exclusive)")
+    assets = bt_config.get("assets", {})
+    if assets:
+        pairs = [pair for pair, info in assets.items() if strategy_name in info.get("strategies", [])]
+        if not pairs:
+            logger.warning(f"No pairs found in assets for strategy {strategy_name}. Please check backtest_config.json.")
+    else:
+        pairs = bt_config.get("pairs", [])
+        
+    if not pairs:
+        logger.error("No pairs to backtest. Exiting.")
+        sys.exit(1)
 
     # ── Load bot config ───────────────────────────────────────────────
     config_engine = ConfigEngine("config.json")

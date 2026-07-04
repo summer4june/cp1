@@ -438,7 +438,7 @@ class BacktestEngine:
             }
             killzone = kz_map.get(killzone_raw, killzone_raw) if killzone_raw else None
 
-            if not is_zgmt and not killzone:
+            if not is_zgmt and not (self.scanner.__class__.__name__ == "ScannerMacro") and not killzone:
                 continue
 
             # ── Skip if max open trades reached ───────────────────────
