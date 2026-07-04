@@ -82,6 +82,7 @@ class ScannerZGMT:
         """Returns pip size per instrument convention.
         - JPY pairs: 0.01 (1 pip = 0.01 JPY)
         - XAUUSD / XAGUSD (metals): 0.01 (1 pip = $0.01/oz or per unit)
+        - Indices (US30, etc): 1.0
         - All other FX pairs: 0.0001
         """
         p = pair.upper()
@@ -89,6 +90,8 @@ class ScannerZGMT:
             return 0.01
         if "XAU" in p or "XAG" in p:  # Gold AND Silver use 0.01
             return 0.01
+        elif any(idx in p for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+            return 1.0
         return 0.0001
 
     def _pips_to_price(self, pair: str, pips: float) -> float:

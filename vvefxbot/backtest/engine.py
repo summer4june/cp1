@@ -116,6 +116,10 @@ class SimulatedTrade:
             contract_size = 5000
             margin_used = ((self.lot * contract_size) * self.entry) / 200
             pip_value = 50.0  # $50/pip/lot
+        elif any(idx in pair_upper for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+            contract_size = 1  # 1 unit for indices
+            margin_used = ((self.lot * contract_size) * self.entry) / 200
+            pip_value = 1.0  # $1 per point
         else:
             contract_size = 100000
             raw_margin = (self.lot * contract_size) / 200
@@ -226,7 +230,15 @@ class BacktestEngine:
         # USD-quoted pairs: 1 pip = 0.0001, lot = 100k → $10.00/pip
         pair_upper = pair.upper()
         self.pair_upper = pair_upper
-        self.pip_size = 0.01 if ("JPY" in pair_upper or "XAU" in pair_upper or "XAG" in pair_upper) else 0.0001
+        
+        is_index = any(idx in pair_upper for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"])
+        
+        if "JPY" in pair_upper or "XAU" in pair_upper or "XAG" in pair_upper:
+            self.pip_size = 0.01
+        elif is_index:
+            self.pip_size = 1.0
+        else:
+            self.pip_size = 0.0001
 
         # pip_value is now computed PER-TRADE dynamically via _get_pip_value(entry_price).
         # Storing a fixed one for the JPY snapshot fallback only (used in the BE-buffer warning).
@@ -239,6 +251,9 @@ class BacktestEngine:
         elif "JPY" in pair_upper:
             # Dynamic — computed per trade. Store a rough fallback only.
             self._base_pip_value = None   # signals "compute dynamically"
+        elif is_index:
+            # Indices usually have a contract size of 1 unit in CFDs, so $1 per point/pip per lot
+            self._base_pip_value = 1.0
         else:
             # USD-quoted FX (EURUSD, GBPUSD, USDCAD, etc.)
             # 1 std lot = 100,000 units. 1 pip = 0.0001. pip_value = 100k × 0.0001 = $10/pip/lot

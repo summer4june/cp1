@@ -291,8 +291,11 @@ class ScannerMacro:
         }
 
     def _pip_size(self, pair: str) -> float:
-        if "JPY" in pair:
+        p = pair.upper()
+        if "JPY" in p:
             return 0.01
-        elif "XAU" in pair or "XAG" in pair:
+        elif "XAU" in p or "XAG" in p:
             return 0.01  
+        elif any(idx in p for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+            return 1.0
         return 0.0001
