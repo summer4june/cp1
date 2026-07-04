@@ -18,12 +18,19 @@ def test_config_loads_defaults(monkeypatch, tmp_path):
         "enabled_scanners": {"mmxm": True, "ote": False, "zgmt": False},
         "ote_scanner": {},
         "zgmt_scanner": {},
+        "macro_strategy": {},
         "trade_management": {},
-        "pairs": ["EURUSD"], "risk_percent": 1.0, "trading_pool_size": 1000.0,
+        "assets": {
+            "EURUSD": {
+                "max_spread": 2.0,
+                "strategies": ["MMXM", "ZGMT", "MACRO"]
+            }
+        },
+        "risk_percent": 1.0, "trading_pool_size": 1000.0,
         "session_timings": {}, 
         "killzone_timings_summer": {},
         "killzone_timings_winter": {},
-        "correlation_groups": {}, "spread_limits": {},
+        "correlation_groups": {},
         "aplus_threshold": 85.0, "effective_rr_min": 2.0, "max_open_trades": 5,
         "max_trades_day": 10, "max_trades_pair_day": 3, "scan_frequency_seconds": 10,
         "demo_mode": True, "max_open_risk_percent": 2.0, "slippage_max_pips": 2.0
@@ -68,7 +75,7 @@ def test_config_missing_json_field_raises(monkeypatch, tmp_path):
     monkeypatch.setenv("GOOGLE_SHEET_ID", "dummy_id")
     monkeypatch.setenv("GOOGLE_CREDS_PATH", "dummy.json")
     
-    config_data = {"pairs": ["EURUSD"]} # Missing other keys
+    config_data = {"assets": {"EURUSD": {"max_spread": 1.0, "strategies": []}}} # Missing other keys
     config_file = tmp_path / "config.json"
     config_file.write_text(json.dumps(config_data))
     

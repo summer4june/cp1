@@ -98,107 +98,167 @@ class ScannerMacro:
         if not current_price:
             return None
 
-        signal = self._detect_amd(df, pair, current_price, window_name, window_type)
+        signal = self._detect_amd(df, pair, current_price, window_name, window_type, now_utc)
         
         if signal:
             self._last_signal_time[pair] = now_utc
             
         return signal
 
-    def _detect_amd(self, df: pd.DataFrame, pair: str, current_price: float, window_name: str, window_type: str) -> dict | None:
+    def _detect_amd(self, df: pd.DataFrame, pair: str, current_price: float, window_name: str, window_type: str, now_utc: datetime) -> dict | None:
         """
         Detect Accumulation -> Manipulation -> Distribution -> Fib Entry.
+        Accumulation phase is strictly bounded to start at the opening of the active Macro Window.
         """
-        acc_lookback = self.macro_cfg.get("accumulation_lookback", 20)
         fib_level = self.macro_cfg.get("fib_entry_level", 0.618)
         rr_target = self.macro_cfg.get("risk_reward", 3.0)
         
-        n = len(df)
-        # 1. Identify the recent swing extremes (potential sweep points) within the last 30 candles
-        recent_window = 40
-        recent_df = df.iloc[-recent_window:]
+        # 1. Determine the start time of the active Macro Window
+        now_ist = now_utc + self._IST_OFFSET
+        curr_t = now_ist.time()
         
-        lowest_idx = recent_df['low'].idxmin()
-        highest_idx = recent_df['high'].idxmax()
-        
-        lowest_low = float(df.iloc[lowest_idx]['low'])
-        highest_high = float(df.iloc[highest_idx]['high'])
-        
-        # Determine if we are sweeping SSL (Long) or BSL (Short)
-        # A sweep implies the extreme broke out of a preceding accumulation range.
-        
-        # --- CHECK LONG SETUP ---
-        # Accumulation range before the lowest_low
-        if lowest_idx > acc_lookback:
-            acc_df_long = df.iloc[lowest_idx - acc_lookback : lowest_idx]
-            acc_low = float(acc_df_long['low'].min())
-            acc_high = float(acc_df_long['high'].max())
+        macro_start_t = None
+        for (sh, sm, eh, em, name, wtype) in self.MACRO_WINDOWS:
+            if name == window_name:
+                macro_start_t = dt_time(sh, sm)
+                break
+                
+        if not macro_start_t:
+            return None
             
-            # Sweep check: did the lowest_low sweep below the accumulation low?
-            if lowest_low < acc_low:
-                # MSS check: Did price close above a recent swing high after the sweep?
-                local_high = float(acc_df_long.iloc[-5:]['high'].max()) if len(acc_df_long) >= 5 else acc_high
-                
-                post_sweep_df = df.iloc[lowest_idx + 1:]
-                mss_confirmed = any(post_sweep_df['close'] > local_high)
-                
-                if mss_confirmed:
-                    # Find the highest point reached after the sweep
-                    post_sweep_high = float(post_sweep_df['high'].max())
-                    
-                    # Calculate Fib 61.8% retracement (Discount Zone)
-                    swing_range = post_sweep_high - lowest_low
-                    if swing_range > 0:
-                        # 0% is post_sweep_high, 100% is lowest_low. 
-                        # 61.8% retracement down from high:
-                        fib_618_price = post_sweep_high - (swing_range * fib_level)
-                        
-                        # Entry condition: price retraced to or below 61.8% but above sweep low
-                        if lowest_low < current_price <= fib_618_price:
-                            sl = lowest_low
-                            sl_pips = (fib_618_price - sl) / self._pip_size(pair)
-                            tp_pips = sl_pips * rr_target
-                            tp_price = fib_618_price + (tp_pips * self._pip_size(pair))
-                            
-                            return self._build_signal("BUY", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
-
-        # --- CHECK SHORT SETUP ---
-        if highest_idx > acc_lookback:
-            acc_df_short = df.iloc[highest_idx - acc_lookback : highest_idx]
-            acc_high = float(acc_df_short['high'].max())
-            acc_low = float(acc_df_short['low'].min())
+        macro_start_dt = now_ist.replace(hour=macro_start_t.hour, minute=macro_start_t.minute, second=0, microsecond=0)
+        if macro_start_t.hour > curr_t.hour:
+            macro_start_dt -= timedelta(days=1)
             
-            # Sweep check: did the highest_high sweep above the accumulation high?
-            if highest_high > acc_high:
-                # MSS check: Did price close below a recent swing low after the sweep?
-                local_low = float(acc_df_short.iloc[-5:]['low'].min()) if len(acc_df_short) >= 5 else acc_low
+        macro_start_utc = macro_start_dt - self._IST_OFFSET
+        
+        # 2. Filter candles to only those inside the current macro window
+        if df['time'].dt.tz is None:
+            df['time'] = df['time'].dt.tz_localize('UTC')
+            
+        macro_df = df[df['time'] >= macro_start_utc].copy()
+        if len(macro_df) < 1:
+            return None
+            
+        macro_df = macro_df.reset_index(drop=True)
+        
+        # 3. Apply Pair-specific Pip Limits for Accumulation Range
+        if pair in ["US30m", "USTECm", "US100m"]:
+            max_pips = float(self.macro_cfg.get("max_acc_pips_us30_ustec", 600.0))
+        elif pair == "US500m":
+            max_pips = float(self.macro_cfg.get("max_acc_pips_us500", 60.0))
+        else:
+            max_pips = float(self.macro_cfg.get("max_acc_pips_fx", 20.0))
+            
+        # 4. Forward Track Accumulation
+        highest_wick = float(macro_df.iloc[0]['high'])
+        lowest_wick = float(macro_df.iloc[0]['low'])
+        
+        accumulation_broken = False
+        broken_idx = -1
+        break_direction = None
+        
+        for i in range(1, len(macro_df)):
+            row = macro_df.iloc[i]
+            close = float(row['close'])
+            high = float(row['high'])
+            low = float(row['low'])
+            
+            # Check pip limit dynamically
+            current_range_pips = (highest_wick - lowest_wick) / self._pip_size(pair)
+            if current_range_pips > max_pips:
+                logger.debug(f"[{pair}] MACRO INVALID: Accumulation range {current_range_pips:.1f} pips exceeded limit {max_pips}")
+                return None
                 
-                post_sweep_df = df.iloc[highest_idx + 1:]
-                mss_confirmed = any(post_sweep_df['close'] < local_low)
+            if close > highest_wick:
+                accumulation_broken = True
+                broken_idx = i
+                break_direction = "SHORT" # Broke above accumulation -> manipulating highs -> look to sell
+                break
+            elif close < lowest_wick:
+                accumulation_broken = True
+                broken_idx = i
+                break_direction = "LONG" # Broke below accumulation -> manipulating lows -> look to buy
+                break
                 
-                if mss_confirmed:
-                    # Find the lowest point reached after the sweep
-                    post_sweep_low = float(post_sweep_df['low'].min())
-                    
-                    # Calculate Fib 61.8% retracement (Premium Zone)
-                    swing_range = highest_high - post_sweep_low
-                    if swing_range > 0:
-                        # 0% is post_sweep_low, 100% is highest_high
-                        # 61.8% retracement up from low:
-                        fib_618_price = post_sweep_low + (swing_range * fib_level)
+            if high > highest_wick:
+                highest_wick = high
+            if low < lowest_wick:
+                lowest_wick = low
+                
+        if not accumulation_broken:
+            return None # Still accumulating, no sweep/manipulation yet
+            
+        if broken_idx < 10:
+            logger.debug(f"[{pair}] MACRO INVALID: Accumulation broken at candle {broken_idx} (less than 10 mins).")
+            return None
+            
+        # 5. Track Manipulation & MSS Phase
+        if break_direction == "LONG":
+            manipulation_df = macro_df.iloc[broken_idx:]
+            lowest_low = float(manipulation_df['low'].min())
+            lowest_low_idx = manipulation_df['low'].idxmin()
+            
+            acc_df = macro_df.iloc[:broken_idx]
+            local_high = float(acc_df.iloc[-5:]['high'].max()) if len(acc_df) >= 5 else highest_wick
+            
+            post_lowest_df = manipulation_df.loc[lowest_low_idx + 1:]
+            mss_confirmed = any(post_lowest_df['close'] > local_high)
+            
+            if mss_confirmed:
+                post_sweep_high = float(post_lowest_df['high'].max())
+                swing_range = post_sweep_high - lowest_low
+                if swing_range > 0:
+                    fib_618_price = post_sweep_high - (swing_range * fib_level)
+                    if lowest_low < current_price <= fib_618_price:
+                        sl = lowest_low
+                        sl_pips = (fib_618_price - sl) / self._pip_size(pair)
+                        tp_pips = sl_pips * rr_target
+                        tp_price = fib_618_price + (tp_pips * self._pip_size(pair))
                         
-                        # Entry condition: price retraced to or above 61.8% but below sweep high
-                        if fib_618_price <= current_price < highest_high:
-                            sl = highest_high
-                            sl_pips = (sl - fib_618_price) / self._pip_size(pair)
-                            tp_pips = sl_pips * rr_target
-                            tp_price = fib_618_price - (tp_pips * self._pip_size(pair))
-                            
-                            return self._build_signal("SELL", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
+                        return self._build_signal("BUY", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
+                        
+        elif break_direction == "SHORT":
+            manipulation_df = macro_df.iloc[broken_idx:]
+            highest_high = float(manipulation_df['high'].max())
+            highest_high_idx = manipulation_df['high'].idxmax()
+            
+            acc_df = macro_df.iloc[:broken_idx]
+            local_low = float(acc_df.iloc[-5:]['low'].min()) if len(acc_df) >= 5 else lowest_wick
+            
+            post_highest_df = manipulation_df.loc[highest_high_idx + 1:]
+            mss_confirmed = any(post_highest_df['close'] < local_low)
+            
+            if mss_confirmed:
+                post_sweep_low = float(post_highest_df['low'].min())
+                swing_range = highest_high - post_sweep_low
+                if swing_range > 0:
+                    fib_618_price = post_sweep_low + (swing_range * fib_level)
+                    if fib_618_price <= current_price < highest_high:
+                        sl = highest_high
+                        sl_pips = (sl - fib_618_price) / self._pip_size(pair)
+                        tp_pips = sl_pips * rr_target
+                        tp_price = fib_618_price - (tp_pips * self._pip_size(pair))
+                        
+                        return self._build_signal("SELL", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
 
         return None
 
     def _build_signal(self, direction: str, pair: str, entry: float, sl: float, tp: float, w_name: str, w_type: str, sl_pips: float, tp_pips: float, now_utc: datetime) -> dict:
+        score = 85.0
+        
+        # --- Spread Adjustment to Prices ---
+        spread_val = 0.0
+        try:
+            current_spread_pips = self.mt5.get_current_spread(pair)
+            if current_spread_pips > 0:
+                spread_val = current_spread_pips * self._pip_size(pair)
+        except Exception:
+            pass
+            
+        sl = sl + spread_val
+        tp = tp - spread_val
+        
         ticket_id = f"MACRO-{uuid.uuid4().hex[:8].upper()}"
         
         lot_size = float(self.macro_cfg.get("fixed_lot_size", 0.04))

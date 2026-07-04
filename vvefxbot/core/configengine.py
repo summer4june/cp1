@@ -12,6 +12,7 @@ class Config:
     enabled_scanners: Dict[str, bool]
     ote_scanner: Dict[str, Any]
     zgmt_scanner: Dict[str, Any]
+    macro_strategy: Dict[str, Any]
     trade_management: Dict[str, Any]   # partial TP, BE buffer, etc.
     pairs: List[str]
     session_timings: Dict[str, Dict[str, str]]
@@ -104,9 +105,9 @@ class ConfigEngine:
         # Required config.json keys
         json_keys = [
             "strategy_mode", "enabled_scanners", "ote_scanner", "zgmt_scanner",
-            "pairs", "session_timings", "killzone_timings_summer", "killzone_timings_winter", "risk_percent", 
+            "assets", "session_timings", "killzone_timings_summer", "killzone_timings_winter", "risk_percent", 
             "max_trades_day", "max_trades_pair_day", "max_open_trades", 
-            "max_open_risk_percent", "spread_limits", "effective_rr_min", 
+            "max_open_risk_percent", "effective_rr_min", 
             "aplus_threshold", "slippage_max_pips", "scan_frequency_seconds", 
             "correlation_groups", "demo_mode", "trading_pool_size"
         ]
@@ -132,15 +133,31 @@ class ConfigEngine:
             elif key == "demo_mode":
                 if not isinstance(json_data[key], bool):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
-            elif key == "pairs":
-                if not isinstance(json_data[key], list):
+            elif key == "assets":
+                if not isinstance(json_data[key], dict):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
-            elif key in ["session_timings", "killzone_timings_summer", "killzone_timings_winter", "spread_limits", "correlation_groups", "enabled_scanners", "ote_scanner", "zgmt_scanner"]:
+            elif key in ["session_timings", "killzone_timings_summer", "killzone_timings_winter", "correlation_groups", "enabled_scanners", "ote_scanner", "zgmt_scanner"]:
                 if not isinstance(json_data[key], dict):
                     raise ValueError(f"CONFIG ERROR: {key} missing or invalid")
             elif key == "strategy_mode":
                 if json_data[key] not in ["MMXM", "OTE", "ZGMT", "MULTI"]:
                     raise ValueError("CONFIG ERROR: strategy_mode must be MMXM, OTE, ZGMT, or MULTI")
+                    
+        # --- Map new assets structure to internal lists for backward compatibility ---
+        assets = json_data.get("assets", {})
+        pairs = list(assets.keys())
+        spread_limits = {p: info.get("max_spread", 99.0) for p, info in assets.items()}
+        
+        zgmt_pairs = [p for p, info in assets.items() if "ZGMT" in info.get("strategies", [])]
+        macro_pairs = [p for p, info in assets.items() if "MACRO" in info.get("strategies", [])]
+        
+        if "zgmt_scanner" in json_data:
+            json_data["zgmt_scanner"]["pairs"] = zgmt_pairs
+        if "macro_strategy" in json_data:
+            json_data["macro_strategy"]["pairs"] = macro_pairs
+            
+        json_data["pairs"] = pairs
+        json_data["spread_limits"] = spread_limits
 
         # Validate OTE specific keys if enabled or if present
         ote = json_data.get("ote_scanner", {})
@@ -227,6 +244,7 @@ class ConfigEngine:
             enabled_scanners=json_data["enabled_scanners"],
             ote_scanner=json_data["ote_scanner"],
             zgmt_scanner=json_data["zgmt_scanner"],
+            macro_strategy=json_data.get("macro_strategy", {}),
             trade_management=json_data["trade_management"],
             pairs=json_data["pairs"],
             session_timings=json_data["session_timings"],

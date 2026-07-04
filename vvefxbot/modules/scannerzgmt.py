@@ -153,13 +153,24 @@ class ScannerZGMT:
         If 0 GMT < Midpoint -> BUY (Bullish).
         Returns Tuple[bias_str_or_none, is_structural_absence, range_high, range_low].
         """
-        candles = self.mt5.get_candles(pair, "D1", count=3)
+        candles = self.mt5.get_candles(pair, "D1", count=5)
         if candles is None or len(candles) < 2:
             logger.debug(f"[{pair}] ZGMT: Insufficient D1 candles for PD bias.")
             return None, True, 0.0, 0.0
 
-        # -1 is current day. -2 is exactly T-1 (the completely finished prior day)
-        yesterday = candles.iloc[-2]
+        # -1 is current day. We want the most recent completely finished prior day
+        # that is NOT a Sunday or Saturday (to avoid tiny weekend stub candles).
+        yesterday = None
+        for i in range(2, len(candles) + 1):
+            cand = candles.iloc[-i]
+            # .weekday() -> 5 is Saturday, 6 is Sunday
+            if cand["time"].weekday() not in (5, 6):
+                yesterday = cand
+                break
+                
+        if yesterday is None:
+            logger.debug(f"[{pair}] ZGMT: Could not find a valid weekday candle for T-1.")
+            return None, True, 0.0, 0.0
 
         range_high = float(yesterday["high"])
         range_low = float(yesterday["low"])
@@ -377,7 +388,8 @@ class ScannerZGMT:
     # ──────────────────────────────────────────────────────────────────
 
     def _compute_entry_sl_tp(
-        self, pair: str, bias: str, zgmt_price: float, tick: dict, zgmt_cfg: dict, override_entry_mode: str = None
+        self, pair: str, bias: str, zgmt_price: float, tick: dict, zgmt_cfg: dict, 
+        override_entry_mode: str = None, range_high: float = None, range_low: float = None
     ) -> dict | None:
         """
         Calculates the entry, SL, and TP prices for ZGMT using dynamic ADR(5).
@@ -397,11 +409,9 @@ class ScannerZGMT:
         entry_mode = (override_entry_mode or zgmt_cfg.get("zgmt_entry_mode", "DIRECT")).upper()
 
         # ── Step 4: Manipulation zone filter pips (metal vs FX) ─────
-        if self._is_metal(pair):
-            filter_pips = zgmt_cfg.get("zgmt_filter_pips_metal", 95)
-        else:
-            filter_pips = zgmt_cfg.get("zgmt_filter_pips_fx", 25)
-        filter_diff = self._pips_to_price(pair, filter_pips)
+        # Note: Leg C (FILTER) now dynamically calculates filter_pips. 
+        # We initialize it here as 0 to be overwritten dynamically.
+        filter_pips = 0.0
 
         # ── Steps 5/6: Dynamic ADR-based SL/TP (STRICT — no fallback) ──
         # SL = 5-day ADR ÷ 2. If ADR data is unavailable, the signal is cancelled.
@@ -446,8 +456,19 @@ class ScannerZGMT:
                 # Option A: Buy exactly at the 0 GMT open price (IPDA True Day Open)
                 entry_price = zgmt_price
             elif entry_mode == "FILTER":
-                # Option B: Buy limit zgmt_filter_pips_fx/metal BELOW 0 GMT open (Judas Swing)
-                entry_price = zgmt_price - filter_diff
+                # ZGMT-C: 50% of (Previous Day Low - 0GMT Price)
+                if range_low is None:
+                    logger.debug(f"[{pair}] ZGMT-C INVALID: range_low is None.")
+                    return None
+                
+                pip_size = self._pip_size(pair)
+                gap_pips = abs(zgmt_price - range_low) / pip_size
+                if gap_pips < 5:
+                    logger.debug(f"[{pair}] ZGMT-C INVALID: Gap (0GMT to PrevLow) is {gap_pips:.1f} pips (< 5).")
+                    return None
+                
+                entry_price = (range_low + zgmt_price) / 2.0
+                filter_pips = abs(zgmt_price - entry_price) / pip_size
             else:
                 logger.warning(f"[{pair}] ZGMT: Unknown entry_mode '{entry_mode}'. Defaulting to DIRECT.")
                 entry_price = zgmt_price
@@ -463,8 +484,19 @@ class ScannerZGMT:
                 # Option A: Sell directly at 0 GMT open price
                 entry_price = zgmt_price
             elif entry_mode == "FILTER":
-                # Option B: Sell limit zgmt_filter_pips_fx/metal ABOVE 0 GMT open
-                entry_price = zgmt_price + filter_diff
+                # ZGMT-C: 50% of (Previous Day High - 0GMT Price)
+                if range_high is None:
+                    logger.debug(f"[{pair}] ZGMT-C INVALID: range_high is None.")
+                    return None
+                
+                pip_size = self._pip_size(pair)
+                gap_pips = abs(range_high - zgmt_price) / pip_size
+                if gap_pips < 5:
+                    logger.debug(f"[{pair}] ZGMT-C INVALID: Gap (0GMT to PrevHigh) is {gap_pips:.1f} pips (< 5).")
+                    return None
+                
+                entry_price = (range_high + zgmt_price) / 2.0
+                filter_pips = abs(entry_price - zgmt_price) / pip_size
             else:
                 logger.warning(f"[{pair}] ZGMT: Unknown entry_mode '{entry_mode}'. Defaulting to DIRECT.")
                 entry_price = zgmt_price
@@ -550,6 +582,8 @@ class ScannerZGMT:
         # ── Step 2: Daily bias (Leg A & C) ────────────────────────────
         require_pd = zgmt_cfg.get("require_pd_array_check", True)
         pd_swept_before_zgmt = False
+        range_high = None
+        range_low = None
         
         if require_pd:
             bias, is_structural, range_high, range_low = self._get_daily_bias(pair, zgmt_cfg, zgmt_price)
@@ -567,6 +601,7 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT: PD array check disabled — using tick direction.")
             tick = self.mt5.get_tick(pair)
             bias = "BULLISH" if (tick and tick["bid"] > zgmt_price) else "BEARISH"
+            range_high, range_low = None, None
             if bias is None:
                 return None
 
@@ -636,6 +671,15 @@ class ScannerZGMT:
 
         def build_signal_dict(levs: dict, strat_id: str) -> dict:
             spr = self.mt5.get_current_spread(pair)
+            
+            # --- Spread Adjustment to Prices ---
+            spread_val = spr * self._pip_size(pair) if spr > 0 else 0.0
+            
+            sl_adjusted = levs["sl_price"] + spread_val
+            tp1_adjusted = levs["tp1_price"] - spread_val
+            tp2_adjusted = levs["tp2_price"] - spread_val
+            tp3_adjusted = (levs["tp3_price"] - spread_val) if levs.get("tp3_price") else 0.0
+            
             den = levs["sl_pips"] + spr
             eff_rr = (levs["tp_pips"] - spr) / den if den > 0 else 0.0
             pd_zone = "DISCOUNT" if bias == "BULLISH" else "PREMIUM"
@@ -654,10 +698,10 @@ class ScannerZGMT:
                 "direction": "BUY" if bias == "BULLISH" else "SELL",
                 "bias_summary": summary,
                 "entry_price": levs["entry_price"],
-                "sl_price": levs["sl_price"],
-                "tp1_price": levs["tp1_price"],
-                "tp2_price": levs["tp2_price"],
-                "tp3_price": levs.get("tp3_price", 0.0),
+                "sl_price": sl_adjusted,
+                "tp1_price": tp1_adjusted,
+                "tp2_price": tp2_adjusted,
+                "tp3_price": tp3_adjusted,
                 "sl_pips": levs["sl_pips"],
                 "tp_pips": levs["tp_pips"],
                 "tp3_pips": levs.get("tp3_pips", 0.0),
@@ -681,7 +725,11 @@ class ScannerZGMT:
                 window_start_dt = datetime.combine(today_ist, window_start).replace(tzinfo=now_ist.tzinfo)
                 if now_ist >= window_start_dt + timedelta(minutes=3):
                     # We use DIRECT calculation to ensure entry_price == 0GMT price (no offset)
-                    levs_direct = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="DIRECT")
+                    levs_direct = self._compute_entry_sl_tp(
+                        pair, bias, zgmt_price, tick, zgmt_cfg, 
+                        override_entry_mode="DIRECT", 
+                        range_high=range_high, range_low=range_low
+                    )
                     if levs_direct:
                         signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
                         logger.info(f"[{pair}] ZGMT-A VALID: Limit order at 0 GMT price scheduled.")
@@ -701,7 +749,11 @@ class ScannerZGMT:
             elif pd_swept_before_zgmt:
                 logger.debug(f"[{pair}] ZGMT-C INVALID: PD array already swept before 0 GMT.")
             else:
-                levs_filter = self._compute_entry_sl_tp(pair, bias, zgmt_price, tick, zgmt_cfg, override_entry_mode="FILTER")
+                levs_filter = self._compute_entry_sl_tp(
+                    pair, bias, zgmt_price, tick, zgmt_cfg, 
+                    override_entry_mode="FILTER", 
+                    range_high=range_high, range_low=range_low
+                )
                 if levs_filter:
                     signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C"))
                     logger.info(f"[{pair}] ZGMT-C VALID: Judas swing limit order added.")
@@ -1083,49 +1135,91 @@ class ScannerZGMT:
         fib_max: float,
     ) -> bool:
         """
-        Validates that the OB body_mid sits inside the correct Fibonacci
-        premium or discount zone (wick-to-wick swing high/low).
-
-        Bearish OB: must be in premium zone (above 50% Fib from high→low).
-        Bullish OB: must be in discount zone (below 50% Fib from low→high).
+        Validates that the OB body_mid sits strictly inside the 50% to 61.8% Fibonacci
+        premium or discount zone of the current validated structural leg.
         """
         highs = df['high'].values
         lows  = df['low'].values
         n = len(df)
 
-        swing_high = None
-        swing_low  = None
+        raw_highs = []
+        raw_lows = []
 
+        # Find raw swings using lookback
         for i in range(swing_lookback, n - swing_lookback):
-            # Swing high: wick higher than swing_lookback candles on each side
-            if (all(highs[i] > highs[i - k] for k in range(1, swing_lookback + 1)) and
-                    all(highs[i] > highs[i + k] for k in range(1, swing_lookback + 1))):
-                swing_high = float(highs[i])
+            if all(highs[i] > highs[i - k] for k in range(1, swing_lookback + 1)) and \
+               all(highs[i] > highs[i + k] for k in range(1, swing_lookback + 1)):
+                raw_highs.append({"index": i, "price": float(highs[i])})
 
-            # Swing low: wick lower than swing_lookback candles on each side
-            if (all(lows[i] < lows[i - k] for k in range(1, swing_lookback + 1)) and
-                    all(lows[i] < lows[i + k] for k in range(1, swing_lookback + 1))):
-                swing_low = float(lows[i])
+            if all(lows[i] < lows[i - k] for k in range(1, swing_lookback + 1)) and \
+               all(lows[i] < lows[i + k] for k in range(1, swing_lookback + 1)):
+                raw_lows.append({"index": i, "price": float(lows[i])})
 
-        if swing_high is None or swing_low is None or swing_high <= swing_low:
+        all_swings = []
+        for sh in raw_highs:
+            all_swings.append({"type": "HIGH", "index": sh["index"], "price": sh["price"]})
+        for sl in raw_lows:
+            all_swings.append({"type": "LOW", "index": sl["index"], "price": sl["price"]})
+        all_swings.sort(key=lambda x: x["index"])
+
+        validated_highs = []
+        validated_lows = []
+
+        for swing in all_swings:
+            if swing["type"] == "HIGH":
+                if not validated_highs:
+                    validated_highs.append(swing)
+                else:
+                    if swing["price"] > validated_highs[-1]["price"]:
+                        validated_highs.append(swing)
+                    else:
+                        has_low_between = any(validated_highs[-1]["index"] < l["index"] < swing["index"] for l in validated_lows)
+                        if has_low_between:
+                            validated_highs.append(swing)
+            else:
+                if not validated_lows:
+                    validated_lows.append(swing)
+                else:
+                    if swing["price"] < validated_lows[-1]["price"]:
+                        validated_lows.append(swing)
+                    else:
+                        has_high_between = any(validated_lows[-1]["index"] < h["index"] < swing["index"] for h in validated_highs)
+                        if has_high_between:
+                            validated_lows.append(swing)
+
+        if not validated_highs or not validated_lows:
+            return False
+
+        swing_high = validated_highs[-1]["price"]
+        swing_low = validated_lows[-1]["price"]
+
+        logger.debug(f"Validated Structural Leg: SwingHigh={swing_high:.5f} | SwingLow={swing_low:.5f}")
+
+        if swing_high <= swing_low:
             return False
 
         fib_range = swing_high - swing_low
 
         if ob["direction"] == "SELL":
-            fib_zone_top    = swing_high - fib_range * fib_min   # closer to high (50%)
-            fib_zone_bottom = swing_high - fib_range * fib_max   # deeper (61.8%)
+            # Bearish OB: Price dropped from Swing High to Swing Low.
+            # Retracement goes UP. Premium zone (50% - 61.8%) is in the upper half.
+            fib_zone_bottom = swing_low + fib_range * fib_min
+            fib_zone_top    = swing_low + fib_range * fib_max
+            
             is_valid = fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
             if is_valid:
-                logger.debug(f"Fib Match (SELL OB): SwingHigh={swing_high:.5f}, SwingLow={swing_low:.5f}. Mid={ob['body_mid']:.5f} is in Premium zone [{fib_zone_bottom:.5f} - {fib_zone_top:.5f}]")
+                logger.debug(f"Fib Match (SELL OB): SwingHigh={swing_high:.5f}, SwingLow={swing_low:.5f}. Mid={ob['body_mid']:.5f} strictly in Premium zone [{fib_zone_bottom:.5f} - {fib_zone_top:.5f}]")
             return is_valid
 
         else:  # BUY
-            fib_zone_bottom = swing_low + fib_range * fib_min    # 50%
-            fib_zone_top    = swing_low + fib_range * fib_max    # 61.8%
+            # Bullish OB: Price rose from Swing Low to Swing High.
+            # Retracement goes DOWN. Discount zone (50% - 61.8%) is in the lower half.
+            fib_zone_bottom = swing_high - fib_range * fib_max
+            fib_zone_top    = swing_high - fib_range * fib_min
+            
             is_valid = fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
             if is_valid:
-                logger.debug(f"Fib Match (BUY OB): SwingHigh={swing_high:.5f}, SwingLow={swing_low:.5f}. Mid={ob['body_mid']:.5f} is in Discount zone [{fib_zone_bottom:.5f} - {fib_zone_top:.5f}]")
+                logger.debug(f"Fib Match (BUY OB): SwingHigh={swing_high:.5f}, SwingLow={swing_low:.5f}. Mid={ob['body_mid']:.5f} strictly in Discount zone [{fib_zone_bottom:.5f} - {fib_zone_top:.5f}]")
             return is_valid
 
     # ──────────────────────────────────────────────────────────────────

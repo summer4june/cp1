@@ -14,6 +14,7 @@ def mock_config():
         enabled_scanners={"mmxm": True, "ote": False, "zgmt": False},
         ote_scanner={"enabled": False},
         zgmt_scanner={"enabled": False},
+        macro_strategy={"enabled": False},
         trade_management={
             "partial_tp_enabled": True,
             "partial_tp_fraction": 0.5,
@@ -888,26 +889,27 @@ def test_filter_pips_metal_vs_fx(mock_config):
 
     # FX pair: D1 candles giving ADR ≈ 60 pips (each daily range = 0.006)
     connector.get_candles.return_value = make_d1(0.006)
-    result_fx = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", zgmt_price, {}, zgmt_cfg)
+    result_fx = scanner._compute_entry_sl_tp("EURUSD", "BULLISH", zgmt_price, {}, zgmt_cfg, range_high=1.10600, range_low=1.09500)
     assert result_fx is not None
-    fx_filter = result_fx["filter_pips"]
+    fx_filter = round(result_fx["filter_pips"])
     assert fx_filter == 25, f"FX filter pips should be 25, got {fx_filter}"
     # FILTER BUY: entry_price = zgmt_price - 25 pips = 1.10000 - 0.0025 = 1.09750
     assert abs(result_fx["entry_price"] - (zgmt_price - 25 * 0.0001)) < 1e-5
 
     # Metal pair: D1 candles giving ADR ≈ 200 pips (each daily range = 2.0)
     connector.get_candles.return_value = make_d1(2.0)
-    result_gold = scanner._compute_entry_sl_tp("XAUUSD", "BULLISH", 2000.0, {}, zgmt_cfg)
+    result_gold = scanner._compute_entry_sl_tp("XAUUSD", "BULLISH", 2000.0, {}, zgmt_cfg, range_high=2003.0, range_low=1998.1)
     assert result_gold is not None
-    metal_filter = result_gold["filter_pips"]
+    metal_filter = round(result_gold["filter_pips"])
     assert metal_filter == 95, f"Metal filter pips should be 95, got {metal_filter}"
     # FILTER BUY: entry = 2000 - 95 pips = 2000 - 0.95 = 1999.05
     assert abs(result_gold["entry_price"] - (2000.0 - 95 * 0.01)) < 1e-4
 
     # Silver must behave identically to Gold for filter pips
-    result_silver = scanner._compute_entry_sl_tp("XAGUSD", "BULLISH", 30.0, {}, zgmt_cfg)
+    result_silver = scanner._compute_entry_sl_tp("XAGUSD", "BULLISH", 30.0, {}, zgmt_cfg, range_high=30.05, range_low=28.1)
     assert result_silver is not None
-    assert result_silver["filter_pips"] == 95, "XAGUSD must use metal filter pips"
+    silver_filter = round(result_silver["filter_pips"])
+    assert silver_filter == 95, "XAGUSD must use metal filter pips"
 
 
 # ── Test 4: ADR-based SL/TP for FX pair ─────────────────────────────────────
@@ -1088,7 +1090,7 @@ def test_split_mode_two_signals(mock_config):
         "zgmt_window_end_ist": "08:00",
         "allow_buy": True,
         "allow_sell": True,
-        "require_pd_array_check": False,
+        "require_pd_array_check": True,
         "require_power_of_three": False,
     }
 
@@ -1096,6 +1098,8 @@ def test_split_mode_two_signals(mock_config):
     zgmt_price = 1.10000
     # Override the _get_zgmt_price mock
     scanner._get_zgmt_price = MagicMock(return_value=(zgmt_price, False))
+    # Mock daily bias to return range_high and range_low so ZGMT-C succeeds
+    scanner._get_daily_bias = MagicMock(return_value=("BULLISH", False, 1.1060, 1.0950))
     # Override _is_zgmt_level_tested
     scanner._is_zgmt_level_tested = MagicMock(return_value=False)
 
