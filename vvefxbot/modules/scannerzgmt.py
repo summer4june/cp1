@@ -90,7 +90,9 @@ class ScannerZGMT:
             return 0.01
         if "XAU" in p or "XAG" in p:  # Gold AND Silver use 0.01
             return 0.01
-        elif any(idx in p for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+        elif any(idx in p for idx in ["US500", "SPX", "USTEC", "US100", "NAS100"]):
+            return 0.1
+        elif any(idx in p for idx in ["US30", "GER40", "UK100", "WS30"]):
             return 1.0
         return 0.0001
 
@@ -156,10 +158,18 @@ class ScannerZGMT:
         If 0 GMT < Midpoint -> BUY (Bullish).
         Returns Tuple[bias_str_or_none, is_structural_absence, range_high, range_low].
         """
-        candles = self.mt5.get_candles(pair, "D1", count=5)
+        candles = self.mt5.get_candles(pair, "D1", count=10)
         if candles is None or len(candles) < 2:
             logger.debug(f"[{pair}] ZGMT: Insufficient D1 candles for PD bias.")
             return None, True, 0.0, 0.0
+
+        # Calculate a median daily range to filter out holiday stubs
+        recent_cands = [row for _, row in candles.iloc[:-1].iterrows() if row["time"].weekday() not in (5, 6)]
+        if len(recent_cands) > 5:
+            ranges_list = sorted([float(row["high"] - row["low"]) for row in recent_cands])
+            median_range = ranges_list[len(ranges_list) // 2]
+        else:
+            median_range = 0
 
         # -1 is current day. We want the most recent completely finished prior day
         # that is NOT a Sunday or Saturday (to avoid tiny weekend stub candles).
@@ -168,6 +178,11 @@ class ScannerZGMT:
             cand = candles.iloc[-i]
             # .weekday() -> 5 is Saturday, 6 is Sunday
             if cand["time"].weekday() not in (5, 6):
+                cand_range = cand["high"] - cand["low"]
+                # Skip holiday stub candles
+                if median_range > 0 and cand_range < (0.25 * median_range):
+                    logger.info(f"[{pair}] ZGMT: Skipping previous day {cand['time']} as a likely holiday stub.")
+                    continue
                 yesterday = cand
                 break
                 
@@ -1246,9 +1261,14 @@ class ScannerZGMT:
         if d1['time'].dt.tz is None:
             d1['time'] = d1['time'].dt.tz_localize('UTC')
             
-        # Filter out Sunday candles (weekday == 6) because they represent a tiny 2-hour window
-        # which heavily skews the True Average and High-Low range calculations.
-        d1_filtered = d1[d1['time'].dt.weekday != 6]
+        # Filter out Saturday (5) and Sunday (6) candles which skew True Average
+        d1_filtered = d1[~d1['time'].dt.weekday.isin([5, 6])].copy()
+        
+        # Holiday Filter: Drop days where the range is abnormally small (e.g. < 25% of median)
+        if len(d1_filtered) > 2:
+            ranges = d1_filtered['high'] - d1_filtered['low']
+            median_range = ranges.median()
+            d1_filtered = d1_filtered[ranges > (0.25 * median_range)]
         
         if len(d1_filtered) < adr_days + 1:
             logger.warning(f"[{pair}] ZGMT-EXCEPTION: Insufficient valid D1 trading days for ADR.")

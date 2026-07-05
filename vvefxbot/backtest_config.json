@@ -1,7 +1,8 @@
 {
-  "_comment": "VvE FxBOT \u2014 Backtest Configuration",
+  "_comment": "VvE FxBOT — Backtest Configuration",
   "_comment_strategy": "Strategy to backtest: MMXM | OTE | ZGMT | MACRO",
   "strategy": "MACRO",
+  "pairs": ["US30m", "USTECm", "US500m"],
   "_comment_timezone": "Set to 3 for EET (MT5 default broker server time offset from UTC)",
   "broker_timezone_offset_hours": 0.0,
   "assets": {
@@ -19,9 +20,9 @@
     "XAGUSDm": { "strategies": ["ZGMT"] }
   },
   "_comment_dates": "Full backtest range",
-  "date_from": "2026-06-24",
+  "date_from": "2026-06-01",
   "date_to": "2026-07-04",
-  "_comment_balance": "Initial balance and risk \u2014 risk is overridden in config.json (set high for backtesting)",
+  "_comment_balance": "Initial balance and risk — risk is overridden in config.json (set high for backtesting)",
   "initial_balance": 10000.0,
   "risk_percent": 100.0,
   "data_source": {

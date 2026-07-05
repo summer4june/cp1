@@ -43,7 +43,7 @@ class ScannerMacro:
         self._last_signal_time = {}
 
     def _get_active_macro(self, current_dt_ist: datetime):
-        """Returns (window_name, window_type) if currently in a macro window, else None."""
+        """Returns (window_name, window_type, end_t) if currently in a macro window, else None."""
         curr_t = current_dt_ist.time()
         
         for (sh, sm, eh, em, name, wtype) in self.MACRO_WINDOWS:
@@ -53,10 +53,10 @@ class ScannerMacro:
             # Handle midnight crossing for Reversal 9 (23:40 - 00:20)
             if start_t > end_t:
                 if curr_t >= start_t or curr_t < end_t:
-                    return name, wtype
+                    return name, wtype, end_t
             else:
                 if start_t <= curr_t < end_t:
-                    return name, wtype
+                    return name, wtype, end_t
                     
         return None
 
@@ -85,9 +85,8 @@ class ScannerMacro:
         if not active_macro:
             return None
             
-        logger.info(f"[{pair}] Entering active macro window: {active_macro} at IST: {now_ist.time()}")
-            
-        window_name, window_type = active_macro
+        window_name, window_type, end_t_ist = active_macro
+        logger.info(f"[{pair}] Entering active macro window: {window_name} ({window_type}) at IST: {now_ist.time()}")
 
         # Cooldown check (prevent spamming same pair in same macro window if recently signaled)
         last_time = self._last_signal_time.get(pair)
@@ -105,14 +104,25 @@ class ScannerMacro:
         if not current_price:
             return None
 
-        signal = self._detect_amd(df, pair, current_price, window_name, window_type, now_utc)
+        signal = self._detect_amd(df, pair, current_price, window_name, window_type, now_utc, end_t_ist)
         
         if signal:
             self._last_signal_time[pair] = now_utc
             
         return signal
 
-    def _detect_amd(self, df: pd.DataFrame, pair: str, current_price: float, window_name: str, window_type: str, now_utc: datetime) -> dict | None:
+    def _get_sl_buffer_pips(self, pair: str) -> float:
+        """Return the required SL buffer in pips for specific indices."""
+        pair_upper = pair.upper()
+        if "US500" in pair_upper or "SPX" in pair_upper:
+            return float(self.macro_cfg.get("sl_buffer_pips_us500", 5.0))
+        if any(idx in pair_upper for idx in ["US30", "WS30"]):
+            return float(self.macro_cfg.get("sl_buffer_pips_us30", 100.0))
+        if any(idx in pair_upper for idx in ["USTEC", "US100", "NAS100", "UK100", "GER40"]):
+            return float(self.macro_cfg.get("sl_buffer_pips_nasdaq", 10.0))
+        return float(self.macro_cfg.get("sl_buffer_pips_fx", 0.0))
+
+    def _detect_amd(self, df: pd.DataFrame, pair: str, current_price: float, window_name: str, window_type: str, now_utc: datetime, end_t_ist: dt_time) -> dict | None:
         """
         Detect Accumulation -> Manipulation -> Distribution -> Fib Entry.
         Accumulation phase is strictly bounded to start at the opening of the active Macro Window.
@@ -147,6 +157,10 @@ class ScannerMacro:
         if len(macro_df) < 1:
             return None
             
+        # 2b. Enforce minimum accumulation time (wait X mins for accumulation minimum)
+        min_acc_candles = int(self.macro_cfg.get("min_accumulation_candles", 10))
+        initial_buffer_candles = int(self.macro_cfg.get("initial_buffer_candles", 5))
+        
         macro_df = macro_df.reset_index(drop=True)
         
         # 3. Apply Pair-specific Pip Limits for Accumulation Range
@@ -158,47 +172,53 @@ class ScannerMacro:
         else:
             max_pips = float(self.macro_cfg.get("max_acc_pips_fx", 20.0))
             
-        # 4. Define Accumulation Range using lookback before macro window
-        acc_lookback = int(self.macro_cfg.get("accumulation_lookback", 20))
-        
-        # Get candles before the macro window
-        pre_macro_df = df[df['time'] < macro_start_utc].tail(acc_lookback)
-        if len(pre_macro_df) < acc_lookback:
-            # Not enough history
+        # 4. Define Accumulation Range dynamically starting from the first candle of the macro
+        if len(macro_df) < 1:
             return None
             
-        highest_wick = float(pre_macro_df['high'].max())
-        lowest_wick = float(pre_macro_df['low'].min())
+        highest_wick = float(macro_df.iloc[0]['high'])
+        lowest_wick = float(macro_df.iloc[0]['low'])
         
         accumulation_broken = False
         broken_idx = -1
         break_direction = None
-        break_direction = None
-        # Validate accumulation range pip size
-        current_range_pips = (highest_wick - lowest_wick) / self._pip_size(pair)
-        if current_range_pips > max_pips:
-            # logger.info(f"[{pair}] MACRO INVALID: Accumulation range {current_range_pips:.1f} pips exceeded limit {max_pips}")
-            return None
-
-        for i in range(len(macro_df)):
+        
+        for i in range(1, len(macro_df)):
             row = macro_df.iloc[i]
             close = float(row['close'])
-            high = float(row['high'])
-            low = float(row['low'])
             
-            if close > highest_wick:
-                accumulation_broken = True
-                broken_idx = i
-                break_direction = "SHORT" # Broke above accumulation -> manipulating highs -> look to sell
-                break
-            elif close < lowest_wick:
-                accumulation_broken = True
-                broken_idx = i
-                break_direction = "LONG" # Broke below accumulation -> manipulating lows -> look to buy
-                break
-                
+            # Check for breakouts only AFTER the initial buffer
+            if i >= initial_buffer_candles:
+                # Did the BODY close outside the established wick range?
+                if close > highest_wick:
+                    accumulation_broken = True
+                    broken_idx = i
+                    break_direction = "SHORT" # Broke above accumulation -> manipulating highs -> look to sell
+                    break
+                elif close < lowest_wick:
+                    accumulation_broken = True
+                    broken_idx = i
+                    break_direction = "LONG" # Broke below accumulation -> manipulating lows -> look to buy
+                    break
+            
+            # If no breakout (or if in buffer), accumulation continues. Add current candle's wicks to the range.
+            highest_wick = max(highest_wick, float(row['high']))
+            lowest_wick = min(lowest_wick, float(row['low']))
+
         if not accumulation_broken:
-            # MACRO WAIT: Accumulation not broken yet
+            # MACRO WAIT: Accumulation never broke out
+            return None
+            
+        # Breakout happened! Now check the rules.
+        # Rule 1: Did it accumulate for the minimum time?
+        if broken_idx < min_acc_candles:
+            logger.info(f"[{pair}] MACRO INVALID: Manipulation happened too early (candle {broken_idx})")
+            return None
+            
+        # Rule 2: Did the accumulation range exceed the pip limit?
+        current_range_pips = (highest_wick - lowest_wick) / self._pip_size(pair)
+        if current_range_pips > max_pips:
+            logger.info(f"[{pair}] MACRO INVALID: Accumulation range {current_range_pips:.1f} pips exceeded limit {max_pips}")
             return None
             
         # 5. Track Manipulation & MSS Phase
@@ -219,12 +239,13 @@ class ScannerMacro:
                 if swing_range > 0:
                     fib_618_price = post_sweep_high - (swing_range * fib_level)
                     if lowest_low < current_price <= fib_618_price:
-                        sl = lowest_low
+                        buffer_price = self._get_sl_buffer_pips(pair) * self._pip_size(pair)
+                        sl = lowest_low - buffer_price
                         sl_pips = (fib_618_price - sl) / self._pip_size(pair)
                         tp_pips = sl_pips * rr_target
                         tp_price = fib_618_price + (tp_pips * self._pip_size(pair))
                         
-                        return self._build_signal("BUY", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
+                        return self._build_signal("BUY", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc, end_t_ist)
                     else:
                         logger.info(f"[{pair}] MACRO WAIT: LONG MSS confirmed, waiting for 618 pull back. Current: {current_price}, Fib618: {fib_618_price}")
             else:
@@ -247,12 +268,13 @@ class ScannerMacro:
                 if swing_range > 0:
                     fib_618_price = post_sweep_low + (swing_range * fib_level)
                     if fib_618_price <= current_price < highest_high:
-                        sl = highest_high
+                        buffer_price = self._get_sl_buffer_pips(pair) * self._pip_size(pair)
+                        sl = highest_high + buffer_price
                         sl_pips = (sl - fib_618_price) / self._pip_size(pair)
                         tp_pips = sl_pips * rr_target
                         tp_price = fib_618_price - (tp_pips * self._pip_size(pair))
                         
-                        return self._build_signal("SELL", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc)
+                        return self._build_signal("SELL", pair, fib_618_price, sl, tp_price, window_name, window_type, sl_pips, tp_pips, now_utc, end_t_ist)
                     else:
                         logger.info(f"[{pair}] MACRO WAIT: SHORT MSS confirmed, waiting for 618 pull back. Current: {current_price}, Fib618: {fib_618_price}")
             else:
@@ -260,8 +282,8 @@ class ScannerMacro:
 
         return None
 
-    def _build_signal(self, direction: str, pair: str, entry: float, sl: float, tp: float, w_name: str, w_type: str, sl_pips: float, tp_pips: float, now_utc: datetime) -> dict:
-        score = 85.0
+    def _build_signal(self, direction, pair, entry, sl, tp, window_name, window_type, sl_pips, tp_pips, now_utc, end_t_ist):
+        score = 90.0
         
         # --- Spread Adjustment to Prices ---
         spread_val = 0.0
@@ -272,18 +294,58 @@ class ScannerMacro:
         except Exception:
             pass
             
-        sl = sl + spread_val
-        tp = tp - spread_val
+        sl = sl + spread_val if direction == "BUY" else sl - spread_val
+        tp = tp - spread_val if direction == "BUY" else tp + spread_val
         
         ticket_id = f"MACRO-{uuid.uuid4().hex[:8].upper()}"
-        
-        lot_size = float(self.macro_cfg.get("fixed_lot_size", 0.04))
         
         spr = self.mt5.get_current_spread(pair)
         den = sl_pips + spr
         eff_rr = (tp_pips - spr) / den if den > 0 else 0.0
         
-        logger.info(f"[{pair}] MACRO HYDRA SIGNAL: {direction} | Window: {w_name} ({w_type}) | Entry: {entry} | SL: {sl} | TP: {tp}")
+        # Calculate full expiration datetime in UTC
+        # end_t_ist is the time the window ends in IST.
+        now_ist = now_utc + self._IST_OFFSET
+        
+        # Create a datetime for today with the end_t_ist time
+        end_dt_ist = datetime.combine(now_ist.date(), end_t_ist)
+        end_dt_ist = end_dt_ist.replace(tzinfo=timezone.utc) # temporarily treat as UTC tz object
+        
+        # If end time is earlier in the day than current time (e.g. crossing midnight)
+        if end_dt_ist.time() < now_ist.time():
+            end_dt_ist += timedelta(days=1)
+            
+        # Convert IST datetime back to UTC
+        expiration_utc = end_dt_ist - self._IST_OFFSET
+        
+        rr = self.macro_cfg.get("risk_reward", 3.0)
+        pip = self._pip_size(pair)
+        
+        # Calculate all 3 TP levels: TP1 = 1:1, TP2 = 2:1, TP3 = full RR
+        tp1_pips = sl_pips * 1.0
+        tp2_pips = sl_pips * 2.0
+        tp3_pips = sl_pips * rr
+        
+        if direction == "BUY":
+            tp1_price = entry + (tp1_pips * pip)
+            tp2_price = entry + (tp2_pips * pip)
+            tp3_price = entry + (tp3_pips * pip)
+        else:
+            tp1_price = entry - (tp1_pips * pip)
+            tp2_price = entry - (tp2_pips * pip)
+            tp3_price = entry - (tp3_pips * pip)
+        
+        # Determine session from macro window name
+        if "Silver Bullet" in window_name or "Macro" in window_name:
+            session_name = "NewYork Open"
+        elif "Reversal" in window_name:
+            session_name = "London Close"
+        else:
+            session_name = "NewYork Open"
+        
+        logger.info(f"[{pair}] MACRO HYDRA SIGNAL: {direction} | Window: {window_name} ({window_type}) | Entry: {entry} | SL: {sl} | TP1: {tp1_price} | TP2: {tp2_price} | TP3: {tp3_price} | Expires: {expiration_utc.strftime('%H:%M')} UTC")
+
+        lot_size = self.macro_cfg.get("fixed_lot_size", 0.04)
 
         return {
             "signal_id": ticket_id,
@@ -291,18 +353,31 @@ class ScannerMacro:
             "direction": direction,
             "entry_price": round(entry, 5),
             "sl_price": round(sl, 5),
-            "tp1_price": round(tp, 5),
-            "tp2_price": round(tp, 5),
+            "tp_price": round(tp3_price, 5),
+            "tp1_price": round(tp1_price, 5),
+            "tp2_price": round(tp2_price, 5),
+            "tp3_price": round(tp3_price, 5),
             "sl_pips": round(sl_pips, 1),
-            "tp_pips": round(tp_pips, 1),
+            "tp_pips": round(tp3_pips, 1),
+            "tp1_pips": round(tp1_pips, 1),
+            "tp2_pips": round(tp2_pips, 1),
+            "tp3_pips": round(tp3_pips, 1),
             "spread_pips": spr,
             "effective_rr": round(eff_rr, 2),
-            "score": 90.0,
+            "score": score,
+            "strategy": "MACRO",
+            "setup_type": f"{window_name} ({window_type})",
+            "window_name": window_name,
+            "window_type": window_type,
+            "session": session_name,
+            "killzone": session_name,
+            "entry_leg": "MACRO",
+            "timeframe_entry": "M1",
+            "timestamp": now_utc.isoformat(),
             "detected_time": now_utc.isoformat(),
-            "strategy": "MACRO-HYDRA",
-            "setup_type": f"{w_name} ({w_type})",
             "fixed_lot_size": lot_size,
-            "entry_mode": "FILTER"
+            "entry_mode": "FILTER",
+            "expiration_time": expiration_utc.isoformat()
         }
 
     def _pip_size(self, pair: str) -> float:
@@ -311,6 +386,8 @@ class ScannerMacro:
             return 0.01
         elif "XAU" in p or "XAG" in p:
             return 0.01  
-        elif any(idx in p for idx in ["US30", "US100", "US500", "USTEC", "NAS100", "SPX", "GER40", "UK100", "WS30"]):
+        elif any(idx in p for idx in ["US500", "SPX", "USTEC", "US100", "NAS100"]):
+            return 0.1
+        elif any(idx in p for idx in ["US30", "GER40", "UK100", "WS30"]):
             return 1.0
         return 0.0001

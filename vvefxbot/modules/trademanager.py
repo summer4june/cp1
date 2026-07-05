@@ -23,7 +23,10 @@ import math
 import time
 import threading
 import traceback
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    pass
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
@@ -73,8 +76,12 @@ class TradeManager:
     def _pip_size(self, pair: str) -> float:
         """Return pip size for the pair (correct per instrument type)."""
         p = pair.upper()
-        if "JPY" in p or "XAU" in p:
+        if "JPY" in p or "XAU" in p or "XAG" in p:
             return 0.01
+        elif any(idx in p for idx in ["US500", "SPX", "USTEC", "US100", "NAS100"]):
+            return 0.1
+        elif any(idx in p for idx in ["US30", "GER40", "UK100", "WS30"]):
+            return 1.0
         return 0.0001
 
     def _pips_to_price(self, pair: str, pips: float) -> float:
@@ -183,6 +190,7 @@ class TradeManager:
             self.state.add_daily_loss(today, abs(loss_usd))
             self.state.increment_consecutive_losses(today)
         else:
+            self.state.increment_daily_wins(today)
             self.state.reset_consecutive_losses(today)
 
         daily = self.state.get_daily_state(today)
@@ -458,6 +466,7 @@ class TradeManager:
             self.state.update_trade_status(trade_id, "CLOSED", "WIN", profit)
             self.state.insert_event(trade_id, "TP2_HIT", current_price)
             self.state.add_daily_profit(today, profit)
+            self.state.increment_daily_wins(today)
             self.state.reset_consecutive_losses(today)
             return
 
@@ -537,6 +546,7 @@ class TradeManager:
                 self.state.update_trade_status(trade_id, "CLOSED", "WIN", profit)
                 self.state.insert_event(trade_id, "TP2_HIT", current_price)
                 self.state.add_daily_profit(today, profit)
+                self.state.increment_daily_wins(today)
                 self.state.reset_consecutive_losses(today)
                 msg = (
                     f"✅ *TP2 Hit — Trade CLOSED WIN* 🎉\n"
@@ -569,6 +579,7 @@ class TradeManager:
             self.state.update_trade_status(trade_id, "CLOSED", "WIN", profit)
             self.state.insert_event(trade_id, "TP3_HIT", current_price)
             self.state.add_daily_profit(today, profit)
+            self.state.increment_daily_wins(today)
             self.state.reset_consecutive_losses(today)
             return
 
@@ -582,6 +593,7 @@ class TradeManager:
             self.state.update_trade_status(trade_id, "CLOSED", "WIN", profit)
             self.state.insert_event(trade_id, "TP3_HIT", current_price)
             self.state.add_daily_profit(today, profit)
+            self.state.increment_daily_wins(today)
             self.state.reset_consecutive_losses(today)
             msg = (
                 f"🏆 *TP3 Hit — Trade FULLY CLOSED WIN* 🔥\n"
@@ -652,6 +664,7 @@ class TradeManager:
                         self.state.update_trade_status(trade_id, "CLOSED", "WIN", profit)
                         self.state.insert_event(trade_id, "TP2_HIT", current_price)
                         self.state.add_daily_profit(today, profit)
+                        self.state.increment_daily_wins(today)
                         self.state.reset_consecutive_losses(today)
                         msg = (
                             f"✅ *TP2 Hit — Trade CLOSED WIN* 🎉\n"

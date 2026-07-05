@@ -59,6 +59,7 @@ class SimulatedTrade:
         rr_format: str = "1:2",
         score: float = 0.0,
         is_above_market: bool = False,
+        expiration_time: datetime = None,
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
@@ -73,6 +74,7 @@ class SimulatedTrade:
         self.pip_size = pip_size
         self.open_bar = bar_index
         self.open_time = bar_time
+        self.expiration_time = expiration_time
         self.close_bar: Optional[int] = None
         self.close_time: Optional[datetime] = None
         self.session = session
@@ -235,7 +237,9 @@ class BacktestEngine:
         
         if "JPY" in pair_upper or "XAU" in pair_upper or "XAG" in pair_upper:
             self.pip_size = 0.01
-        elif is_index:
+        elif any(idx in pair_upper for idx in ["US500", "SPX", "USTEC", "US100", "NAS100"]):
+            self.pip_size = 0.1
+        elif any(idx in pair_upper for idx in ["US30", "GER40", "UK100", "WS30"]):
             self.pip_size = 1.0
         else:
             self.pip_size = 0.0001
@@ -262,7 +266,7 @@ class BacktestEngine:
         # Warn if breakeven buffer > TP1 distance (structural runner issue)
         tm_cfg_init = getattr(config, "trade_management", {})
         be_buf = float(tm_cfg_init.get("breakeven_buffer_pips", 30))
-        sl_fx  = float(getattr(config, "zgmt_scanner", {}).get("sl_pips_fx", 25))
+        sl_fx  = float(getattr(config, "zgmt_scanner", {}).get("zgmt_sl_tp", {}).get("sl_pips_fx", 25))
         if be_buf > sl_fx and "XAU" not in pair_upper:
             logger.warning(
                 f"[BT] ⚠️  breakeven_buffer_pips ({be_buf:.0f}) > sl_pips_fx ({sl_fx:.0f}) for {pair}. "
@@ -581,6 +585,13 @@ class BacktestEngine:
                     tp2_price = round(entry_price - tp_diff, 5)
                     tp3_price = round(entry_price - tp3_diff, 5)
 
+                expiration_dt = None
+                if "expiration_time" in signal:
+                    try:
+                        expiration_dt = datetime.fromisoformat(signal["expiration_time"]).replace(tzinfo=timezone.utc)
+                    except Exception:
+                        pass
+
                 # Fetch live BE buffer and partial TP ratio from global config
                 bt_be_buffer_pips = self.config.trade_management.get("breakeven_buffer_pips", 5)
                 bt_partial_tp_fraction = self.config.trade_management.get("partial_tp_fraction", 0.5)
@@ -608,6 +619,7 @@ class BacktestEngine:
                     rr_format=bt_rr_format,
                     score=signal.get("score", 0.0),
                     is_above_market=(entry_price > current_bar["close"]),
+                    expiration_time=expiration_dt,
                 )
 
                 order_type = "Pending Limit" if is_limit_order else "Market Fill"
@@ -687,6 +699,16 @@ class BacktestEngine:
         bar_low   = bar["low"]
 
         if trade.status == "PENDING":
+            if trade.expiration_time and bar_time >= trade.expiration_time:
+                trade.status = "CLOSED"
+                trade.result = "CANCELLED"
+                trade.exit_reason = "expired_macro"
+                trade.close_bar = bar_idx
+                trade.close_time = bar_time
+                trade.exit_price = trade.entry
+                logger.info(f"[BT] Limit Trade CANCELLED (Expired) | {trade.pair} | Bar {bar_idx}")
+                return True
+                
             triggered = False
             
             # Robust pending order trigger logic:

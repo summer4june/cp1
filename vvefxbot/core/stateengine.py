@@ -152,9 +152,16 @@ class StateEngine:
                 CREATE TABLE IF NOT EXISTS daily_state (
                     date TEXT PRIMARY KEY, total_trades INTEGER DEFAULT 0,
                     total_loss_usd REAL DEFAULT 0.0, consecutive_losses INTEGER DEFAULT 0,
-                    daily_profit_usd REAL DEFAULT 0.0, bot_disabled INTEGER DEFAULT 0
+                    daily_profit_usd REAL DEFAULT 0.0, bot_disabled INTEGER DEFAULT 0,
+                    daily_wins INTEGER DEFAULT 0
                 )
                 """)
+                
+                # Migrate existing daily_state if daily_wins is missing
+                cursor.execute("PRAGMA table_info(daily_state)")
+                cols = [col[1] for col in cursor.fetchall()]
+                if cols and "daily_wins" not in cols:
+                    cursor.execute("ALTER TABLE daily_state ADD COLUMN daily_wins INTEGER DEFAULT 0")
 
                 # 7. pair_state
                 cursor.execute("""
@@ -564,6 +571,19 @@ class StateEngine:
             finally:
                 self._close_connection(conn)
 
+    def increment_daily_wins(self, date: str) -> None:
+        """Increments the daily wins count."""
+        self._ensure_daily_state(date)
+        with self.lock:
+            conn = self._get_connection()
+            try:
+                conn.execute("UPDATE daily_state SET daily_wins = daily_wins + 1 WHERE date = ?", (date,))
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Error incrementing daily wins: {e}")
+            finally:
+                self._close_connection(conn)
+
     def reset_consecutive_losses(self, date: str) -> None:
         """Resets the consecutive losses count to zero."""
         self._ensure_daily_state(date)
@@ -731,4 +751,4 @@ class StateEngine:
                 # Log to logger as fallback
                 logger.critical(f"FATAL DB ERROR when logging error: {e}")
             finally:
-                conn.close()
+                self._close_connection(conn)

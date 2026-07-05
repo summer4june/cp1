@@ -131,7 +131,7 @@
       "end": "22:30"
     }
   },
-  "_comment_risk": "Risk / trade-count limits relaxed for backtesting \u2014 increase later for live",
+  "_comment_risk": "Risk / trade-count limits relaxed for backtesting — increase later for live",
   "risk_percent": 100.0,
   "max_trades_day": 999,
   "max_trades_pair_day": 999,
@@ -196,10 +196,15 @@
     "risk_reward": 3.0,
     "fib_entry_level": 0.618,
     "accumulation_lookback": 20,
-    "min_accumulation_candles": 10,
+    "initial_buffer_candles": 3,
+    "min_accumulation_candles": 6,
     "max_acc_pips_us30_ustec": 600.0,
     "max_acc_pips_us500": 60.0,
     "max_acc_pips_fx": 20.0,
+    "sl_buffer_pips_us500": 5.0,
+    "sl_buffer_pips_us30": 100.0,
+    "sl_buffer_pips_nasdaq": 10.0,
+    "sl_buffer_pips_fx": 0.0,
     "magic_number": 202413,
     "fixed_lot_size": 0.04
   }

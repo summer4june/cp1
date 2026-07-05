@@ -170,6 +170,14 @@ class ExecutionEngine:
         entry_mode = signal.get("entry_mode", "DIRECT")
 
         if entry_mode == "FILTER":
+            expiration_ts = None
+            if "expiration_time" in signal:
+                try:
+                    exp_dt = datetime.fromisoformat(signal["expiration_time"])
+                    expiration_ts = int(exp_dt.timestamp())
+                except Exception as e:
+                    logger.warning(f"[{pair}] Could not parse expiration_time: {e}")
+                    
             order_result = self.mt5.place_pending_order(
                 symbol=pair,
                 order_type=direction,
@@ -177,7 +185,8 @@ class ExecutionEngine:
                 entry_price=signal["entry_price"],
                 sl=signal["sl_price"],
                 tp=mt5_tp,
-                comment="VvE_Limit"
+                comment="VvE_Limit",
+                expiration_ts=expiration_ts
             )
         else:
             order_result = self.mt5.place_order(

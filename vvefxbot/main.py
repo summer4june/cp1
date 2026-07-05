@@ -104,7 +104,7 @@ def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, sessi
                     daily_profit = daily_state.get("daily_profit_usd", 0.0)
                     end_balance = start_balance + daily_profit
                     
-                    daily_trades = daily_state.get("daily_trades", 0)
+                    daily_trades = daily_state.get("total_trades", 0)
                     daily_wins = daily_state.get("daily_wins", 0)
                     win_rate = (daily_wins / daily_trades * 100) if daily_trades > 0 else 0.0
                     

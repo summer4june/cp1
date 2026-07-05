@@ -42,8 +42,13 @@ class ScannerMMXM:
         Returns:
             float: Pip size (0.01 for JPY/Gold pairs, 0.0001 for others).
         """
-        if "JPY" in pair.upper() or "XAU" in pair.upper():
+        p = pair.upper()
+        if "JPY" in p or "XAU" in p or "XAG" in p:
             return 0.01
+        elif any(idx in p for idx in ["US500", "SPX", "USTEC", "US100", "NAS100"]):
+            return 0.1
+        elif any(idx in p for idx in ["US30", "GER40", "UK100", "WS30"]):
+            return 1.0
         return 0.0001
 
     def _price_to_pips(self, price_diff: float, pair: str) -> float:

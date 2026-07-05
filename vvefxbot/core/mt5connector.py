@@ -434,9 +434,10 @@ class MT5Connector:
 
         return {"success": False, "ticket": -1, "error": "Max retries exceeded"}
 
-    def place_pending_order(self, symbol: str, order_type: str, lot: float, entry_price: float, sl: float, tp: float, comment: str = "VvE_Limit") -> Dict[str, Any]:
+    def place_pending_order(self, symbol: str, order_type: str, lot: float, entry_price: float, sl: float, tp: float, comment: str = "VvE_Limit", expiration_ts: int = None) -> Dict[str, Any]:
         """
         Place a pending order (Limit or Stop). Automatically chooses based on current market price.
+        Supports custom expiration_ts (Unix timestamp).
         """
         tick = mt5.symbol_info_tick(symbol)
         if not tick:
@@ -459,10 +460,14 @@ class MT5Connector:
         sl = round(float(sl), digits)
         tp = round(float(tp), digits) if tp else 0.0
 
-        # Set expiration to the end of tomorrow (broker time)
-        # Using TIME_SPECIFIED_DAY means it expires at 00:00 of the specified date.
-        # So setting it to today + 2 days means it lasts through tomorrow and expires when the day after tomorrow begins.
-        expiration_time = int((datetime.now() + timedelta(days=2)).replace(hour=0, minute=0, second=0).timestamp())
+        # Set expiration to the end of tomorrow (broker time) if not provided
+        if expiration_ts is not None:
+            expiration_time = expiration_ts
+            # If using an exact timestamp, use TIME_SPECIFIED
+            type_time = mt5.ORDER_TIME_SPECIFIED
+        else:
+            expiration_time = int((datetime.now() + timedelta(days=2)).replace(hour=0, minute=0, second=0).timestamp())
+            type_time = mt5.ORDER_TIME_SPECIFIED_DAY
 
         request = {
             "action": ACTION_PENDING,
@@ -475,7 +480,7 @@ class MT5Connector:
             "deviation": 20,
             "magic": 123456,
             "comment": comment,
-            "type_time": TIME_SPECIFIED_DAY,
+            "type_time": type_time,
             "expiration": expiration_time,
             "type_filling": self._get_filling_mode(symbol),
         }
