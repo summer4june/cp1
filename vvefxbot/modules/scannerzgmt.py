@@ -848,17 +848,37 @@ class ScannerZGMT:
         logger.debug(f"[{pair}] _check_htf_ob_exception: {len(tapping_obs)} OBs tapping current price {current_price}")
 
         # Filter 3: OB must sit inside the correct Fibonacci premium / discount zone
-        fib_min = zgmt_cfg.get("zgmt_ob_fib_min", 0.50)
-        fib_max = zgmt_cfg.get("zgmt_ob_fib_max", 0.618)
-        swing_lookback = zgmt_cfg.get("zgmt_swing_lookback", 3)
+        # Pre-compute dealing ranges per timeframe using proper swing detection
+        h4_swing_l = zgmt_cfg.get("zgmt_swing_l_h4", 2)
+        h4_swing_r = zgmt_cfg.get("zgmt_swing_r_h4", 2)
+        h1_swing_l = zgmt_cfg.get("zgmt_swing_l_h1", 2)
+        h1_swing_r = zgmt_cfg.get("zgmt_swing_r_h1", 2)
+
+        dealing_ranges = {}
+        for df_tf, tf_name, L, R in [
+            (h4_candles, "H4", h4_swing_l, h4_swing_r),
+            (h1_candles, "H1", h1_swing_l, h1_swing_r),
+        ]:
+            if df_tf is None or (hasattr(df_tf, 'empty') and df_tf.empty):
+                dealing_ranges[tf_name] = None
+                continue
+            df_tf = df_tf.reset_index(drop=True)
+            dealing_ranges[tf_name] = self._get_dealing_range(df_tf, bias, L, R, pair)
+            if dealing_ranges[tf_name]:
+                sl, sh = dealing_ranges[tf_name]
+                logger.debug(
+                    f"[{pair}] ZGMT-B {tf_name} Dealing Range: SwingLow={sl:.5f} SwingHigh={sh:.5f} | Bias={bias}"
+                )
+            else:
+                logger.debug(f"[{pair}] ZGMT-B {tf_name}: No valid dealing range found for bias={bias}.")
 
         fib_valid_obs = []
         for ob in tapping_obs:
-            df = h4_candles if ob["timeframe"] == "H4" else h1_candles
-            if df is None or (hasattr(df, 'empty') and df.empty):
+            dr = dealing_ranges.get(ob["timeframe"])
+            if dr is None:
+                logger.debug(f"[{pair}] ZGMT-B: Skipping {ob['timeframe']} OB — no dealing range available.")
                 continue
-            df = df.reset_index(drop=True)
-            if self._is_ob_in_fib_zone(df, ob, swing_lookback, fib_min, fib_max):
+            if self._is_ob_in_fib_zone(ob, dr, bias, pair):
                 fib_valid_obs.append(ob)
 
         logger.debug(f"[{pair}] _check_htf_ob_exception: {len(fib_valid_obs)} OBs survived Fib Filter")
@@ -1136,101 +1156,214 @@ class ScannerZGMT:
             return bool(any(subsequent['high'] >= level))
 
     # ──────────────────────────────────────────────────────────────────
+    # Proper Swing Detection (per strategy spec)
+    # ──────────────────────────────────────────────────────────────────
+
+    def _detect_swings(
+        self,
+        df: pd.DataFrame,
+        L: int = 2,
+        R: int = 2,
+        atr_min_separation: float = 0.5,
+    ) -> tuple[list, list]:
+        """
+        Detect swing highs and swing lows using wick highs/lows.
+
+        Swing High at candle i if:
+          high[i] > high[i-j] for all j in 1..L   (strictly greater on left)
+          high[i] >= high[i+j] for all j in 1..R  (greater or equal on right)
+
+        Swing Low at candle i if:
+          low[i] < low[i-j] for all j in 1..L
+          low[i] <= low[i+j] for all j in 1..R
+
+        Minimum separation filter: consecutive swing highs (or lows) must be
+        at least atr_min_separation * ATR14 apart in price, otherwise the
+        weaker one is dropped.
+
+        Returns:
+            swing_highs: list of dicts {index, price} sorted ascending by index
+            swing_lows:  list of dicts {index, price} sorted ascending by index
+        """
+        highs = df['high'].values.astype(float)
+        lows  = df['low'].values.astype(float)
+        closes = df['close'].values.astype(float)
+        n = len(df)
+
+        # Compute ATR14 for minimum separation filter
+        atr_period = 14
+        if n > atr_period + 1:
+            true_ranges = []
+            for i in range(1, n):
+                tr = max(
+                    highs[i] - lows[i],
+                    abs(highs[i] - closes[i - 1]),
+                    abs(lows[i] - closes[i - 1]),
+                )
+                true_ranges.append(tr)
+            atr14 = sum(true_ranges[-atr_period:]) / atr_period
+        else:
+            atr14 = 0.0
+
+        min_price_sep = atr_min_separation * atr14
+
+        raw_highs = []
+        raw_lows  = []
+
+        for i in range(L, n - R):
+            # Swing High: strictly higher than L candles left, >= R candles right
+            if (all(highs[i] > highs[i - k] for k in range(1, L + 1)) and
+                    all(highs[i] >= highs[i + k] for k in range(1, R + 1))):
+                raw_highs.append({"index": i, "price": highs[i]})
+
+            # Swing Low: strictly lower than L candles left, <= R candles right
+            if (all(lows[i] < lows[i - k] for k in range(1, L + 1)) and
+                    all(lows[i] <= lows[i + k] for k in range(1, R + 1))):
+                raw_lows.append({"index": i, "price": lows[i]})
+
+        # Minimum separation filter — drop weaker swing if two are too close
+        def _filter_by_separation(swings: list, keep_highest: bool) -> list:
+            if not swings or min_price_sep <= 0:
+                return swings
+            filtered = [swings[0]]
+            for sw in swings[1:]:
+                prev = filtered[-1]
+                if abs(sw["price"] - prev["price"]) < min_price_sep:
+                    # Too close — keep the stronger one
+                    if keep_highest:
+                        if sw["price"] > prev["price"]:
+                            filtered[-1] = sw  # replace with higher
+                    else:
+                        if sw["price"] < prev["price"]:
+                            filtered[-1] = sw  # replace with lower
+                else:
+                    filtered.append(sw)
+            return filtered
+
+        swing_highs = _filter_by_separation(raw_highs, keep_highest=True)
+        swing_lows  = _filter_by_separation(raw_lows,  keep_highest=False)
+
+        return swing_highs, swing_lows
+
+    def _get_dealing_range(
+        self,
+        df: pd.DataFrame,
+        bias: str,
+        L: int,
+        R: int,
+        pair: str,
+    ) -> tuple[float, float] | None:
+        """
+        Build the current dealing range from the latest confirmed OPPOSITE swing pair.
+
+        Bullish bias  → dealing range = most recent swing_low → swing_high
+                        (i.e., swing_low must come BEFORE swing_high in time)
+        Bearish bias  → dealing range = most recent swing_high → swing_low
+                        (i.e., swing_high must come BEFORE swing_low in time)
+
+        Returns (swing_low_price, swing_high_price) or None if no valid pair found.
+        """
+        swing_highs, swing_lows = self._detect_swings(df, L=L, R=R)
+
+        if not swing_highs or not swing_lows:
+            logger.debug(f"[{pair}] _get_dealing_range: Not enough swings detected (H={len(swing_highs)} L={len(swing_lows)}).")
+            return None
+
+        if bias == "BULLISH":
+            # Need most recent swing_high that has a swing_low BEFORE it
+            # Iterate swing highs from most recent backwards
+            for sh in reversed(swing_highs):
+                # Find the most recent swing low that occurs BEFORE this swing high
+                prior_lows = [sl for sl in swing_lows if sl["index"] < sh["index"]]
+                if not prior_lows:
+                    continue
+                sl = prior_lows[-1]  # most recent prior swing low
+                # Sanity: swing low must be lower than swing high
+                if sl["price"] >= sh["price"]:
+                    continue
+                return (sl["price"], sh["price"])  # (range_low, range_high)
+        else:  # BEARISH
+            # Need most recent swing_low that has a swing_high BEFORE it
+            for sl in reversed(swing_lows):
+                prior_highs = [sh for sh in swing_highs if sh["index"] < sl["index"]]
+                if not prior_highs:
+                    continue
+                sh = prior_highs[-1]  # most recent prior swing high
+                if sh["price"] <= sl["price"]:
+                    continue
+                return (sl["price"], sh["price"])  # (range_low, range_high)
+
+        logger.debug(f"[{pair}] _get_dealing_range: No valid opposite-swing pair found for bias={bias}.")
+        return None
 
     def _is_ob_in_fib_zone(
         self,
-        df: pd.DataFrame,
         ob: dict,
-        swing_lookback: int,
-        fib_min: float,
-        fib_max: float,
+        dealing_range: tuple[float, float],
+        bias: str,
+        pair: str,
     ) -> bool:
         """
-        Validates that the OB body_mid sits strictly inside the 50% to 61.8% Fibonacci
-        premium or discount zone of the current validated structural leg.
+        Validates that the OB body_mid sits inside the correct Fibonacci
+        premium or discount zone of the current dealing range (wick-to-wick).
+
+        Dealing range = (swing_low_price, swing_high_price).
+        Range size D = swing_high - swing_low.
+
+        Fibonacci levels (measured from swing_low upward):
+            F50   = swing_low + 0.500 * D   ← equilibrium
+            F618  = swing_low + 0.618 * D
+            F786  = swing_low + 0.786 * D
+
+        Bullish OB → must be in DISCOUNT (below F50):
+            OB body_mid <= F50
+            Stronger score if between F50 and F786 retracement (i.e. below F50)
+
+        Bearish OB → must be in PREMIUM (above F50):
+            OB body_mid >= F50
         """
-        highs = df['high'].values
-        lows  = df['low'].values
-        n = len(df)
+        range_low, range_high = dealing_range
 
-        raw_highs = []
-        raw_lows = []
-
-        # Find raw swings using lookback
-        for i in range(swing_lookback, n - swing_lookback):
-            if all(highs[i] > highs[i - k] for k in range(1, swing_lookback + 1)) and \
-               all(highs[i] > highs[i + k] for k in range(1, swing_lookback + 1)):
-                raw_highs.append({"index": i, "price": float(highs[i])})
-
-            if all(lows[i] < lows[i - k] for k in range(1, swing_lookback + 1)) and \
-               all(lows[i] < lows[i + k] for k in range(1, swing_lookback + 1)):
-                raw_lows.append({"index": i, "price": float(lows[i])})
-
-        all_swings = []
-        for sh in raw_highs:
-            all_swings.append({"type": "HIGH", "index": sh["index"], "price": sh["price"]})
-        for sl in raw_lows:
-            all_swings.append({"type": "LOW", "index": sl["index"], "price": sl["price"]})
-        all_swings.sort(key=lambda x: x["index"])
-
-        validated_highs = []
-        validated_lows = []
-
-        for swing in all_swings:
-            if swing["type"] == "HIGH":
-                if not validated_highs:
-                    validated_highs.append(swing)
-                else:
-                    if swing["price"] > validated_highs[-1]["price"]:
-                        validated_highs.append(swing)
-                    else:
-                        has_low_between = any(validated_highs[-1]["index"] < l["index"] < swing["index"] for l in validated_lows)
-                        if has_low_between:
-                            validated_highs.append(swing)
-            else:
-                if not validated_lows:
-                    validated_lows.append(swing)
-                else:
-                    if swing["price"] < validated_lows[-1]["price"]:
-                        validated_lows.append(swing)
-                    else:
-                        has_high_between = any(validated_lows[-1]["index"] < h["index"] < swing["index"] for h in validated_highs)
-                        if has_high_between:
-                            validated_lows.append(swing)
-
-        if not validated_highs or not validated_lows:
+        if range_high <= range_low:
             return False
 
-        swing_high = validated_highs[-1]["price"]
-        swing_low = validated_lows[-1]["price"]
+        D = range_high - range_low
+        F50  = range_low + 0.500 * D
+        F618 = range_low + 0.618 * D
+        F786 = range_low + 0.786 * D
 
-        logger.debug(f"Validated Structural Leg: SwingHigh={swing_high:.5f} | SwingLow={swing_low:.5f}")
+        mid = ob["body_mid"]
 
-        if swing_high <= swing_low:
-            return False
-
-        fib_range = swing_high - swing_low
-
-        if ob["direction"] == "SELL":
-            # Bearish OB: Price dropped from Swing High to Swing Low.
-            # Retracement goes UP. Premium zone (50% - 61.8%) is in the upper half.
-            fib_zone_bottom = swing_low + fib_range * fib_min
-            fib_zone_top    = swing_low + fib_range * fib_max
-            
-            is_valid = fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
+        if ob["direction"] == "BUY":
+            # Bullish OB must sit in DISCOUNT zone — below the 50% equilibrium
+            is_valid = mid <= F50
             if is_valid:
-                logger.debug(f"Fib Match (SELL OB): SwingHigh={swing_high:.5f}, SwingLow={swing_low:.5f}. Mid={ob['body_mid']:.5f} strictly in Premium zone [{fib_zone_bottom:.5f} - {fib_zone_top:.5f}]")
+                # Extra score info: is it in the 50-78.6% retracement sweet spot?
+                is_sweet = (range_low <= mid <= F50)  # below equilibrium
+                zone = "Discount (50-78.6% retracement sweet spot)" if (F50 - (F786 - F50)) <= mid <= F50 else "Discount"
+                logger.debug(
+                    f"[{pair}] Fib ✅ BUY OB: RangeLow={range_low:.5f} RangeHigh={range_high:.5f} "
+                    f"F50={F50:.5f} | OB_mid={mid:.5f} in {zone}"
+                )
+            else:
+                logger.debug(
+                    f"[{pair}] Fib ❌ BUY OB: OB_mid={mid:.5f} is ABOVE F50={F50:.5f} — in Premium, not Discount."
+                )
             return is_valid
 
-        else:  # BUY
-            # Bullish OB: Price rose from Swing Low to Swing High.
-            # Retracement goes DOWN. Discount zone (50% - 61.8%) is in the lower half.
-            fib_zone_bottom = swing_high - fib_range * fib_max
-            fib_zone_top    = swing_high - fib_range * fib_min
-            
-            is_valid = fib_zone_bottom <= ob["body_mid"] <= fib_zone_top
+        else:  # SELL OB
+            # Bearish OB must sit in PREMIUM zone — above the 50% equilibrium
+            is_valid = mid >= F50
             if is_valid:
-                logger.debug(f"Fib Match (BUY OB): SwingHigh={swing_high:.5f}, SwingLow={swing_low:.5f}. Mid={ob['body_mid']:.5f} strictly in Discount zone [{fib_zone_bottom:.5f} - {fib_zone_top:.5f}]")
+                zone = "Premium (50-78.6% retracement sweet spot)" if F50 <= mid <= F618 else "Premium"
+                logger.debug(
+                    f"[{pair}] Fib ✅ SELL OB: RangeLow={range_low:.5f} RangeHigh={range_high:.5f} "
+                    f"F50={F50:.5f} F618={F618:.5f} F786={F786:.5f} | OB_mid={mid:.5f} in {zone}"
+                )
+            else:
+                logger.debug(
+                    f"[{pair}] Fib ❌ SELL OB: OB_mid={mid:.5f} is BELOW F50={F50:.5f} — in Discount, not Premium."
+                )
             return is_valid
 
     # ──────────────────────────────────────────────────────────────────
