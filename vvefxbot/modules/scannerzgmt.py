@@ -879,12 +879,12 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT-B: direction SELL but allow_sell=False")
             return None
 
+        entry_price = best_ob["body_mid"]
+
         # OB-based dynamic SL (distance from entry to OB extreme)
         if direction == "BUY":
-            entry_price = best_ob["body_high"]
             sl_distance = entry_price - best_ob["body_low"]
         else:
-            entry_price = best_ob["body_low"]
             sl_distance = best_ob["body_high"] - entry_price
 
         if sl_distance <= 0:
