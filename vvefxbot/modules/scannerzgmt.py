@@ -268,10 +268,7 @@ class ScannerZGMT:
         offset_hours = self._get_broker_utc_offset_hours(pair)
         target_broker_datetime = target_utc + timedelta(hours=offset_hours)
 
-        # Give MT5 a 3-minute grace period after 0GMT to ensure the open price is available
-        if now_utc < target_utc + timedelta(minutes=3):
-            logger.debug(f"[{pair}] ZGMT: Waiting 3 minutes past 0 GMT for MT5 data to stabilize.")
-            return None, False
+        # We no longer hard-block for 3 minutes; if the candle is available, we use it immediately.
 
         candles = self.mt5.get_candles(pair, "H1", count=30)
         if candles is None or candles.empty:
@@ -740,21 +737,15 @@ class ScannerZGMT:
         if strategy_a_valid and not pd_swept_before_zgmt and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
             # Only take Strategy A in the Asian Killzone
             if killzone.lower() == "asia":
-                # Ensure we are at least 3 minutes into the window to fetch & place the limit order
-                today_ist = now_ist.date()
-                window_start_dt = datetime.combine(today_ist, window_start).replace(tzinfo=now_ist.tzinfo)
-                if now_ist >= window_start_dt + timedelta(minutes=3):
-                    # We use DIRECT calculation to ensure entry_price == 0GMT price (no offset)
-                    levs_direct = self._compute_entry_sl_tp(
-                        pair, bias, zgmt_price, tick, zgmt_cfg, 
-                        override_entry_mode="DIRECT", 
-                        range_high=range_high, range_low=range_low
-                    )
-                    if levs_direct:
-                        signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
-                        logger.info(f"[{pair}] ZGMT-A VALID: Limit order at 0 GMT price scheduled.")
-                else:
-                    logger.debug(f"[{pair}] ZGMT-A: Waiting for 3 minutes into window ({window_start}) to emit limit order.")
+                # We use DIRECT calculation to ensure entry_price == 0GMT price (no offset)
+                levs_direct = self._compute_entry_sl_tp(
+                    pair, bias, zgmt_price, tick, zgmt_cfg, 
+                    override_entry_mode="DIRECT", 
+                    range_high=range_high, range_low=range_low
+                )
+                if levs_direct:
+                    signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
+                    logger.info(f"[{pair}] ZGMT-A VALID: Limit order at 0 GMT price scheduled.")
             else:
                 logger.debug(f"[{pair}] ZGMT: Skipping Strategy A because killzone '{killzone}' is not Asia.")
 

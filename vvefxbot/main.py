@@ -545,9 +545,9 @@ def main():
 
             # Bot disabled guard — first check every iteration
             if state_engine.is_bot_disabled_today(today):
-                logger.warning("Bot is disabled for today. Sleeping 60s.")
-                time.sleep(60)
-                continue
+                logger.warning("Bot is disabled for today in DB, but ignoring as per user request.")
+                # time.sleep(60)
+                # continue
 
             session = session_engine.get_active_session()
             killzone = session_engine.get_active_killzone()
