@@ -206,9 +206,11 @@ class ScannerZGMT:
         else:
             bias = None  # Exactly at equilibrium
 
-        logger.debug(
-            f"[{pair}] ZGMT: T-1 Range High={range_high:.5f} Low={range_low:.5f} "
-            f"Mid={midpoint:.5f} 0GMT={zgmt_price:.5f} → Bias={bias}"
+        date_str = yesterday["time"].strftime('%Y-%m-%d %A')
+        logger.info(
+            f"[{pair}] ZGMT: Using T-1 ({date_str}) for PD Array | "
+            f"High={range_high:.5f} Low={range_low:.5f} Mid={midpoint:.5f} | "
+            f"0GMT={zgmt_price:.5f} → Bias={bias}"
         )
         return bias, False, range_high, range_low
 
