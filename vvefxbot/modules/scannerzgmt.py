@@ -901,17 +901,23 @@ class ScannerZGMT:
 
         entry_price = best_ob["body_mid"]
 
-        # OB-based dynamic SL (distance from entry to OB extreme)
-        if direction == "BUY":
-            sl_distance = entry_price - best_ob["body_low"]
-        else:
-            sl_distance = best_ob["body_high"] - entry_price
-
-        if sl_distance <= 0:
+        # ── SL via ADR5/2 (strategy spec: SL = 5-day ADR ÷ 2, wick-to-wick) ────
+        # This is the same formula used by ZGMT-A and ZGMT-C.
+        adr_sl_dist = self._calculate_adr_sl(pair)
+        if not adr_sl_dist or adr_sl_dist <= 0:
+            logger.warning(
+                f"[{pair}] ZGMT-B: ADR(5) unavailable — signal cancelled. "
+                f"Cannot calculate SL without real ADR data."
+            )
             return None
 
-        sl_pips = sl_distance / pip_size   # use pip_size not symbol_point — point ≠ pip on 5-decimal brokers
+        sl_distance = adr_sl_dist   # price-unit distance
+        sl_pips = sl_distance / pip_size
         tp_pips = sl_pips * 2
+
+        logger.debug(
+            f"[{pair}] ZGMT-B SL: ADR5/2 = {sl_pips:.1f} pips | entry={entry_price:.5f}"
+        )
 
         # Cap SL at configurable maximum (same cap as standard ZGMT entries)
         if self._is_metal(pair):
@@ -986,22 +992,29 @@ class ScannerZGMT:
 
     def _detect_normal_ob(self, df: pd.DataFrame, tf: str) -> list:
         """
-        Detects Normal Order Blocks.
-        Bullish: last bearish candle before a strong bullish displacement (close > prior high).
-        Bearish: last bullish candle before a strong bearish displacement (close < prior low).
+        Detects Normal Order Blocks using BODY-ONLY zones (no wicks).
+        Bullish: last bearish candle before a strong bullish displacement (close > OB body_high).
+        Bearish: last bullish candle before a strong bearish displacement (close < OB body_low).
+
+        OB zone uses body only:
+            body_high = max(open, close)   ← NOT candle high (wick)
+            body_low  = min(open, close)   ← NOT candle low  (wick)
         """
         obs = []
         for i in range(len(df) - 4):
             candle = df.iloc[i]
-            body_high = float(candle['high'])
-            body_low  = float(candle['low'])
+            # Body only — explicitly exclude wicks
+            body_high = float(max(candle['open'], candle['close']))
+            body_low  = float(min(candle['open'], candle['close']))
             body_mid  = (body_high + body_low) / 2.0
 
-            # Bullish Normal OB: bearish candle followed by strong upward displacement
+            # Bullish Normal OB: bearish candle (close < open) followed by strong upward
+            # displacement that closes above the OB body_high within 1-3 candles
             if candle['close'] < candle['open']:
-                for j in range(i + 1, min(i + 6, len(df))):
+                for j in range(i + 1, min(i + 4, len(df))):  # 1-3 candles
                     if float(df.iloc[j]['close']) > body_high:
-                        is_mitigated = self._check_mitigated(df, i, "BUY", body_high)
+                        # Mitigation: check only AFTER the displacement candle (j+1 onwards)
+                        is_mitigated = self._check_mitigated_after(df, j, "BUY", body_low)
                         obs.append({
                             "ob_type": "NORMAL",
                             "direction": "BUY",
@@ -1009,16 +1022,18 @@ class ScannerZGMT:
                             "body_low": body_low,
                             "body_mid": body_mid,
                             "candle_index": i,
+                            "displacement_index": j,   # index of the candle that caused the break
                             "timeframe": tf,
                             "is_mitigated": is_mitigated,
                         })
                         break
 
-            # Bearish Normal OB: bullish candle followed by strong downward displacement
+            # Bearish Normal OB: bullish candle (close > open) followed by strong downward
+            # displacement that closes below the OB body_low within 1-3 candles
             elif candle['close'] > candle['open']:
-                for j in range(i + 1, min(i + 6, len(df))):
+                for j in range(i + 1, min(i + 4, len(df))):  # 1-3 candles
                     if float(df.iloc[j]['close']) < body_low:
-                        is_mitigated = self._check_mitigated(df, i, "SELL", body_low)
+                        is_mitigated = self._check_mitigated_after(df, j, "SELL", body_high)
                         obs.append({
                             "ob_type": "NORMAL",
                             "direction": "SELL",
@@ -1026,6 +1041,7 @@ class ScannerZGMT:
                             "body_low": body_low,
                             "body_mid": body_mid,
                             "candle_index": i,
+                            "displacement_index": j,
                             "timeframe": tf,
                             "is_mitigated": is_mitigated,
                         })
@@ -1094,48 +1110,118 @@ class ScannerZGMT:
 
     def _detect_breaker_block(self, df: pd.DataFrame, tf: str) -> list:
         """
-        Detects Breaker Blocks — failed OBs that flipped after a structure break.
-        Bullish Breaker: bearish OB that price later broke above → now acts as support.
-        Bearish Breaker: bullish OB that price later broke below → now acts as resistance.
+        Detects Breaker Blocks — failed OBs that flipped role after a body close
+        through the OB extreme, followed by a market structure shift.
+
+        Bullish Breaker:
+          1. Start with a BEARISH normal OB (body_high = max(open,close) of that candle).
+          2. A later candle's BODY closes ABOVE the OB body_high  ← body close, not wick.
+          3. After that break, price takes a prior swing HIGH     ← structure shift up.
+          4. On retrace the failed bearish OB body now acts as support.
+
+        Bearish Breaker:
+          1. Start with a BULLISH normal OB.
+          2. A later candle's BODY closes BELOW the OB body_low.
+          3. After that break, price takes a prior swing LOW      ← structure shift down.
+          4. On retrace the failed bullish OB body acts as resistance.
         """
         normal_obs = self._detect_normal_ob(df, tf)
         breakers = []
+        highs  = df['high'].values.astype(float)
+        lows   = df['low'].values.astype(float)
+        opens  = df['open'].values.astype(float)
+        closes = df['close'].values.astype(float)
+        n = len(df)
 
         for ob in normal_obs:
             idx = ob["candle_index"]
-            subsequent = df.iloc[idx + 1:]
+            disp_idx = ob.get("displacement_index", idx + 1)
+            # Look only after the displacement candle
+            search_start = disp_idx + 1
+            if search_start >= n:
+                continue
 
             if ob["direction"] == "SELL":
-                # Bullish Breaker: bearish OB that was broken to the upside
-                break_candles = subsequent[subsequent['close'] > ob["body_high"]]
-                if not break_candles.empty:
-                    break_idx = break_candles.index[0]
-                    breakers.append({
-                        "ob_type": "BREAKER",
-                        "direction": "BUY",
-                        "body_high": ob["body_high"],
-                        "body_low": ob["body_low"],
-                        "body_mid": ob["body_mid"],
-                        "candle_index": break_idx,  # The block is established at the break
-                        "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, break_idx, "BUY", ob["body_high"]),
-                    })
+                # ── Bullish Breaker ──────────────────────────────────────────
+                # Step 1: find a candle whose BODY closes above the OB body_high
+                break_idx = None
+                for k in range(search_start, n):
+                    body_close_k = float(closes[k])
+                    if body_close_k > ob["body_high"]:
+                        break_idx = k
+                        break
+                if break_idx is None:
+                    continue  # Never broke — not a breaker
+
+                # Step 2: after the break candle, look for a structure shift UP
+                # (price takes a swing high that existed BEFORE the break candle)
+                # Use a simple proxy: any high after break_idx exceeds a prior swing high
+                pre_break_highs = highs[:break_idx]
+                if len(pre_break_highs) == 0:
+                    continue
+                ref_swing_high = float(pre_break_highs.max())
+                structure_shift = any(
+                    float(highs[k]) > ref_swing_high for k in range(break_idx + 1, n)
+                )
+                if not structure_shift:
+                    logger.debug(
+                        f"[{tf}] Breaker(BUY) at idx={idx}: break at {break_idx} "
+                        f"but no structure shift above {ref_swing_high:.5f} — skipped."
+                    )
+                    continue
+
+                breakers.append({
+                    "ob_type": "BREAKER",
+                    "direction": "BUY",
+                    "body_high": ob["body_high"],
+                    "body_low":  ob["body_low"],
+                    "body_mid":  ob["body_mid"],
+                    "candle_index": break_idx,
+                    "displacement_index": break_idx,
+                    "timeframe": tf,
+                    # Mitigated only if a LATER candle wick enters the body zone
+                    # (check from break_idx+1 so the break candle itself doesn't count)
+                    "is_mitigated": self._check_mitigated_after(df, break_idx, "BUY", ob["body_low"]),
+                })
 
             elif ob["direction"] == "BUY":
-                # Bearish Breaker: bullish OB that was broken to the downside
-                break_candles = subsequent[subsequent['close'] < ob["body_low"]]
-                if not break_candles.empty:
-                    break_idx = break_candles.index[0]
-                    breakers.append({
-                        "ob_type": "BREAKER",
-                        "direction": "SELL",
-                        "body_high": ob["body_high"],
-                        "body_low": ob["body_low"],
-                        "body_mid": ob["body_mid"],
-                        "candle_index": break_idx,  # The block is established at the break
-                        "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, break_idx, "SELL", ob["body_low"]),
-                    })
+                # ── Bearish Breaker ──────────────────────────────────────────
+                # Step 1: find a candle whose BODY closes below the OB body_low
+                break_idx = None
+                for k in range(search_start, n):
+                    body_close_k = float(closes[k])
+                    if body_close_k < ob["body_low"]:
+                        break_idx = k
+                        break
+                if break_idx is None:
+                    continue
+
+                # Step 2: after the break, look for a structure shift DOWN
+                pre_break_lows = lows[:break_idx]
+                if len(pre_break_lows) == 0:
+                    continue
+                ref_swing_low = float(pre_break_lows.min())
+                structure_shift = any(
+                    float(lows[k]) < ref_swing_low for k in range(break_idx + 1, n)
+                )
+                if not structure_shift:
+                    logger.debug(
+                        f"[{tf}] Breaker(SELL) at idx={idx}: break at {break_idx} "
+                        f"but no structure shift below {ref_swing_low:.5f} — skipped."
+                    )
+                    continue
+
+                breakers.append({
+                    "ob_type": "BREAKER",
+                    "direction": "SELL",
+                    "body_high": ob["body_high"],
+                    "body_low":  ob["body_low"],
+                    "body_mid":  ob["body_mid"],
+                    "candle_index": break_idx,
+                    "displacement_index": break_idx,
+                    "timeframe": tf,
+                    "is_mitigated": self._check_mitigated_after(df, break_idx, "SELL", ob["body_high"]),
+                })
 
         return breakers
 
@@ -1143,16 +1229,31 @@ class ScannerZGMT:
 
     def _check_mitigated(self, df: pd.DataFrame, ob_index: int, direction: str, level: float) -> bool:
         """
-        Returns True if the OB has been mitigated (retested) by a subsequent candle.
-        BUY OB:  mitigated if any subsequent candle's low  <= body_low.
-        SELL OB: mitigated if any subsequent candle's high >= body_high.
+        Legacy wrapper — checks from ob_index+1 (used internally).
+        Prefer _check_mitigated_after which starts AFTER the displacement candle.
         """
-        subsequent = df.iloc[ob_index + 1:]
+        return self._check_mitigated_after(df, ob_index, direction, level)
+
+    def _check_mitigated_after(self, df: pd.DataFrame, start_after_index: int, direction: str, level: float) -> bool:
+        """
+        Returns True if the OB has been mitigated (retested) by any candle
+        AFTER start_after_index (i.e., start_after_index+1 onwards).
+
+        Uses WICK touch per strategy spec:
+          BUY  OB mitigated if any later wick low  reaches OB body_low  (level).
+          SELL OB mitigated if any later wick high reaches OB body_high (level).
+
+        By starting AFTER the displacement candle, we avoid the OB being
+        immediately invalidated by its own breakout candle.
+        """
+        subsequent = df.iloc[start_after_index + 1:]
         if len(subsequent) == 0:
             return False
         if direction == "BUY":
+            # Mitigated if any wick low drops into or below the OB body_low
             return bool(any(subsequent['low'] <= level))
         else:
+            # Mitigated if any wick high rises into or above the OB body_high
             return bool(any(subsequent['high'] >= level))
 
     # ──────────────────────────────────────────────────────────────────
