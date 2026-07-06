@@ -988,7 +988,7 @@ class ScannerZGMT:
             if candle['close'] < candle['open']:
                 for j in range(i + 1, min(i + 6, len(df))):
                     if float(df.iloc[j]['close']) > body_high:
-                        is_mitigated = self._check_mitigated(df, i, "BUY", body_low)
+                        is_mitigated = self._check_mitigated(df, i, "BUY", body_high)
                         obs.append({
                             "ob_type": "NORMAL",
                             "direction": "BUY",
@@ -1005,7 +1005,7 @@ class ScannerZGMT:
             elif candle['close'] > candle['open']:
                 for j in range(i + 1, min(i + 6, len(df))):
                     if float(df.iloc[j]['close']) < body_low:
-                        is_mitigated = self._check_mitigated(df, i, "SELL", body_high)
+                        is_mitigated = self._check_mitigated(df, i, "SELL", body_low)
                         obs.append({
                             "ob_type": "NORMAL",
                             "direction": "SELL",
@@ -1055,7 +1055,7 @@ class ScannerZGMT:
                         "body_mid": body_mid,
                         "candle_index": i - 5,
                         "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, i - 5, "BUY", body_low),
+                        "is_mitigated": self._check_mitigated(df, i - 5, "BUY", body_high),
                     })
                     break
 
@@ -1072,7 +1072,7 @@ class ScannerZGMT:
                         "body_mid": body_mid,
                         "candle_index": i - 5,
                         "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, i - 5, "SELL", body_high),
+                        "is_mitigated": self._check_mitigated(df, i - 5, "SELL", body_low),
                     })
                     break
         return obs
@@ -1105,7 +1105,7 @@ class ScannerZGMT:
                         "body_mid": ob["body_mid"],
                         "candle_index": break_idx,  # The block is established at the break
                         "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, break_idx, "BUY", ob["body_low"]),
+                        "is_mitigated": self._check_mitigated(df, break_idx, "BUY", ob["body_high"]),
                     })
 
             elif ob["direction"] == "BUY":
@@ -1121,7 +1121,7 @@ class ScannerZGMT:
                         "body_mid": ob["body_mid"],
                         "candle_index": break_idx,  # The block is established at the break
                         "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, break_idx, "SELL", ob["body_high"]),
+                        "is_mitigated": self._check_mitigated(df, break_idx, "SELL", ob["body_low"]),
                     })
 
         return breakers
