@@ -150,51 +150,75 @@ class ScannerZGMT:
     # Step 1 — Daily bias via PD Array Matrix
     # ──────────────────────────────────────────────────────────────────
 
+    def _get_t_minus_1_window(self) -> tuple[datetime, datetime]:
+        """
+        Calculates the exact 24-hour window for the previous trading day (T-1) 
+        based on the Forex market close (21:00 UTC, which is 02:30 AM IST).
+        The window is from T-1 02:30 IST to T 02:30 IST.
+        Returns (start_utc, end_utc) as UTC-aware datetimes.
+        """
+        now_ist = self._to_ist(self._utc_now())
+        
+        # 1. Find the end of T-1 (which is the start of T)
+        t_start = now_ist.replace(hour=2, minute=30, second=0, microsecond=0)
+        if now_ist < t_start:
+            t_start -= timedelta(days=1)
+            
+        # 2. Skip the weekend gap (Forex closes Sat 02:30 IST, opens Mon 02:30 IST)
+        if t_start.weekday() == 0:  # Monday
+            # If t_start is Monday 02:30. T-1 ended on Saturday 02:30.
+            t_start = t_start - timedelta(days=2)
+            t_minus_1_start = t_start - timedelta(days=1)
+        elif t_start.weekday() == 6: # Sunday
+            t_start = t_start - timedelta(days=1)
+            t_minus_1_start = t_start - timedelta(days=1)
+        else:
+            t_minus_1_start = t_start - timedelta(days=1)
+            
+        start_utc = t_minus_1_start - self._IST_OFFSET
+        end_utc = t_start - self._IST_OFFSET
+        
+        return start_utc.replace(tzinfo=timezone.utc), end_utc.replace(tzinfo=timezone.utc)
+
     def _get_daily_bias(self, pair: str, zgmt_cfg: dict, zgmt_price: float) -> tuple[str | None, bool, float, float]:
         """
         Determine bullish or bearish bias for Leg A and Leg C.
-        Uses T-1 (Yesterday) 50% midpoint.
+        Uses T-1 (Yesterday) 50% midpoint, defined precisely as the 24-hour window
+        from 2:30 AM IST (T-1) to 2:30 AM IST (T), to align with Forex daily close.
         If 0 GMT > Midpoint -> SELL (Bearish).
         If 0 GMT < Midpoint -> BUY (Bullish).
         Returns Tuple[bias_str_or_none, is_structural_absence, range_high, range_low].
         """
-        candles = self.mt5.get_candles(pair, "D1", count=10)
-        if candles is None or len(candles) < 2:
-            logger.debug(f"[{pair}] ZGMT: Insufficient D1 candles for PD bias.")
+        start_utc, end_utc = self._get_t_minus_1_window()
+        
+        # Fetch enough M15 candles to cover the lookback (~4 days max = 384 candles)
+        candles = self.mt5.get_candles(pair, "M15", count=400)
+        if candles is None or candles.empty:
+            logger.debug(f"[{pair}] ZGMT: Insufficient M15 candles for PD bias.")
             return None, True, 0.0, 0.0
-
-        # Calculate a median daily range to filter out holiday stubs
-        recent_cands = [row for _, row in candles.iloc[:-1].iterrows() if row["time"].weekday() not in (5, 6)]
-        if len(recent_cands) > 5:
-            ranges_list = sorted([float(row["high"] - row["low"]) for row in recent_cands])
-            median_range = ranges_list[len(ranges_list) // 2]
-        else:
-            median_range = 0
-
-        # -1 is current day. We want the most recent completely finished prior day
-        # that is NOT a Sunday or Saturday (to avoid tiny weekend stub candles).
-        yesterday = None
-        for i in range(2, len(candles) + 1):
-            cand = candles.iloc[-i]
-            # .weekday() -> 5 is Saturday, 6 is Sunday
-            if cand["time"].weekday() not in (5, 6):
-                cand_range = cand["high"] - cand["low"]
-                # Skip holiday stub candles
-                if median_range > 0 and cand_range < (0.25 * median_range):
-                    logger.info(f"[{pair}] ZGMT: Skipping previous day {cand['time']} as a likely holiday stub.")
-                    continue
-                yesterday = cand
-                break
+            
+        # Filter candles exactly within the [start_utc, end_utc) window
+        window_highs = []
+        window_lows = []
+        
+        for _, row in candles.iterrows():
+            cand_time = row["time"]
+            if cand_time.tzinfo is None:
+                cand_time = cand_time.replace(tzinfo=timezone.utc)
                 
-        if yesterday is None:
-            logger.debug(f"[{pair}] ZGMT: Could not find a valid weekday candle for T-1.")
+            if start_utc <= cand_time < end_utc:
+                window_highs.append(float(row["high"]))
+                window_lows.append(float(row["low"]))
+                
+        if not window_highs or not window_lows:
+            logger.debug(f"[{pair}] ZGMT: No M15 candles found in window {start_utc} to {end_utc} for T-1 PD bias.")
             return None, True, 0.0, 0.0
-
-        range_high = float(yesterday["high"])
-        range_low = float(yesterday["low"])
+            
+        range_high = max(window_highs)
+        range_low = min(window_lows)
 
         if range_high <= range_low:
-            logger.debug(f"[{pair}] ZGMT: Invalid D1 range high={range_high} low={range_low}.")
+            logger.debug(f"[{pair}] ZGMT: Invalid true range high={range_high} low={range_low}.")
             return None, True, 0.0, 0.0
 
         midpoint = (range_high + range_low) / 2.0
@@ -206,9 +230,9 @@ class ScannerZGMT:
         else:
             bias = None  # Exactly at equilibrium
 
-        date_str = yesterday["time"].strftime('%Y-%m-%d %A')
+        date_str = (start_utc + self._IST_OFFSET).strftime('%Y-%m-%d %A')
         logger.info(
-            f"[{pair}] ZGMT: Using T-1 ({date_str}) for PD Array | "
+            f"[{pair}] ZGMT: Using precise 24h T-1 window ({date_str} 02:30 to 02:30 IST) for PD Array | "
             f"High={range_high:.5f} Low={range_low:.5f} Mid={midpoint:.5f} | "
             f"0GMT={zgmt_price:.5f} → Bias={bias}"
         )
