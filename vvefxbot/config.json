@@ -192,6 +192,8 @@
   },
   "macro_strategy": {
     "enabled": true,
+    "strategy_a_enabled": true,
+    "strategy_b_enabled": true,
     "timeframe": "M1",
     "risk_reward": 3.0,
     "fib_entry_level": 0.618,

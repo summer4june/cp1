@@ -243,17 +243,16 @@ class ScannerZGMT:
         )
         return bias, False, range_high, range_low
 
-    def _is_pd_array_swept_before_zgmt(self, pair: str, range_high: float, range_low: float) -> bool:
+    def _is_pd_array_swept_yet(self, pair: str, range_high: float, range_low: float) -> bool:
         """
-        Check if the T-1 High or Low was swept in the 4 hours immediately preceding 0 GMT today.
-        This represents the Asian session (Sydney Open to 0 GMT), which is true regardless of broker timezone.
+        Check if the T-1 High or Low was swept between the New York Close (start of Asian session, exactly 2:30 AM IST in summer)
+        and the CURRENT exact time. This ensures that if liquidity is grabbed before a signal fires, the setup is invalidated.
         """
         now_utc = self._utc_now()
-        target_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        _, ny_close_utc = self._get_t_minus_1_window()
         
-        # Look back 4 hours before 0 GMT (e.g. 20:00 UTC to 00:00 UTC)
-        window_start = target_utc - timedelta(hours=4)
-        window_end = target_utc
+        window_start = ny_close_utc
+        window_end = now_utc
             
         candles = self.mt5.get_candles(pair, "M15", count=96)
         if candles is None or candles.empty:
@@ -627,7 +626,7 @@ class ScannerZGMT:
 
         # ── Step 2: Daily bias (Leg A & C) ────────────────────────────
         require_pd = zgmt_cfg.get("require_pd_array_check", True)
-        pd_swept_before_zgmt = False
+        pd_swept_yet = False
         range_high = None
         range_low = None
         
@@ -639,8 +638,8 @@ class ScannerZGMT:
                     self._mark_daily_finalized(pair)
                 return None
                 
-            if self._is_pd_array_swept_before_zgmt(pair, range_high, range_low):
-                pd_swept_before_zgmt = True
+            if self._is_pd_array_swept_yet(pair, range_high, range_low):
+                pd_swept_yet = True
                 logger.info(f"[{pair}] ZGMT: PD Array swept before 0 GMT. Leg A and C invalidated.")
         else:
             # No bias check: infer from current price vs yesterday's close
@@ -763,7 +762,7 @@ class ScannerZGMT:
             }
 
         # Strategy A (0 GMT Liquidity)
-        if strategy_a_valid and not pd_swept_before_zgmt and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
+        if strategy_a_valid and not pd_swept_yet and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
             # Only take Strategy A in the Asian Killzone
             if killzone.lower() == "asia":
                 # We use DIRECT calculation to ensure entry_price == 0GMT price (no offset)
@@ -786,7 +785,7 @@ class ScannerZGMT:
         if zgmt_cfg.get("strategy_c_enabled", False):
             if not strategy_c_valid:
                 logger.debug(f"[{pair}] ZGMT-C INVALID: Strategy C is invalid (0 GMT level already tested or in exclusion window).")
-            elif pd_swept_before_zgmt:
+            elif pd_swept_yet:
                 logger.debug(f"[{pair}] ZGMT-C INVALID: PD array already swept before 0 GMT.")
             else:
                 levs_filter = self._compute_entry_sl_tp(
