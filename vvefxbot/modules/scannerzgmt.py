@@ -234,9 +234,10 @@ class ScannerZGMT:
         else:
             bias = None  # Exactly at equilibrium
 
-        date_str = (start_utc + self._IST_OFFSET).strftime('%Y-%m-%d %A')
+        start_ist_str = (start_utc + self._IST_OFFSET).strftime('%Y-%m-%d %A %H:%M')
+        end_ist_str   = (end_utc   + self._IST_OFFSET).strftime('%H:%M')
         logger.info(
-            f"[{pair}] ZGMT: Using precise 24h T-1 window ({date_str} 02:30 to 02:30 IST) for PD Array | "
+            f"[{pair}] ZGMT: Using precise 24h T-1 window ({start_ist_str} IST → {end_ist_str} IST) for PD Array | "
             f"High={range_high:.5f} Low={range_low:.5f} Mid={midpoint:.5f} | "
             f"0GMT={zgmt_price:.5f} → Bias={bias}"
         )
