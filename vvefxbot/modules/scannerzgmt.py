@@ -21,6 +21,7 @@ Strategy Reference: ICT 0-GMT Open Master Strategy
 import uuid
 import pandas as pd
 from datetime import datetime, timezone, timedelta, time as dt_time
+from zoneinfo import ZoneInfo
 from core.logger import get_logger
 from core.configengine import Config
 from core.mt5connector import MT5Connector
@@ -153,32 +154,35 @@ class ScannerZGMT:
     def _get_t_minus_1_window(self) -> tuple[datetime, datetime]:
         """
         Calculates the exact 24-hour window for the previous trading day (T-1) 
-        based on the Forex market close (21:00 UTC, which is 02:30 AM IST).
-        The window is from T-1 02:30 IST to T 02:30 IST.
+        based strictly on the Forex market close (5:00 PM New York time).
+        This automatically handles Daylight Saving Time (DST) shifts between 
+        21:00 UTC (Summer/EDT) and 22:00 UTC (Winter/EST).
         Returns (start_utc, end_utc) as UTC-aware datetimes.
         """
-        now_ist = self._to_ist(self._utc_now())
+        current_utc = self._utc_now()
+        ny_tz = ZoneInfo("America/New_York")
+        now_ny = current_utc.astimezone(ny_tz)
         
-        # 1. Find the end of T-1 (which is the start of T)
-        t_start = now_ist.replace(hour=2, minute=30, second=0, microsecond=0)
-        if now_ist < t_start:
-            t_start -= timedelta(days=1)
-            
-        # 2. Skip the weekend gap (Forex closes Sat 02:30 IST, opens Mon 02:30 IST)
-        if t_start.weekday() == 0:  # Monday
-            # If t_start is Monday 02:30. T-1 ended on Saturday 02:30.
-            t_start = t_start - timedelta(days=2)
-            t_minus_1_start = t_start - timedelta(days=1)
-        elif t_start.weekday() == 6: # Sunday
-            t_start = t_start - timedelta(days=1)
-            t_minus_1_start = t_start - timedelta(days=1)
-        else:
-            t_minus_1_start = t_start - timedelta(days=1)
-            
-        start_utc = t_minus_1_start - self._IST_OFFSET
-        end_utc = t_start - self._IST_OFFSET
+        # 1. Find the most recent 17:00 (5 PM) NY time
+        recent_close = now_ny.replace(hour=17, minute=0, second=0, microsecond=0)
         
-        return start_utc.replace(tzinfo=timezone.utc), end_utc.replace(tzinfo=timezone.utc)
+        # If it is currently before 17:00 in NY, the most recent close was yesterday
+        if now_ny < recent_close:
+            recent_close -= timedelta(days=1)
+            
+        # The end of T-1 is the recent_close
+        t_start = recent_close
+        
+        # 2. Skip the weekend gap
+        # Forex closes Friday 17:00 NY and opens Sunday 17:00 NY.
+        if t_start.weekday() == 6: # Sunday 17:00
+            t_start -= timedelta(days=2) # Shift back to Friday 17:00
+        elif t_start.weekday() == 5: # Saturday 17:00 (market closed, but just in case)
+            t_start -= timedelta(days=1) # Shift back to Friday 17:00
+            
+        t_minus_1_start = t_start - timedelta(days=1)
+        
+        return t_minus_1_start.astimezone(timezone.utc), t_start.astimezone(timezone.utc)
 
     def _get_daily_bias(self, pair: str, zgmt_cfg: dict, zgmt_price: float) -> tuple[str | None, bool, float, float]:
         """
