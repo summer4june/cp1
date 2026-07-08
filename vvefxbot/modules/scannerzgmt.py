@@ -620,7 +620,7 @@ class ScannerZGMT:
         zgmt_price, is_structural = self._get_zgmt_price(pair)
         if zgmt_price is None:
             logger.info(f"[{pair}] ZGMT: 0 GMT open price not available — skipping.")
-            if is_structural or hasattr(self.mt5, "current_time"):
+            if is_structural:
                 self._mark_daily_finalized(pair)
             return None
 
@@ -634,7 +634,7 @@ class ScannerZGMT:
             bias, is_structural, range_high, range_low = self._get_daily_bias(pair, zgmt_cfg, zgmt_price)
             if bias is None:
                 logger.info(f"[{pair}] ZGMT: Could not determine D1 PD bias — skipping.")
-                if is_structural or hasattr(self.mt5, "current_time"):
+                if is_structural:
                     self._mark_daily_finalized(pair)
                 return None
                 

@@ -473,6 +473,9 @@ class BacktestEngine:
             if not signals_raw:
                 continue
 
+            if hasattr(self.scanner, "_mark_daily_finalized"):
+                self.scanner._mark_daily_finalized(self.pair)
+
             signals_list = signals_raw if isinstance(signals_raw, list) else [signals_raw]
 
             for signal in signals_list:
