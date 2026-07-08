@@ -519,17 +519,10 @@ class ScannerZGMT:
                 entry_price = zgmt_price
                 entry_mode = "DIRECT"
 
-            if entry_mode == "FILTER" and range_low is not None:
-                # Dynamic SL for Leg C: safely behind PDL, or at least 15 pips from 0 GMT
-                sl_price = min(entry_price - sl_dist_price, range_low - (2 * pip_size))
-                # Recalculate sl_pips based on the dynamic sl_price
-                sl_pips = abs(entry_price - sl_price) / pip_size
-            else:
-                sl_price  = entry_price - sl_dist_price
-                
-            tp1_price = entry_price + (sl_pips * self._pip_size(pair))       # TP1 = 1R
-            tp2_price = entry_price + (sl_pips * 2.0 * self._pip_size(pair)) # TP2 = 2R
-            tp3_price = entry_price + (sl_pips * 3.0 * self._pip_size(pair)) # TP3 = 3R
+            sl_price  = entry_price - sl_dist_price
+            tp1_price = entry_price + sl_dist_price   # TP1 = 1R
+            tp2_price = entry_price + tp_dist_price   # TP2 = 2R
+            tp3_price = entry_price + tp3_dist_price  # TP3 = 3R
 
         else:  # BEARISH
             if entry_mode == "DIRECT":
@@ -554,17 +547,10 @@ class ScannerZGMT:
                 entry_price = zgmt_price
                 entry_mode = "DIRECT"
 
-            if entry_mode == "FILTER" and range_high is not None:
-                # Dynamic SL for Leg C: safely behind PDH, or at least 15 pips from 0 GMT
-                sl_price = max(entry_price + sl_dist_price, range_high + (2 * pip_size))
-                # Recalculate sl_pips based on the dynamic sl_price
-                sl_pips = abs(sl_price - entry_price) / pip_size
-            else:
-                sl_price  = entry_price + sl_dist_price
-                
-            tp1_price = entry_price - (sl_pips * self._pip_size(pair))       # TP1 = 1R
-            tp2_price = entry_price - (sl_pips * 2.0 * self._pip_size(pair)) # TP2 = 2R
-            tp3_price = entry_price - (sl_pips * 3.0 * self._pip_size(pair)) # TP3 = 3R
+            sl_price  = entry_price + sl_dist_price
+            tp1_price = entry_price - sl_dist_price   # TP1 = 1R
+            tp2_price = entry_price - tp_dist_price   # TP2 = 2R
+            tp3_price = entry_price - tp3_dist_price  # TP3 = 3R
 
         return {
             "entry_price":      round(entry_price, 5),
