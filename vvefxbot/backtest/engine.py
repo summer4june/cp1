@@ -473,12 +473,20 @@ class BacktestEngine:
             if not signals_raw:
                 continue
 
-            if hasattr(self.scanner, "_mark_daily_finalized"):
-                self.scanner._mark_daily_finalized(self.pair)
-
             signals_list = signals_raw if isinstance(signals_raw, list) else [signals_raw]
 
             for signal in signals_list:
+                strategy = signal.get("strategy", "UNKNOWN")
+                
+                # Mirror live DB has_signal_been_sent logic: prevent duplicate signals per strategy per day
+                sig_key = (self.pair, strategy, current_time.date())
+                if not hasattr(self, "_signals_sent_today"):
+                    self._signals_sent_today = set()
+                    
+                if sig_key in self._signals_sent_today:
+                    continue
+                self._signals_sent_today.add(sig_key)
+
                 self._signals_fired += 1
                 signal_id = signal["signal_id"]
                 spread_pips = signal.get("spread_pips", 0.0)
