@@ -117,6 +117,26 @@ class ScannerZGMT:
     def _today_ist_str(self) -> str:
         return self._to_ist(self._utc_now()).strftime("%Y-%m-%d")
 
+    def _get_asia_killzone_end_utc(self, now_utc: datetime) -> int:
+        now_ist = self._to_ist(now_utc)
+        m = now_ist.month
+        d = now_ist.day
+        is_summer = False
+        if 3 < m < 11:
+            is_summer = True
+        elif m == 3 and d >= 9:
+            is_summer = True
+            
+        timings = self.config.killzone_timings_summer if is_summer else self.config.killzone_timings_winter
+        asia_end_str = timings.get("Asia", {}).get("end", "07:30")
+        end_t = self._parse_hhmm(asia_end_str)
+        
+        end_ist = now_ist.replace(hour=end_t.hour, minute=end_t.minute, second=0, microsecond=0)
+        end_utc = end_ist - self._IST_OFFSET
+        if end_utc <= now_utc:
+            end_utc = now_utc + timedelta(minutes=1)
+        return int(end_utc.timestamp())
+
     def _daily_count_key(self, pair: str) -> str:
         return f"{self._today_ist_str()}:{pair}"
 
@@ -309,9 +329,7 @@ class ScannerZGMT:
                 candle_time = candle_time.replace(tzinfo=timezone.utc)
             if (candle_time.year == target_broker_datetime.year and
                     candle_time.month == target_broker_datetime.month and
-                    candle_time.day == target_broker_datetime.day and
-                    candle_time.hour == target_broker_datetime.hour and
-                    candle_time.minute == target_broker_datetime.minute):
+                    candle_time.day == target_broker_datetime.day):
                 zgmt_price = float(row["open"])
                 logger.debug(f"[{pair}] ZGMT: Found 0 GMT open price = {zgmt_price:.5f} at {candle_time} (offset {offset_hours}h)")
                 return zgmt_price, False
@@ -714,7 +732,7 @@ class ScannerZGMT:
 
         signals_to_emit = []
 
-        def build_signal_dict(levs: dict, strat_id: str) -> dict:
+        def build_signal_dict(levs: dict, strat_id: str, expiration_time: int = 0) -> dict:
             spr = self.mt5.get_current_spread(pair)
             
             # --- Spread Adjustment to Prices ---
@@ -731,7 +749,7 @@ class ScannerZGMT:
             filt_note = f" ±{levs['filter_pips']}pips" if strat_id == "ZGMT-C" else ""
             summary = f"{strat_id} | PD: {pd_zone} | {filt_note} | 0GMT={zgmt_price:.5f}"
             
-            return {
+            signal_dict = {
                 "signal_id": str(uuid.uuid4()),
                 "pair": pair,
                 "session": session,
@@ -760,6 +778,9 @@ class ScannerZGMT:
                 "skip_rr_check": bool(zgmt_cfg.get("skip_rr_check", True)),
                 "position_fraction": 1.0,
             }
+            if expiration_time > 0:
+                signal_dict["expiration_time"] = expiration_time
+            return signal_dict
 
         # Strategy A (0 GMT Liquidity)
         if strategy_a_valid and not pd_swept_yet and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
@@ -772,7 +793,8 @@ class ScannerZGMT:
                     range_high=range_high, range_low=range_low
                 )
                 if levs_direct:
-                    signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A"))
+                    asia_end_utc = self._get_asia_killzone_end_utc(self._utc_now())
+                    signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A", expiration_time=asia_end_utc))
                     logger.info(f"[{pair}] ZGMT-A VALID: Limit order at 0 GMT price scheduled.")
             else:
                 logger.debug(f"[{pair}] ZGMT: Skipping Strategy A because killzone '{killzone}' is not Asia.")
@@ -787,6 +809,8 @@ class ScannerZGMT:
                 logger.debug(f"[{pair}] ZGMT-C INVALID: Strategy C is invalid (0 GMT level already tested or in exclusion window).")
             elif pd_swept_yet:
                 logger.debug(f"[{pair}] ZGMT-C INVALID: PD array already swept before 0 GMT.")
+            elif killzone.lower() != "asia":
+                logger.debug(f"[{pair}] ZGMT-C INVALID: Skipping Strategy C because killzone '{killzone}' is not Asia.")
             else:
                 levs_filter = self._compute_entry_sl_tp(
                     pair, bias, zgmt_price, tick, zgmt_cfg, 
@@ -794,7 +818,8 @@ class ScannerZGMT:
                     range_high=range_high, range_low=range_low
                 )
                 if levs_filter:
-                    signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C"))
+                    asia_end_utc = self._get_asia_killzone_end_utc(self._utc_now())
+                    signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C", expiration_time=asia_end_utc))
                     logger.info(f"[{pair}] ZGMT-C VALID: Judas swing limit order added.")
                 else:
                     logger.debug(f"[{pair}] ZGMT-C INVALID: Failed to compute entry/sl/tp levels.")
