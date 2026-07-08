@@ -1,66 +1,66 @@
 {
   "assets": {
-    "US30": {
+    "US30m": {
       "max_spread": 999.0,
       "strategies": [
         "MACRO"
       ]
     },
-    "GBPUSD": {
+    "GBPUSDm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "US100": {
+    "US100m": {
       "max_spread": 999.0,
       "strategies": [
         "MACRO"
       ]
     },
-    "EURJPY": {
+    "EURJPYm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "XAUUSD": {
+    "XAUUSDm": {
       "max_spread": 999.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "GBPJPY": {
+    "GBPJPYm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "XAGUSD": {
+    "XAGUSDm": {
       "max_spread": 999.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "US500": {
+    "US500m": {
       "max_spread": 999.0,
       "strategies": [
         "MACRO"
       ]
     },
-    "EURUSD": {
+    "EURUSDm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "USDCAD": {
+    "USDCADm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "USDJPY": {
+    "USDJPYm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
@@ -131,7 +131,7 @@
       "end": "22:30"
     }
   },
-  "_comment_risk": "Risk / trade-count limits relaxed for backtesting — increase later for live",
+  "_comment_risk": "Risk / trade-count limits relaxed for backtesting \u2014 increase later for live",
   "risk_percent": 100.0,
   "max_trades_day": 999,
   "max_trades_pair_day": 999,
