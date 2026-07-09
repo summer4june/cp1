@@ -27,7 +27,7 @@ try:
     import MetaTrader5 as mt5
 except ImportError:
     pass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 
 from core.logger import get_logger

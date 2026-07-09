@@ -242,8 +242,8 @@ def test_zgmt_structural_absence_finalization(mock_config):
     assert scanner._is_daily_finalized("EURUSD") is False
     result = scanner.scan("EURUSD", "London", "Asia")
     assert result is None
-    # In backtest mode, it should be marked as finalized automatically on PD bias failure
-    assert scanner._is_daily_finalized("EURUSD") is True
+    # In backtest mode, it now SKIPS instead of finalizing on structural absence
+    assert scanner._is_daily_finalized("EURUSD") is False
 
     # Reset finalization
     scanner._daily_finalized.clear()
@@ -270,9 +270,8 @@ def test_zgmt_structural_absence_finalization(mock_config):
     
     result = scanner.scan("EURUSD", "London", "Asia")
     assert result is None
-    # 0 GMT candle structurally not found should trigger daily finalization
-    assert scanner._is_daily_finalized("EURUSD") is True
-
+    # 0 GMT candle structurally not found should skip, not finalize
+    assert scanner._is_daily_finalized("EURUSD") is False
 
 def test_backtest_engine_gold_initialization(mock_config):
     """Verifies that the BacktestEngine correctly initializes Gold properties."""
@@ -633,9 +632,17 @@ def test_zgmt_direct_entry_at_zgmt_price(mock_config):
         "low": [1.35250], "close": [1.35350]
     })
 
+    # M15 candles for PD Array check
+    m15_df = pd.DataFrame({
+        "time": [datetime(2026, 5, 20, 10, 0, tzinfo=timezone.utc)] * 4,
+        "open": [1.36000] * 4, "high": [1.37000] * 4,
+        "low": [1.35000] * 4, "close": [1.36000] * 4
+    })
+
     def mock_get_candles(symbol, timeframe, count=None):
         if timeframe == "D1": return d1_df
         if timeframe == "H1": return h1_df
+        if timeframe == "M15": return m15_df
         return m1_df
 
     connector.get_candles.side_effect = mock_get_candles
@@ -1065,13 +1072,26 @@ def test_split_mode_two_signals(mock_config):
 
     connector = MagicMock(); connector.offset_hours = 0
     # 7 D1 bars with range 0.006 → ADR OK
-    connector.get_candles.return_value = pd.DataFrame({
+    # H1 Candles BEFORE 0 GMT (simulating unbroken structure)
+    h1_df = pd.DataFrame({
         "time": pd.to_datetime(["2025-01-01"] * 7, utc=True),
-        "high":  [1.1060] * 7,
-        "low":   [1.1000] * 7,
-        "open":  [1.1000] * 7,
-        "close": [1.1060] * 7,
+        "high":  [1.1020] * 7,
+        "low":   [1.1010] * 7,
+        "open":  [1.1015] * 7,
+        "close": [1.1018] * 7,
     })
+    
+    def mock_get_candles(symbol, timeframe, count=None):
+        if timeframe == "H1": return h1_df
+        # Return safe M15/M1 candles that don't sweep 1.1060 or 1.0950
+        return pd.DataFrame({
+            "time": pd.to_datetime(["2025-01-01"] * 7, utc=True),
+            "high":  [1.1040] * 7,
+            "low":   [1.1010] * 7,
+            "open":  [1.1020] * 7,
+            "close": [1.1030] * 7,
+        })
+    connector.get_candles.side_effect = mock_get_candles
     connector.get_current_spread.return_value = 0.0
     # Simulate valid tick
     connector.get_tick.return_value = {"bid": 1.10050, "ask": 1.10050}
