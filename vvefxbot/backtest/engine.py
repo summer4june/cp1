@@ -599,7 +599,11 @@ class BacktestEngine:
                 expiration_dt = None
                 if "expiration_time" in signal:
                     try:
-                        expiration_dt = datetime.fromisoformat(signal["expiration_time"]).replace(tzinfo=timezone.utc)
+                        exp_val = signal["expiration_time"]
+                        if isinstance(exp_val, (int, float)):
+                            expiration_dt = datetime.fromtimestamp(exp_val, tz=timezone.utc)
+                        else:
+                            expiration_dt = datetime.fromisoformat(exp_val).replace(tzinfo=timezone.utc)
                     except Exception:
                         pass
 

@@ -173,11 +173,14 @@ class ExecutionEngine:
             expiration_ts = None
             if "expiration_time" in signal:
                 try:
-                    exp_dt = datetime.fromisoformat(signal["expiration_time"])
-                    expiration_ts = int(exp_dt.timestamp())
+                    exp_val = signal["expiration_time"]
+                    if isinstance(exp_val, (int, float)):
+                        expiration_ts = int(exp_val)
+                    else:
+                        exp_dt = datetime.fromisoformat(exp_val)
+                        expiration_ts = int(exp_dt.timestamp())
                 except Exception as e:
                     logger.warning(f"[{pair}] Could not parse expiration_time: {e}")
-                    
             order_result = self.mt5.place_pending_order(
                 symbol=pair,
                 order_type=direction,

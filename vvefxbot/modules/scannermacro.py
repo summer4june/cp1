@@ -130,7 +130,6 @@ class ScannerMacro:
             return float(self.macro_cfg.get("sl_buffer_pips_nasdaq", 10.0))
         return float(self.macro_cfg.get("sl_buffer_pips_fx", 0.0))
 
-
     def _detect_strategy_a(self, df, pair, current_price, window_name, window_type, now_utc, end_t_ist):
         fib_level = self.macro_cfg.get("fib_entry_level", 0.618)
         rr_target = self.macro_cfg.get("risk_reward", 3.0)
@@ -138,17 +137,25 @@ class ScannerMacro:
         now_ist = now_utc + self._IST_OFFSET
         curr_t = now_ist.time()
         
-        macro_start_t = None
-        for (sh, sm, eh, em, name, wtype) in self.MACRO_WINDOWS:
-            if name == window_name:
-                macro_start_t = dt_time(sh, sm)
+        # 1. Check if we are inside any defined Macro Window (using IST times)
+        active_window = None
+        for name, times in self.macro_cfg.get("windows_ist", {}).items():
+            start_t = datetime.strptime(times["start"], "%H:%M").time()
+            end_t = datetime.strptime(times["end"], "%H:%M").time()
+            if start_t <= curr_t <= end_t:
+                active_window = (name, start_t, end_t)
                 break
                 
-        if not macro_start_t:
+        if not active_window:
             return None
             
-        macro_start_dt = now_ist.replace(hour=macro_start_t.hour, minute=macro_start_t.minute, second=0, microsecond=0)
-        if macro_start_t.hour > curr_t.hour:
+        win_name, win_start, win_end = active_window
+        
+        # 2. Extract DataFrame for the current macro window
+        today_date = now_ist.date()
+        macro_start_dt = datetime.combine(today_date, win_start)
+        macro_start_dt = self._IST_TZ.localize(macro_start_dt)
+        if curr_t < win_start:
             macro_start_dt -= timedelta(days=1)
             
         macro_start_utc = macro_start_dt - self._IST_OFFSET
@@ -158,16 +165,12 @@ class ScannerMacro:
             
         macro_df = df[df['time'] >= macro_start_utc].copy()
         
-        initial_buffer = int(self.macro_cfg.get("initial_buffer_candles", 3))
-        min_acc_candles = int(self.macro_cfg.get("min_accumulation_candles", 6))
-        
-        if len(macro_df) < initial_buffer + min_acc_candles:
+        if len(macro_df) < 1:
             return None
             
-        acc_df = macro_df.iloc[initial_buffer : initial_buffer + min_acc_candles]
-        highest_wick = float(acc_df['high'].max())
-        lowest_wick = float(acc_df['low'].min())
+        macro_df = macro_df.reset_index(drop=True)
         
+        # 3. Apply Pair-specific Pip Limits for Accumulation Range
         pair_upper = pair.upper()
         if any(idx in pair_upper for idx in ["US30", "USTEC", "US100", "NAS100"]):
             max_pips = float(self.macro_cfg.get("max_acc_pips_us30_ustec", 600.0))
@@ -176,41 +179,59 @@ class ScannerMacro:
         else:
             max_pips = float(self.macro_cfg.get("max_acc_pips_fx", 20.0))
             
-        current_range_pips = (highest_wick - lowest_wick) / self._pip_size(pair)
-        if current_range_pips > max_pips:
-            return None
-            
-        macro_df = macro_df.reset_index(drop=True)
+        # 4. Forward Track Accumulation
+        highest_wick = float(macro_df.iloc[0]['high'])
+        lowest_wick = float(macro_df.iloc[0]['low'])
+        
         accumulation_broken = False
         broken_idx = -1
         break_direction = None
+        min_acc_candles = int(self.macro_cfg.get("min_accumulation_candles", 10))
         
-        start_scan_idx = initial_buffer + min_acc_candles
-        for i in range(start_scan_idx, len(macro_df)):
+        for i in range(1, len(macro_df)):
             row = macro_df.iloc[i]
             close = float(row['close'])
+            high = float(row['high'])
+            low = float(row['low'])
             
+            # Check pip limit dynamically
+            current_range_pips = (highest_wick - lowest_wick) / self._pip_size(pair)
+            if current_range_pips > max_pips:
+                # logger.debug(f"[{pair}] MACRO INVALID: Accumulation range {current_range_pips:.1f} pips exceeded limit {max_pips}")
+                return None
+                
             if close > highest_wick:
                 accumulation_broken = True
                 broken_idx = i
-                break_direction = "SHORT"
+                break_direction = "SHORT" # Broke above accumulation -> manipulating highs -> look to sell
                 break
             elif close < lowest_wick:
                 accumulation_broken = True
                 broken_idx = i
-                break_direction = "LONG"
+                break_direction = "LONG" # Broke below accumulation -> manipulating lows -> look to buy
                 break
                 
+            if high > highest_wick:
+                highest_wick = high
+            if low < lowest_wick:
+                lowest_wick = low
+                
         if not accumulation_broken:
+            return None # Still accumulating, no sweep/manipulation yet
+            
+        if broken_idx < min_acc_candles:
+            # logger.debug(f"[{pair}] MACRO INVALID: Accumulation broken at candle {broken_idx} (less than min {min_acc_candles} mins).")
             return None
             
+        # 5. Track Manipulation & MSS Phase
         if break_direction == "LONG":
             manipulation_df = macro_df.iloc[broken_idx:]
             lowest_low = float(manipulation_df['low'].min())
             lowest_low_idx = manipulation_df['low'].idxmin()
             
-            acc_df_before_break = macro_df.iloc[:broken_idx]
-            local_high = float(acc_df_before_break.iloc[-5:]['high'].max()) if len(acc_df_before_break) >= 5 else highest_wick
+            acc_df = macro_df.iloc[:broken_idx]
+            local_high = float(acc_df.iloc[-5:]['high'].max()) if len(acc_df) >= 5 else highest_wick
+            logger.info(f"[{pair}] MACRO WAIT: LONG Manipulation sweeping low {lowest_low} but no MSS above {local_high} yet.")
             
             post_lowest_df = manipulation_df.loc[lowest_low_idx + 1:]
             mss_confirmed = any(post_lowest_df['close'] > local_high)
@@ -221,21 +242,21 @@ class ScannerMacro:
                 if swing_range > 0:
                     fib_618_price = post_sweep_high - (swing_range * fib_level)
                     if lowest_low < current_price <= fib_618_price:
-                        buffer_price = self._get_sl_buffer_pips(pair) * self._pip_size(pair)
-                        sl = lowest_low - buffer_price
+                        sl = lowest_low
                         sl_pips = (fib_618_price - sl) / self._pip_size(pair)
                         tp_pips = sl_pips * rr_target
                         tp_price = fib_618_price + (tp_pips * self._pip_size(pair))
                         
-                        return self._build_signal("BUY", pair, fib_618_price, sl, tp_price, f"{window_name} (Strat A)", window_type, sl_pips, tp_pips, now_utc, end_t_ist)
+                        return self._build_signal("BUY", pair, fib_618_price, sl, tp_price, f"{window_name} (Strat A)", window_type, sl_pips, tp_pips, now_utc, end_t_ist, entry_leg="MACRO_A")
                         
         elif break_direction == "SHORT":
             manipulation_df = macro_df.iloc[broken_idx:]
             highest_high = float(manipulation_df['high'].max())
             highest_high_idx = manipulation_df['high'].idxmax()
             
-            acc_df_before_break = macro_df.iloc[:broken_idx]
-            local_low = float(acc_df_before_break.iloc[-5:]['low'].min()) if len(acc_df_before_break) >= 5 else lowest_wick
+            acc_df = macro_df.iloc[:broken_idx]
+            local_low = float(acc_df.iloc[-5:]['low'].min()) if len(acc_df) >= 5 else lowest_wick
+            logger.info(f"[{pair}] MACRO WAIT: SHORT Manipulation sweeping high {highest_high} but no MSS below {local_low} yet.")
             
             post_highest_df = manipulation_df.loc[highest_high_idx + 1:]
             mss_confirmed = any(post_highest_df['close'] < local_low)
@@ -246,13 +267,13 @@ class ScannerMacro:
                 if swing_range > 0:
                     fib_618_price = post_sweep_low + (swing_range * fib_level)
                     if fib_618_price <= current_price < highest_high:
-                        buffer_price = self._get_sl_buffer_pips(pair) * self._pip_size(pair)
-                        sl = highest_high + buffer_price
+                        sl = highest_high
                         sl_pips = (sl - fib_618_price) / self._pip_size(pair)
                         tp_pips = sl_pips * rr_target
                         tp_price = fib_618_price - (tp_pips * self._pip_size(pair))
                         
-                        return self._build_signal("SELL", pair, fib_618_price, sl, tp_price, f"{window_name} (Strat A)", window_type, sl_pips, tp_pips, now_utc, end_t_ist)
+                        return self._build_signal("SELL", pair, fib_618_price, sl, tp_price, f"{window_name} (Strat A)", window_type, sl_pips, tp_pips, now_utc, end_t_ist, entry_leg="MACRO_A")
+
         return None
 
     def _detect_strategy_b(self, df: pd.DataFrame, pair: str, current_price: float, window_name: str, window_type: str, now_utc: datetime, end_t_ist: dt_time) -> dict | None:
