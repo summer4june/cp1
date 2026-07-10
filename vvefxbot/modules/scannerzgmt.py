@@ -132,13 +132,16 @@ class ScannerZGMT:
         end_t = self._parse_hhmm(asia_end_str)
         
         end_ist = now_ist.replace(hour=end_t.hour, minute=end_t.minute, second=0, microsecond=0)
-        end_utc = end_ist - self._IST_OFFSET
-        if end_utc <= now_utc:
-            end_utc = now_utc + timedelta(minutes=1)
+        
+        # If the generated end time is in the past (or exactly now), 
+        # push it slightly into the future so MT5 doesn't reject it immediately.
+        if end_ist <= now_ist:
+            end_ist = now_ist + timedelta(minutes=1)
             
-        # MT5 requires the expiration timestamp to be expressed in local broker time
+        # end_ist is tz-aware (+05:30), so .timestamp() gives the absolute UTC UNIX timestamp.
+        # MT5 requires the expiration timestamp to be expressed in local broker time.
         broker_offset_hours = self._get_broker_utc_offset_hours(pair)
-        broker_ts = int(end_utc.timestamp()) + (broker_offset_hours * 3600)
+        broker_ts = int(end_ist.timestamp()) + int(broker_offset_hours * 3600)
         return broker_ts
 
     def _daily_count_key(self, pair: str) -> str:
