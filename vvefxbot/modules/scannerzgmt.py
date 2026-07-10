@@ -117,7 +117,7 @@ class ScannerZGMT:
     def _today_ist_str(self) -> str:
         return self._to_ist(self._utc_now()).strftime("%Y-%m-%d")
 
-    def _get_asia_killzone_end_utc(self, now_utc: datetime) -> int:
+    def _get_asia_killzone_end_broker_ts(self, now_utc: datetime, pair: str) -> int:
         now_ist = self._to_ist(now_utc)
         m = now_ist.month
         d = now_ist.day
@@ -135,7 +135,11 @@ class ScannerZGMT:
         end_utc = end_ist - self._IST_OFFSET
         if end_utc <= now_utc:
             end_utc = now_utc + timedelta(minutes=1)
-        return int(end_utc.timestamp())
+            
+        # MT5 requires the expiration timestamp to be expressed in local broker time
+        broker_offset_hours = self._get_broker_utc_offset_hours(pair)
+        broker_ts = int(end_utc.timestamp()) + (broker_offset_hours * 3600)
+        return broker_ts
 
     def _daily_count_key(self, pair: str) -> str:
         return f"{self._today_ist_str()}:{pair}"
@@ -793,8 +797,8 @@ class ScannerZGMT:
                     range_high=range_high, range_low=range_low
                 )
                 if levs_direct:
-                    asia_end_utc = self._get_asia_killzone_end_utc(self._utc_now())
-                    signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A", expiration_time=asia_end_utc))
+                    asia_end_ts = self._get_asia_killzone_end_broker_ts(self._utc_now(), pair)
+                    signals_to_emit.append(build_signal_dict(levs_direct, "ZGMT-A", expiration_time=asia_end_ts))
                     logger.info(f"[{pair}] ZGMT-A VALID: Limit order at 0 GMT price scheduled.")
             else:
                 logger.debug(f"[{pair}] ZGMT: Skipping Strategy A because killzone '{killzone}' is not Asia.")
@@ -818,8 +822,8 @@ class ScannerZGMT:
                     range_high=range_high, range_low=range_low
                 )
                 if levs_filter:
-                    asia_end_utc = self._get_asia_killzone_end_utc(self._utc_now())
-                    signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C", expiration_time=asia_end_utc))
+                    asia_end_ts = self._get_asia_killzone_end_broker_ts(self._utc_now(), pair)
+                    signals_to_emit.append(build_signal_dict(levs_filter, "ZGMT-C", expiration_time=asia_end_ts))
                     logger.info(f"[{pair}] ZGMT-C VALID: Judas swing limit order added.")
                 else:
                     logger.debug(f"[{pair}] ZGMT-C INVALID: Failed to compute entry/sl/tp levels.")
