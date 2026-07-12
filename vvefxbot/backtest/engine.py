@@ -461,7 +461,8 @@ class BacktestEngine:
                 continue
 
             # ── Skip if max open trades reached ───────────────────────
-            if len(self._open_trades) >= self.config.max_open_trades:
+            active_open_trades = [t for t in self._open_trades if t.status == "OPEN"]
+            if len(active_open_trades) >= self.config.max_open_trades:
                 continue
 
             # ── Signal cooldown: skip scanning for 15 bars after entry ─
@@ -500,7 +501,7 @@ class BacktestEngine:
                         "executed_price": t.entry,
                         "sl": t.sl
                     }
-                    for t in self._open_trades
+                    for t in active_open_trades
                 ]
                 risk_result = self.risk_engine.run_all_checks(signal, open_trade_dicts)
                 if not risk_result["pass"]:

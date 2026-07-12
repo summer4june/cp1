@@ -336,7 +336,8 @@ class ScannerZGMT:
                 candle_time = candle_time.replace(tzinfo=timezone.utc)
             if (candle_time.year == target_broker_datetime.year and
                     candle_time.month == target_broker_datetime.month and
-                    candle_time.day == target_broker_datetime.day):
+                    candle_time.day == target_broker_datetime.day and
+                    candle_time.hour == target_broker_datetime.hour):
                 zgmt_price = float(row["open"])
                 logger.debug(f"[{pair}] ZGMT: Found 0 GMT open price = {zgmt_price:.5f} at {candle_time} (offset {offset_hours}h)")
                 return zgmt_price, False
@@ -878,9 +879,9 @@ class ScannerZGMT:
             if df is None or (hasattr(df, 'empty') and df.empty):
                 continue
             df = df.reset_index(drop=True)
-            all_obs += self._detect_normal_ob(df, tf)
-            all_obs += self._detect_mitigation_block(df, tf)
-            all_obs += self._detect_breaker_block(df, tf)
+            all_obs += self._detect_normal_ob(df, tf, pair)
+            all_obs += self._detect_mitigation_block(df, tf, pair)
+            all_obs += self._detect_breaker_block(df, tf, pair)
 
         if not all_obs:
             return None
@@ -946,8 +947,26 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT-B INVALID: No valid OBs found in Premium/Discount zones.")
             return None
 
-        # Select best OB: prefer H4 over H1, then most recent (highest candle_index)
-        fib_valid_obs.sort(key=lambda x: (0 if x["timeframe"] == "H4" else 1, -x["candle_index"]))
+        # Select best OB based on Priority Scoring (Highest Score Wins)
+        # 1. Distance Score: Closer to current price is better
+        # 2. Zone Score: fib_score_bonus (+10 for key sub-zone, +5 for general zone)
+        # 3. Type Score: Normal (+5), Breaker (+3), Mitigation (+1)
+        # 4. Recency Score: Higher for more recent (larger candle_index)
+        for ob in fib_valid_obs:
+            dist = abs(ob["body_mid"] - current_price) / pip_size
+            dist_score = (1.0 / (dist + 1.0)) * 10.0
+            
+            zone_score = ob.get("fib_score_bonus", 5)
+            
+            ob_type = ob.get("type", "NORMAL")
+            type_score = 5 if ob_type == "NORMAL" else (3 if ob_type == "BREAKER" else 1)
+            
+            # Recency: normalise index relative to total candles (approximation: higher index = more recent)
+            recency_score = ob["candle_index"] * 0.01 
+            
+            ob["priority_score"] = dist_score + zone_score + type_score + recency_score
+            
+        fib_valid_obs.sort(key=lambda x: x.get("priority_score", 0), reverse=True)
         best_ob = fib_valid_obs[0]
 
         direction = best_ob["direction"]
@@ -1050,7 +1069,7 @@ class ScannerZGMT:
 
     # ──────────────────────────────────────────────────────────────────
 
-    def _detect_normal_ob(self, df: pd.DataFrame, tf: str) -> list:
+    def _detect_normal_ob(self, df: pd.DataFrame, tf: str, pair: str) -> list:
         """
         Detects Normal Order Blocks using BODY-ONLY zones (no wicks).
         Bullish: last bearish candle before a strong bullish displacement (close > OB body_high).
@@ -1074,7 +1093,7 @@ class ScannerZGMT:
                 for j in range(i + 1, min(i + 4, len(df))):  # 1-3 candles
                     if float(df.iloc[j]['close']) > body_high:
                         # Mitigation: check only AFTER the displacement candle (j+1 onwards)
-                        is_mitigated = self._check_mitigated_after(df, j, "BUY", body_low)
+                        is_mitigated = self._check_mitigated_after(df, j, "BUY", body_low, pair)
                         obs.append({
                             "ob_type": "NORMAL",
                             "direction": "BUY",
@@ -1093,7 +1112,7 @@ class ScannerZGMT:
             elif candle['close'] > candle['open']:
                 for j in range(i + 1, min(i + 4, len(df))):  # 1-3 candles
                     if float(df.iloc[j]['close']) < body_low:
-                        is_mitigated = self._check_mitigated_after(df, j, "SELL", body_high)
+                        is_mitigated = self._check_mitigated_after(df, j, "SELL", body_high, pair)
                         obs.append({
                             "ob_type": "NORMAL",
                             "direction": "SELL",
@@ -1110,7 +1129,7 @@ class ScannerZGMT:
 
     # ──────────────────────────────────────────────────────────────────
 
-    def _detect_mitigation_block(self, df: pd.DataFrame, tf: str) -> list:
+    def _detect_mitigation_block(self, df: pd.DataFrame, tf: str, pair: str) -> list:
         """
         Detects Mitigation Blocks: institutions revisit a prior imbalance zone
         (deep 50%+ retracement) before continuing in the original direction.
@@ -1144,7 +1163,7 @@ class ScannerZGMT:
                         "body_mid": body_mid,
                         "candle_index": i - 5,
                         "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, i - 5, "BUY", body_high),
+                        "is_mitigated": self._check_mitigated_after(df, i - 5, "BUY", body_high, pair),
                     })
                     break
 
@@ -1161,14 +1180,14 @@ class ScannerZGMT:
                         "body_mid": body_mid,
                         "candle_index": i - 5,
                         "timeframe": tf,
-                        "is_mitigated": self._check_mitigated(df, i - 5, "SELL", body_low),
+                        "is_mitigated": self._check_mitigated_after(df, i - 5, "SELL", body_low, pair),
                     })
                     break
         return obs
 
     # ──────────────────────────────────────────────────────────────────
 
-    def _detect_breaker_block(self, df: pd.DataFrame, tf: str) -> list:
+    def _detect_breaker_block(self, df: pd.DataFrame, tf: str, pair: str) -> list:
         """
         Detects Breaker Blocks — failed OBs that flipped role after a body close
         through the OB extreme, followed by a market structure shift.
@@ -1185,7 +1204,7 @@ class ScannerZGMT:
           3. After that break, price takes a prior swing LOW      ← structure shift down.
           4. On retrace the failed bullish OB body acts as resistance.
         """
-        normal_obs = self._detect_normal_ob(df, tf)
+        normal_obs = self._detect_normal_ob(df, tf, pair)
         breakers = []
         highs  = df['high'].values.astype(float)
         lows   = df['low'].values.astype(float)
@@ -1241,7 +1260,7 @@ class ScannerZGMT:
                     "timeframe": tf,
                     # Mitigated only if a LATER candle wick enters the body zone
                     # (check from break_idx+1 so the break candle itself doesn't count)
-                    "is_mitigated": self._check_mitigated_after(df, break_idx, "BUY", ob["body_low"]),
+                    "is_mitigated": self._check_mitigated_after(df, break_idx, "BUY", ob["body_low"], pair),
                 })
 
             elif ob["direction"] == "BUY":
@@ -1280,21 +1299,16 @@ class ScannerZGMT:
                     "candle_index": break_idx,
                     "displacement_index": break_idx,
                     "timeframe": tf,
-                    "is_mitigated": self._check_mitigated_after(df, break_idx, "SELL", ob["body_high"]),
+                    "is_mitigated": self._check_mitigated_after(df, break_idx, "SELL", ob["body_high"], pair),
                 })
 
         return breakers
 
     # ──────────────────────────────────────────────────────────────────
 
-    def _check_mitigated(self, df: pd.DataFrame, ob_index: int, direction: str, level: float) -> bool:
-        """
-        Legacy wrapper — checks from ob_index+1 (used internally).
-        Prefer _check_mitigated_after which starts AFTER the displacement candle.
-        """
-        return self._check_mitigated_after(df, ob_index, direction, level)
 
-    def _check_mitigated_after(self, df: pd.DataFrame, start_after_index: int, direction: str, level: float) -> bool:
+
+    def _check_mitigated_after(self, df: pd.DataFrame, start_after_index: int, direction: str, level: float, pair: str) -> bool:
         """
         Returns True if the OB has been mitigated (retested) by any candle
         AFTER start_after_index (i.e., start_after_index+1 onwards).
@@ -1302,19 +1316,23 @@ class ScannerZGMT:
         Uses WICK touch per strategy spec:
           BUY  OB mitigated if any later wick low  reaches OB body_low  (level).
           SELL OB mitigated if any later wick high reaches OB body_high (level).
-
-        By starting AFTER the displacement candle, we avoid the OB being
-        immediately invalidated by its own breakout candle.
+          
+        Uses a tolerance of 1 pip (0.0001) for mitigation.
         """
         subsequent = df.iloc[start_after_index + 1:]
         if len(subsequent) == 0:
             return False
+            
+        mitigation_tolerance = 1.0 * self._pip_size(pair)
+            
         if direction == "BUY":
-            # Mitigated if any wick low drops into or below the OB body_low
-            return bool(any(subsequent['low'] <= level))
+            # Mitigated if any wick low drops into or below the OB body_low + tolerance
+            threshold = level + mitigation_tolerance
+            return bool(any(subsequent['low'] <= threshold))
         else:
-            # Mitigated if any wick high rises into or above the OB body_high
-            return bool(any(subsequent['high'] >= level))
+            # Mitigated if any wick high rises into or above the OB body_high - tolerance
+            threshold = level - mitigation_tolerance
+            return bool(any(subsequent['high'] >= threshold))
 
     # ──────────────────────────────────────────────────────────────────
     # Proper Swing Detection (per strategy spec)
@@ -1406,6 +1424,47 @@ class ScannerZGMT:
 
         return swing_highs, swing_lows
 
+    def _validate_swing_pair(self, df: pd.DataFrame, sh_index: int, sl_index: int, L: int, pair: str) -> bool:
+        """
+        Validates a swing pair by checking if the 50% equilibrium has been touched.
+        If price touches the equilibrium AFTER confirmation, the pair is invalid.
+        Gap over equilibrium also counts as a touch.
+        """
+        sh_price = float(df.iloc[sh_index]['high'])
+        sl_price = float(df.iloc[sl_index]['low'])
+        equilibrium = (sh_price + sl_price) / 2.0
+        
+        # Confirmation index is L candles after the latter of the two swings
+        confirmation_index = max(sh_index, sl_index) + L
+        n = len(df)
+        
+        # Configurable touch tolerance (e.g. 2 pips)
+        touch_tolerance = 2.0 * self._pip_size(pair)
+        
+        # Check all candles AFTER confirmation
+        for k in range(confirmation_index + 1, n):
+            candle_low = float(df.iloc[k]['low'])
+            candle_high = float(df.iloc[k]['high'])
+            
+            # 1. Standard touch check (wick touches equilibrium)
+            if (candle_low - touch_tolerance) <= equilibrium <= (candle_high + touch_tolerance):
+                return False
+                
+            # 2. Gap check
+            if k > confirmation_index + 1:
+                prev_high = float(df.iloc[k - 1]['high'])
+                prev_low = float(df.iloc[k - 1]['low'])
+                
+                # Bullish gap over equilibrium
+                if prev_high < equilibrium and candle_low > equilibrium:
+                    return False
+                
+                # Bearish gap over equilibrium
+                if prev_low > equilibrium and candle_high < equilibrium:
+                    return False
+                    
+        return True
+
     def _get_dealing_range(
         self,
         df: pd.DataFrame,
@@ -1442,6 +1501,11 @@ class ScannerZGMT:
                 # Sanity: swing low must be lower than swing high
                 if sl["price"] >= sh["price"]:
                     continue
+                
+                # 50% Rule Validation
+                if not self._validate_swing_pair(df, sh["index"], sl["index"], L, pair):
+                    continue
+                    
                 return (sl["price"], sh["price"])  # (range_low, range_high)
         else:  # BEARISH
             # Need most recent swing_low that has a swing_high BEFORE it
@@ -1452,6 +1516,11 @@ class ScannerZGMT:
                 sh = prior_highs[-1]  # most recent prior swing high
                 if sh["price"] <= sl["price"]:
                     continue
+                
+                # 50% Rule Validation
+                if not self._validate_swing_pair(df, sh["index"], sl["index"], L, pair):
+                    continue
+                    
                 return (sl["price"], sh["price"])  # (range_low, range_high)
 
         logger.debug(f"[{pair}] _get_dealing_range: No valid opposite-swing pair found for bias={bias}.")
@@ -1472,16 +1541,17 @@ class ScannerZGMT:
         Range size D = swing_high - swing_low.
 
         Fibonacci levels (measured from swing_low upward):
+            F382  = swing_low + 0.382 * D
             F50   = swing_low + 0.500 * D   ← equilibrium
             F618  = swing_low + 0.618 * D
-            F786  = swing_low + 0.786 * D
 
         Bullish OB → must be in DISCOUNT (below F50):
             OB body_mid <= F50
-            Stronger score if between F50 and F786 retracement (i.e. below F50)
+            Key sub-zone: F382 to F50
 
         Bearish OB → must be in PREMIUM (above F50):
             OB body_mid >= F50
+            Key sub-zone: F50 to F618
         """
         range_low, range_high = dealing_range
 
@@ -1489,9 +1559,9 @@ class ScannerZGMT:
             return False
 
         D = range_high - range_low
+        F382 = range_low + 0.382 * D
         F50  = range_low + 0.500 * D
         F618 = range_low + 0.618 * D
-        F786 = range_low + 0.786 * D
 
         mid = ob["body_mid"]
 
@@ -1499,14 +1569,16 @@ class ScannerZGMT:
             # Bullish OB must sit in DISCOUNT zone — below the 50% equilibrium
             is_valid = mid <= F50
             if is_valid:
-                # Extra score info: is it in the 50-78.6% retracement sweet spot?
-                is_sweet = (range_low <= mid <= F50)  # below equilibrium
-                zone = "Discount (50-78.6% retracement sweet spot)" if (F50 - (F786 - F50)) <= mid <= F50 else "Discount"
+                # Key sub-zone: F382 to F50
+                is_sweet = F382 <= mid <= F50
+                ob["fib_score_bonus"] = 10 if is_sweet else 5
+                zone = "Discount (Key Sub-zone 38.2%-50%)" if is_sweet else "Discount"
                 logger.debug(
                     f"[{pair}] Fib ✅ BUY OB: RangeLow={range_low:.5f} RangeHigh={range_high:.5f} "
                     f"F50={F50:.5f} | OB_mid={mid:.5f} in {zone}"
                 )
             else:
+                ob["fib_score_bonus"] = 0
                 logger.debug(
                     f"[{pair}] Fib ❌ BUY OB: OB_mid={mid:.5f} is ABOVE F50={F50:.5f} — in Premium, not Discount."
                 )
@@ -1516,12 +1588,16 @@ class ScannerZGMT:
             # Bearish OB must sit in PREMIUM zone — above the 50% equilibrium
             is_valid = mid >= F50
             if is_valid:
-                zone = "Premium (50-78.6% retracement sweet spot)" if F50 <= mid <= F618 else "Premium"
+                # Key sub-zone: F50 to F618
+                is_sweet = F50 <= mid <= F618
+                ob["fib_score_bonus"] = 10 if is_sweet else 5
+                zone = "Premium (Key Sub-zone 50%-61.8%)" if is_sweet else "Premium"
                 logger.debug(
                     f"[{pair}] Fib ✅ SELL OB: RangeLow={range_low:.5f} RangeHigh={range_high:.5f} "
-                    f"F50={F50:.5f} F618={F618:.5f} F786={F786:.5f} | OB_mid={mid:.5f} in {zone}"
+                    f"F50={F50:.5f} | OB_mid={mid:.5f} in {zone}"
                 )
             else:
+                ob["fib_score_bonus"] = 0
                 logger.debug(
                     f"[{pair}] Fib ❌ SELL OB: OB_mid={mid:.5f} is BELOW F50={F50:.5f} — in Discount, not Premium."
                 )
