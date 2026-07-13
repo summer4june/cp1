@@ -138,10 +138,14 @@ class ScannerZGMT:
         if end_ist <= now_ist:
             end_ist = now_ist + timedelta(minutes=1)
             
-        # end_ist is tz-aware (+05:30), so .timestamp() gives the absolute UTC UNIX timestamp.
+        # end_ist currently holds the IST digits but its tzinfo is STILL timezone.utc
+        # because _to_ist only adds a timedelta. We must shift it back to true UTC 
+        # digits before computing the absolute POSIX timestamp.
+        true_utc_end = end_ist - self._IST_OFFSET
+        
         # MT5 requires the expiration timestamp to be expressed in local broker time.
         broker_offset_hours = self._get_broker_utc_offset_hours(pair)
-        broker_ts = int(end_ist.timestamp()) + int(broker_offset_hours * 3600)
+        broker_ts = int(true_utc_end.timestamp()) + int(broker_offset_hours * 3600)
         return broker_ts
 
     def _daily_count_key(self, pair: str) -> str:
