@@ -793,7 +793,7 @@ class ScannerZGMT:
         # Strategy A (0 GMT Liquidity)
         if strategy_a_valid and not pd_swept_yet and is_in_zgmt_window and zgmt_cfg.get("strategy_a_enabled", False):
             # Only take Strategy A in the Asian Killzone
-            if killzone.lower() == "asia":
+            if killzone and killzone.lower() == "asia":
                 # We use DIRECT calculation to ensure entry_price == 0GMT price (no offset)
                 levs_direct = self._compute_entry_sl_tp(
                     pair, bias, zgmt_price, tick, zgmt_cfg, 
@@ -817,7 +817,7 @@ class ScannerZGMT:
                 logger.debug(f"[{pair}] ZGMT-C INVALID: Strategy C is invalid (0 GMT level already tested or in exclusion window).")
             elif pd_swept_yet:
                 logger.debug(f"[{pair}] ZGMT-C INVALID: PD array already swept before 0 GMT.")
-            elif killzone.lower() != "asia":
+            elif not killzone or killzone.lower() != "asia":
                 logger.debug(f"[{pair}] ZGMT-C INVALID: Skipping Strategy C because killzone '{killzone}' is not Asia.")
             else:
                 levs_filter = self._compute_entry_sl_tp(
