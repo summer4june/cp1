@@ -2,7 +2,7 @@
   "_comment": "VvE FxBOT — Backtest Configuration",
   "_comment_strategy": "Strategy to backtest: MMXM | OTE | ZGMT | MACRO",
   "strategy": "ZGMT",
-  "pairs": ["EURUSDm"],
+  "pairs": ["EURUSDm", "GBPJPYm", "EURJPYm", "USDCADm", "USDCHFm", "USDJPYm", "AUDUSDm", "AUDJPYm", "NZDJPYm", "AUDCHFm", "NZDCHFm"],
   "_comment_timezone": "Set to 3 for EET (MT5 default broker server time offset from UTC)",
   "broker_timezone_offset_hours": 0.0,
   "assets": {
@@ -17,7 +17,13 @@
     "EURJPYm": { "strategies": ["ZGMT"] },
     "USDCADm": { "strategies": ["ZGMT"] },
     "XAUUSDm": { "strategies": ["ZGMT"] },
-    "XAGUSDm": { "strategies": ["ZGMT"] }
+    "XAGUSDm": { "strategies": ["ZGMT"] },
+    "USDCHFm": { "strategies": ["ZGMT"] },
+    "AUDUSDm": { "strategies": ["ZGMT"] },
+    "AUDJPYm": { "strategies": ["ZGMT"] },
+    "NZDJPYm": { "strategies": ["ZGMT"] },
+    "AUDCHFm": { "strategies": ["ZGMT"] },
+    "NZDCHFm": { "strategies": ["ZGMT"] }
   },
   "_comment_dates": "Full backtest range",
   "date_from": "2026-06-01",

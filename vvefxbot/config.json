@@ -65,6 +65,42 @@
       "strategies": [
         "ZGMT"
       ]
+    },
+    "USDCHFm": {
+      "max_spread": 99.0,
+      "strategies": [
+        "ZGMT"
+      ]
+    },
+    "AUDUSDm": {
+      "max_spread": 99.0,
+      "strategies": [
+        "ZGMT"
+      ]
+    },
+    "AUDJPYm": {
+      "max_spread": 99.0,
+      "strategies": [
+        "ZGMT"
+      ]
+    },
+    "NZDJPYm": {
+      "max_spread": 99.0,
+      "strategies": [
+        "ZGMT"
+      ]
+    },
+    "AUDCHFm": {
+      "max_spread": 99.0,
+      "strategies": [
+        "ZGMT"
+      ]
+    },
+    "NZDCHFm": {
+      "max_spread": 99.0,
+      "strategies": [
+        "ZGMT"
+      ]
     }
   },
   "require_telegram_approval": true,
