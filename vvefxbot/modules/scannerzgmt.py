@@ -748,17 +748,33 @@ class ScannerZGMT:
 
         def build_signal_dict(levs: dict, strat_id: str, expiration_time: int = 0) -> dict:
             spr = self.mt5.get_current_spread(pair)
-            
-            # --- Spread Adjustment to Prices ---
             spread_val = spr * self._pip_size(pair) if spr > 0 else 0.0
             
-            sl_adjusted = levs["sl_price"] + spread_val
-            tp1_adjusted = levs["tp1_price"] - spread_val
-            tp2_adjusted = levs["tp2_price"] - spread_val
-            tp3_adjusted = (levs["tp3_price"] - spread_val) if levs.get("tp3_price") else 0.0
+            entry = levs["entry_price"]
             
-            den = levs["sl_pips"] + spr
-            eff_rr = (levs["tp_pips"] - spr) / den if den > 0 else 0.0
+            if bias == "BULLISH":
+                # For BUY: SL is below entry. Subtract spread to move it further down.
+                sl_adjusted = levs["sl_price"] - spread_val
+                new_risk = entry - sl_adjusted
+                
+                tp1_adjusted = entry + (new_risk * 1)
+                tp2_adjusted = entry + (new_risk * 2)
+                tp3_adjusted = entry + (new_risk * 3) if levs.get("tp3_price") else 0.0
+            else:
+                # For SELL: SL is above entry. Add spread to move it further up.
+                sl_adjusted = levs["sl_price"] + spread_val
+                new_risk = sl_adjusted - entry
+                
+                tp1_adjusted = entry - (new_risk * 1)
+                tp2_adjusted = entry - (new_risk * 2)
+                tp3_adjusted = entry - (new_risk * 3) if levs.get("tp3_price") else 0.0
+                
+            new_sl_pips = new_risk / self._pip_size(pair)
+            new_tp_pips = new_sl_pips * 2
+            new_tp3_pips = new_sl_pips * 3
+            
+            eff_rr = 2.0  # By definition, TP2 is exactly 2R now
+            
             pd_zone = "DISCOUNT" if bias == "BULLISH" else "PREMIUM"
             filt_note = f" ±{levs['filter_pips']}pips" if strat_id == "ZGMT-C" else ""
             summary = f"{strat_id} | PD: {pd_zone} | {filt_note} | 0GMT={zgmt_price:.5f}"
@@ -774,14 +790,14 @@ class ScannerZGMT:
                 "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
                 "direction": "BUY" if bias == "BULLISH" else "SELL",
                 "bias_summary": summary,
-                "entry_price": levs["entry_price"],
-                "sl_price": sl_adjusted,
-                "tp1_price": tp1_adjusted,
-                "tp2_price": tp2_adjusted,
-                "tp3_price": tp3_adjusted,
-                "sl_pips": levs["sl_pips"],
-                "tp_pips": levs["tp_pips"],
-                "tp3_pips": levs.get("tp3_pips", 0.0),
+                "entry_price": entry,
+                "sl_price": round(sl_adjusted, 5),
+                "tp1_price": round(tp1_adjusted, 5),
+                "tp2_price": round(tp2_adjusted, 5),
+                "tp3_price": round(tp3_adjusted, 5),
+                "sl_pips": round(new_sl_pips, 2),
+                "tp_pips": round(new_tp_pips, 2),
+                "tp3_pips": round(new_tp3_pips, 2),
                 "spread_pips": spr,
                 "effective_rr": round(eff_rr, 3),
                 "score": round({"ZGMT-A": 80.0, "ZGMT-B": 95.0, "ZGMT-C": 75.0}.get(strat_id, 70.0) + min(eff_rr * 2.0, 10.0), 1),
