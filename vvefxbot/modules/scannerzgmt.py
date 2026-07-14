@@ -54,6 +54,8 @@ class ScannerZGMT:
         self._daily_finalized: dict = {}
         # Cached config section — also used by HTF OB exception methods
         self.zgmt_cfg: dict = getattr(config, "zgmt_scanner", {})
+        # Cache for HTF OBs to speed up backtests
+        self._htf_ob_cache: dict = {}
 
     # ──────────────────────────────────────────────────────────────────
     # Internal helpers
@@ -883,14 +885,31 @@ class ScannerZGMT:
             if df is None or (hasattr(df, 'empty') and df.empty):
                 continue
             df = df.reset_index(drop=True)
-            all_obs += self._detect_normal_ob(df, tf, pair)
-            all_obs += self._detect_mitigation_block(df, tf, pair)
-            all_obs += self._detect_breaker_block(df, tf, pair)
+            
+            last_candle_time = df.iloc[-1]['time']
+            cache_key = f"{pair}_{tf}_{last_candle_time}"
+            
+            if cache_key in self._htf_ob_cache:
+                tf_obs = self._htf_ob_cache[cache_key]
+            else:
+                tf_obs = []
+                tf_obs += self._detect_normal_ob(df, tf, pair)
+                tf_obs += self._detect_mitigation_block(df, tf, pair)
+                tf_obs += self._detect_breaker_block(df, tf, pair)
+                
+                # Clean up old cache keys for this pair and timeframe
+                keys_to_delete = [k for k in self._htf_ob_cache if k.startswith(f"{pair}_{tf}_")]
+                for k in keys_to_delete:
+                    del self._htf_ob_cache[k]
+                    
+                self._htf_ob_cache[cache_key] = tf_obs
+                
+            all_obs += tf_obs
 
         if not all_obs:
             return None
             
-        logger.debug(f"[{pair}] _check_htf_ob_exception: Found {len(all_obs)} total OBs across H4/H1")
+        # logger.debug(f"[{pair}] _check_htf_ob_exception: Found {len(all_obs)} total OBs across H4/H1")
 
         # Filter 1: unmitigated only
         valid_obs = [ob for ob in all_obs if not ob["is_mitigated"]]
