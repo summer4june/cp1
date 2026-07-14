@@ -1,54 +1,12 @@
 {
   "assets": {
-    "US30m": {
-      "max_spread": 999.0,
-      "strategies": [
-        "MACRO"
-      ]
-    },
-    "GBPUSDm": {
-      "max_spread": 99.0,
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "US100m": {
-      "max_spread": 999.0,
-      "strategies": [
-        "MACRO"
-      ]
-    },
-    "EURJPYm": {
-      "max_spread": 99.0,
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "XAUUSDm": {
-      "max_spread": 999.0,
-      "strategies": [
-        "ZGMT"
-      ]
-    },
     "GBPJPYm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "XAGUSDm": {
-      "max_spread": 999.0,
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "US500m": {
-      "max_spread": 999.0,
-      "strategies": [
-        "MACRO"
-      ]
-    },
-    "EURUSDm": {
+    "EURJPYm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
@@ -60,13 +18,13 @@
         "ZGMT"
       ]
     },
-    "USDJPYm": {
+    "USDCHFm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
       ]
     },
-    "USDCHFm": {
+    "USDJPYm": {
       "max_spread": 99.0,
       "strategies": [
         "ZGMT"
