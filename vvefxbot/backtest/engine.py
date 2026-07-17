@@ -384,6 +384,10 @@ class BacktestEngine:
                 w_start = dt_time(5, 30)
                 w_end = dt_time(8, 0)
 
+        # Track signal dedup per (pair, strategy, IST-date)
+        self._signals_sent_today: set = set()
+        self._last_bt_date: object = None  # IST date of the last processed bar
+
         for idx in range(_WARMUP_BARS, total_bars):
             self.connector.set_bar_index(idx)
             current_bar = m1_data.iloc[idx]
@@ -426,6 +430,18 @@ class BacktestEngine:
                         still_open_after_expiry.append(trade)
                 self._open_trades = still_open_after_expiry
 
+            # ── Roll daily dedup at IST midnight ──────────────────────
+            # Convert current bar UTC time to IST date; if it changed since last
+            # bar, a new trading day has begun → clear the dedup set.
+            if current_time.tzinfo is None:
+                _bar_utc_for_date = current_time.replace(tzinfo=timezone.utc)
+            else:
+                _bar_utc_for_date = current_time.astimezone(timezone.utc)
+            _bar_ist_date = (_bar_utc_for_date + timedelta(hours=5, minutes=30)).date()
+            if _bar_ist_date != self._last_bt_date:
+                self._signals_sent_today.clear()
+                self._last_bt_date = _bar_ist_date
+
             bars_since_signal += 1
 
             # ── ZGMT specific optimization: only scan within the ZGMT signal window ──
@@ -440,6 +456,8 @@ class BacktestEngine:
                 current_time_ist = current_time_utc + timedelta(hours=5, minutes=30)
                 current_ist_time = current_time_ist.time()
                 
+                # Inclusive end (<=): scan the bar that lands exactly at window_end too.
+                # This matches ScannerZGMT's own live-time guard which also uses <=.
                 if not (w_start <= current_ist_time <= w_end):
                     continue
 
@@ -479,12 +497,14 @@ class BacktestEngine:
             for signal in signals_list:
                 strategy = signal.get("strategy", "UNKNOWN")
                 
-                # Mirror live DB has_signal_been_sent logic: prevent duplicate signals per strategy per day
-                sig_key = (self.pair, strategy, current_time.date())
-                if not hasattr(self, "_signals_sent_today"):
-                    self._signals_sent_today = set()
-                    
+                # Prevent duplicate signals per (pair, strategy, IST-date) — mirrors live DB logic.
+                # _signals_sent_today is cleared at IST midnight (see daily roll above).
+                sig_key = (self.pair, strategy, _bar_ist_date)
                 if sig_key in self._signals_sent_today:
+                    logger.debug(
+                        f"[BT] Signal dedup: {self.pair} {strategy} already sent today "
+                        f"({_bar_ist_date}) — skipping."
+                    )
                     continue
                 self._signals_sent_today.add(sig_key)
 
