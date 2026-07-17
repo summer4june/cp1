@@ -1108,56 +1108,135 @@ class ScannerZGMT:
 
     # ──────────────────────────────────────────────────────────────────
 
+    def _calc_atr14(self, df: pd.DataFrame, up_to_index: int) -> float:
+        """
+        Compute ATR(14) using the 14 candles immediately before `up_to_index`.
+        Returns 0.0 if insufficient data.
+        """
+        start = max(1, up_to_index - 14)
+        highs  = df['high'].values.astype(float)
+        lows   = df['low'].values.astype(float)
+        closes = df['close'].values.astype(float)
+        trs = []
+        for k in range(start, up_to_index):
+            tr = max(
+                highs[k] - lows[k],
+                abs(highs[k] - closes[k - 1]),
+                abs(lows[k]  - closes[k - 1]),
+            )
+            trs.append(tr)
+        return sum(trs) / len(trs) if trs else 0.0
+
     def _detect_normal_ob(self, df: pd.DataFrame, tf: str, pair: str) -> list:
         """
-        Detects Normal Order Blocks using BODY-ONLY zones (no wicks).
-        Bullish: last bearish candle before a strong bullish displacement (close > OB body_high).
-        Bearish: last bullish candle before a strong bearish displacement (close < OB body_low).
+        Detects Normal Order Blocks per spec (Section 4.3).
 
-        OB zone uses body only:
-            body_high = max(open, close)   ← NOT candle high (wick)
-            body_low  = min(open, close)   ← NOT candle low  (wick)
+        Bullish Normal OB (direction=BUY):
+          1. OB candle[i] is BEARISH (close < open).
+          2. Within D=5 candles, a displacement candle closes ABOVE OB body_high.
+          3. Total bullish move (max high of displacement window - OB low) >= 2 × ATR(14).
+          4. Displacement candle close breaks the most recent prior swing high.
+
+        Bearish Normal OB (direction=SELL):
+          1. OB candle[i] is BULLISH (close > open).
+          2. Within D=5 candles, a displacement candle closes BELOW OB body_low.
+          3. Total bearish move (OB high - min low of displacement window) >= 2 × ATR(14).
+          4. Displacement candle close breaks the most recent prior swing low.
+
+        OB zone uses BODY only (no wicks):
+            body_high = max(open, close)
+            body_low  = min(open, close)
         """
         obs = []
-        for i in range(len(df) - 4):
-            candle = df.iloc[i]
-            # Body only — explicitly exclude wicks
-            body_high = float(max(candle['open'], candle['close']))
-            body_low  = float(min(candle['open'], candle['close']))
+        highs  = df['high'].values.astype(float)
+        lows   = df['low'].values.astype(float)
+        closes = df['close'].values.astype(float)
+        opens  = df['open'].values.astype(float)
+        n = len(df)
+        D = 5  # Displacement window per spec Section 4.3
+
+        for i in range(n - D - 1):
+            body_high = float(max(opens[i], closes[i]))
+            body_low  = float(min(opens[i], closes[i]))
             body_mid  = (body_high + body_low) / 2.0
 
-            # Bullish Normal OB: bearish candle (close < open) followed by strong upward
-            # displacement that closes above the OB body_high within 1-3 candles
-            if candle['close'] < candle['open']:
-                for j in range(i + 1, min(i + 4, len(df))):  # 1-3 candles
-                    if float(df.iloc[j]['close']) > body_high:
-                        # Mitigation: check only AFTER the displacement candle (j+1 onwards)
+            # ATR(14) at the OB candle
+            atr14 = self._calc_atr14(df, i)
+
+            # Collect most recent prior swing high and swing low before index i
+            # (simple scan — no need for full swing detection here)
+            prior_highs_before_i = [float(highs[k]) for k in range(i)]
+            prior_lows_before_i  = [float(lows[k])  for k in range(i)]
+            prev_swing_high = max(prior_highs_before_i) if prior_highs_before_i else None
+            prev_swing_low  = min(prior_lows_before_i)  if prior_lows_before_i  else None
+
+            # ── Bullish Normal OB: bearish candle ────────────────────────
+            if closes[i] < opens[i]:
+                for j in range(i + 1, min(i + D + 1, n)):
+                    disp_close = float(closes[j])
+                    if disp_close > body_high:
+                        # Check 1: total bullish move >= 2×ATR(14)
+                        window_high = float(max(highs[i + 1 : j + 1]))
+                        total_move  = window_high - float(lows[i])
+                        if atr14 > 0 and total_move < 2.0 * atr14:
+                            logger.debug(
+                                f"[{pair}] Normal OB(BUY) at {i}: displacement {total_move:.5f} "
+                                f"< 2×ATR14={2*atr14:.5f} — skipped."
+                            )
+                            break  # No point checking further candles in this window
+
+                        # Check 2: displacement close must break a prior swing high
+                        if prev_swing_high is not None and disp_close <= prev_swing_high:
+                            logger.debug(
+                                f"[{pair}] Normal OB(BUY) at {i}: displacement close {disp_close:.5f} "
+                                f"did not break prior swing high {prev_swing_high:.5f} — skipped."
+                            )
+                            break
+
                         is_mitigated = self._check_mitigated_after(df, j, "BUY", body_low, pair)
                         obs.append({
                             "ob_type": "NORMAL",
                             "direction": "BUY",
                             "body_high": body_high,
-                            "body_low": body_low,
-                            "body_mid": body_mid,
+                            "body_low":  body_low,
+                            "body_mid":  body_mid,
                             "candle_index": i,
-                            "displacement_index": j,   # index of the candle that caused the break
+                            "displacement_index": j,
                             "timeframe": tf,
                             "is_mitigated": is_mitigated,
                         })
                         break
 
-            # Bearish Normal OB: bullish candle (close > open) followed by strong downward
-            # displacement that closes below the OB body_low within 1-3 candles
-            elif candle['close'] > candle['open']:
-                for j in range(i + 1, min(i + 4, len(df))):  # 1-3 candles
-                    if float(df.iloc[j]['close']) < body_low:
+            # ── Bearish Normal OB: bullish candle ────────────────────────
+            elif closes[i] > opens[i]:
+                for j in range(i + 1, min(i + D + 1, n)):
+                    disp_close = float(closes[j])
+                    if disp_close < body_low:
+                        # Check 1: total bearish move >= 2×ATR(14)
+                        window_low  = float(min(lows[i + 1 : j + 1]))
+                        total_move  = float(highs[i]) - window_low
+                        if atr14 > 0 and total_move < 2.0 * atr14:
+                            logger.debug(
+                                f"[{pair}] Normal OB(SELL) at {i}: displacement {total_move:.5f} "
+                                f"< 2×ATR14={2*atr14:.5f} — skipped."
+                            )
+                            break
+
+                        # Check 2: displacement close must break a prior swing low
+                        if prev_swing_low is not None and disp_close >= prev_swing_low:
+                            logger.debug(
+                                f"[{pair}] Normal OB(SELL) at {i}: displacement close {disp_close:.5f} "
+                                f"did not break prior swing low {prev_swing_low:.5f} — skipped."
+                            )
+                            break
+
                         is_mitigated = self._check_mitigated_after(df, j, "SELL", body_high, pair)
                         obs.append({
                             "ob_type": "NORMAL",
                             "direction": "SELL",
                             "body_high": body_high,
-                            "body_low": body_low,
-                            "body_mid": body_mid,
+                            "body_low":  body_low,
+                            "body_mid":  body_mid,
                             "candle_index": i,
                             "displacement_index": j,
                             "timeframe": tf,
@@ -1382,22 +1461,19 @@ class ScannerZGMT:
         df: pd.DataFrame,
         L: int = 2,
         R: int = 2,
-        atr_min_separation: float = 0.5,
+        atr_min_separation: float = 0.5,  # kept for API compat but no longer used
     ) -> tuple[list, list]:
         """
-        Detect swing highs and swing lows using wick highs/lows.
+        Detect swing highs and swing lows using wick highs/lows per spec (Section 1).
 
-        Swing High at candle i if:
-          high[i] > high[i-j] for all j in 1..L   (strictly greater on left)
-          high[i] >= high[i+j] for all j in 1..R  (greater or equal on right)
-
-        Swing Low at candle i if:
-          low[i] < low[i-j] for all j in 1..L
-          low[i] <= low[i+j] for all j in 1..R
-
-        Minimum separation filter: consecutive swing highs (or lows) must be
-        at least atr_min_separation * ATR14 apart in price, otherwise the
-        weaker one is dropped.
+        Rules (per spec):
+          - Swing High at i: high[i] STRICTLY > high[i-j] AND high[i] STRICTLY > high[i+j]
+            for ALL j in 1..L. Equal values INVALIDATE the swing.
+          - Swing Low at i: low[i] STRICTLY < low[i-j] AND low[i] STRICTLY < low[i+j]
+            for ALL j in 1..L.
+          - Min spacing: index-based. Two swings of the same type closer than
+            MIN_SWING_DISTANCE = 2*L+1 candles are resolved by keeping the more extreme.
+          - Same-candle SH+SL: if candle i qualifies as both, DISCARD both (anomaly).
 
         Returns:
             swing_highs: list of dicts {index, price} sorted ascending by index
@@ -1405,61 +1481,57 @@ class ScannerZGMT:
         """
         highs = df['high'].values.astype(float)
         lows  = df['low'].values.astype(float)
-        closes = df['close'].values.astype(float)
         n = len(df)
 
-        # Compute ATR14 for minimum separation filter
-        atr_period = 14
-        if n > atr_period + 1:
-            true_ranges = []
-            for i in range(1, n):
-                tr = max(
-                    highs[i] - lows[i],
-                    abs(highs[i] - closes[i - 1]),
-                    abs(lows[i] - closes[i - 1]),
-                )
-                true_ranges.append(tr)
-            atr14 = sum(true_ranges[-atr_period:]) / atr_period
-        else:
-            atr14 = 0.0
-
-        min_price_sep = atr_min_separation * atr14
+        # Spec Section 1.10: minimum index distance between two swings of the same type
+        MIN_SWING_DISTANCE = 2 * L + 1
 
         raw_highs = []
         raw_lows  = []
+        # Track candles that are BOTH SH and SL so we can discard them (spec Section 1.16)
+        anomaly_indices = set()
 
-        for i in range(L, n - R):
-            # Swing High: strictly higher than L candles left, >= R candles right
-            if (all(highs[i] > highs[i - k] for k in range(1, L + 1)) and
-                    all(highs[i] >= highs[i + k] for k in range(1, R + 1))):
+        for i in range(L, n - L):   # need L candles on BOTH sides for confirmation
+            # ── Swing High: strict > on ALL L left AND L right neighbours ──
+            is_sh = all(highs[i] > highs[i - k] for k in range(1, L + 1)) and \
+                    all(highs[i] > highs[i + k] for k in range(1, L + 1))
+
+            # ── Swing Low: strict < on ALL L left AND L right neighbours ───
+            is_sl = all(lows[i] < lows[i - k] for k in range(1, L + 1)) and \
+                    all(lows[i] < lows[i + k] for k in range(1, L + 1))
+
+            # Spec 1.16: same-candle SH+SL is anomalous — discard both
+            if is_sh and is_sl:
+                anomaly_indices.add(i)
+                continue
+
+            if is_sh:
                 raw_highs.append({"index": i, "price": highs[i]})
-
-            # Swing Low: strictly lower than L candles left, <= R candles right
-            if (all(lows[i] < lows[i - k] for k in range(1, L + 1)) and
-                    all(lows[i] <= lows[i + k] for k in range(1, R + 1))):
+            if is_sl:
                 raw_lows.append({"index": i, "price": lows[i]})
 
-        # Minimum separation filter — drop weaker swing if two are too close
-        def _filter_by_separation(swings: list, keep_highest: bool) -> list:
-            if not swings or min_price_sep <= 0:
+        # ── Index-based minimum spacing filter (spec Section 1.10) ─────────
+        def _filter_by_index_spacing(swings: list, keep_highest: bool) -> list:
+            """Remove swings closer than MIN_SWING_DISTANCE candles; keep more extreme."""
+            if len(swings) <= 1:
                 return swings
             filtered = [swings[0]]
             for sw in swings[1:]:
                 prev = filtered[-1]
-                if abs(sw["price"] - prev["price"]) < min_price_sep:
-                    # Too close — keep the stronger one
+                if abs(sw["index"] - prev["index"]) < MIN_SWING_DISTANCE:
+                    # Too close — keep the more extreme one
                     if keep_highest:
                         if sw["price"] > prev["price"]:
-                            filtered[-1] = sw  # replace with higher
+                            filtered[-1] = sw
                     else:
                         if sw["price"] < prev["price"]:
-                            filtered[-1] = sw  # replace with lower
+                            filtered[-1] = sw
                 else:
                     filtered.append(sw)
             return filtered
 
-        swing_highs = _filter_by_separation(raw_highs, keep_highest=True)
-        swing_lows  = _filter_by_separation(raw_lows,  keep_highest=False)
+        swing_highs = _filter_by_index_spacing(raw_highs, keep_highest=True)
+        swing_lows  = _filter_by_index_spacing(raw_lows,  keep_highest=False)
 
         return swing_highs, swing_lows
 
