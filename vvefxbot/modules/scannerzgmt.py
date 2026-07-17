@@ -1155,7 +1155,7 @@ class ScannerZGMT:
         n = len(df)
         D = 5  # Displacement window per spec Section 4.3
 
-        for i in range(n - D - 1):
+        for i in range(n - 2):  # need at least 1 displacement candle; j is bounded by min(i+D+1, n)
             body_high = float(max(opens[i], closes[i]))
             body_low  = float(min(opens[i], closes[i]))
             body_mid  = (body_high + body_low) / 2.0
