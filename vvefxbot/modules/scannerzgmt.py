@@ -879,6 +879,10 @@ class ScannerZGMT:
         """
         zgmt_cfg = self.zgmt_cfg
 
+        if not killzone or killzone.lower() == "none":
+            # Leg B must tap within SOME killzone (Asia, London, or NY)
+            return None
+
         # For 20 trading days of history: 20 days * 6 H4 candles = 120, 20 days * 24 H1 candles = 480
         h4_candles = self.mt5.get_candles(pair, "H4", count=zgmt_cfg.get("zgmt_ob_candles_4h", 120))
         h1_candles = self.mt5.get_candles(pair, "H1", count=zgmt_cfg.get("zgmt_ob_candles_1h", 480))
@@ -934,16 +938,23 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT-B INVALID: No unmitigated OBs found.")
             return None
 
+        # Filter 1b: direction must match daily bias
+        # BULLISH bias → look for BUY OBs (in Discount)
+        # BEARISH bias → look for SELL OBs (in Premium)
+        expected_ob_dir = "BUY" if bias == "BULLISH" else "SELL"
+        valid_obs = [ob for ob in valid_obs if ob["direction"] == expected_ob_dir]
+        logger.debug(f"[{pair}] _check_htf_ob_exception: {len(valid_obs)} {expected_ob_dir} OBs after direction filter (bias={bias})")
+        if not valid_obs:
+            logger.debug(f"[{pair}] ZGMT-B INVALID: No {expected_ob_dir} OBs matching daily bias={bias}.")
+            return None
+
         # Filter 2: price must currently be tapping into the OB zone
         tapping_obs = [
             ob for ob in valid_obs
             if (ob["body_low"] - tap_threshold) <= current_price <= (ob["body_high"] + tap_threshold)
         ]
-        if len(valid_obs) > 0 and len(tapping_obs) == 0:
-            # Just log periodically so it doesn't spam every minute
-            pass
         if not tapping_obs:
-            logger.debug(f"[{pair}] ZGMT-B INVALID: Current price {current_price} is not tapping any valid OBs.")
+            logger.debug(f"[{pair}] ZGMT-B INVALID: Current price {current_price} is not tapping any valid {expected_ob_dir} OBs.")
             return None
         logger.debug(f"[{pair}] _check_htf_ob_exception: {len(tapping_obs)} OBs tapping current price {current_price}")
 
@@ -1029,12 +1040,21 @@ class ScannerZGMT:
             )
             return None
 
-        sl_distance = adr_sl_dist   # price-unit distance
+        if direction == "BUY":
+            ob_sl_dist = entry_price - float(best_ob.get("candle_low", entry_price))
+        else:
+            ob_sl_dist = float(best_ob.get("candle_high", entry_price)) - entry_price
+            
+        ob_sl_dist += (2 * pip_size) # 2 pip buffer
+        
+        sl_distance = max(adr_sl_dist, ob_sl_dist)   # price-unit distance
         sl_pips = sl_distance / pip_size
         tp_pips = sl_pips * 2
 
         logger.debug(
-            f"[{pair}] ZGMT-B SL: ADR5/2 = {sl_pips:.1f} pips | entry={entry_price:.5f}"
+            f"[{pair}] ZGMT-B SL: ADR5/2 = {adr_sl_dist/pip_size:.1f} pips | "
+            f"OB_extreme = {ob_sl_dist/pip_size:.1f} pips | "
+            f"Final SL = {sl_pips:.1f} pips | entry={entry_price:.5f}"
         )
 
         # Cap SL at configurable maximum (same cap as standard ZGMT entries)
@@ -1153,7 +1173,9 @@ class ScannerZGMT:
         closes = df['close'].values.astype(float)
         opens  = df['open'].values.astype(float)
         n = len(df)
-        D = 5  # Displacement window per spec Section 4.3
+        zgmt_cfg = self.zgmt_cfg
+        D = zgmt_cfg.get("zgmt_ob_displacement_candles", 5)
+        atr_mult = zgmt_cfg.get("zgmt_ob_atr_multiplier", 2.0)
 
         for i in range(n - 2):  # need at least 1 displacement candle; j is bounded by min(i+D+1, n)
             body_high = float(max(opens[i], closes[i]))
@@ -1164,11 +1186,11 @@ class ScannerZGMT:
             atr14 = self._calc_atr14(df, i)
 
             # Collect most recent prior swing high and swing low before index i
-            # (simple scan — no need for full swing detection here)
-            prior_highs_before_i = [float(highs[k]) for k in range(i)]
-            prior_lows_before_i  = [float(lows[k])  for k in range(i)]
-            prev_swing_high = max(prior_highs_before_i) if prior_highs_before_i else None
-            prev_swing_low  = min(prior_lows_before_i)  if prior_lows_before_i  else None
+            lookback = min(i, zgmt_cfg.get("zgmt_swing_lookback", 3))
+            prior_highs = [float(highs[k]) for k in range(i - lookback, i)] if lookback > 0 else []
+            prior_lows  = [float(lows[k])  for k in range(i - lookback, i)] if lookback > 0 else []
+            prev_swing_high = max(prior_highs) if prior_highs else None
+            prev_swing_low  = min(prior_lows)  if prior_lows else None
 
             # ── Bullish Normal OB: bearish candle ────────────────────────
             if closes[i] < opens[i]:
@@ -1178,10 +1200,10 @@ class ScannerZGMT:
                         # Check 1: total bullish move >= 2×ATR(14)
                         window_high = float(max(highs[i + 1 : j + 1]))
                         total_move  = window_high - float(lows[i])
-                        if atr14 > 0 and total_move < 2.0 * atr14:
+                        if atr14 > 0 and total_move < atr_mult * atr14:
                             logger.debug(
                                 f"[{pair}] Normal OB(BUY) at {i}: displacement {total_move:.5f} "
-                                f"< 2×ATR14={2*atr14:.5f} — skipped."
+                                f"< {atr_mult}×ATR14={atr_mult*atr14:.5f} — skipped."
                             )
                             break  # No point checking further candles in this window
 
@@ -1200,6 +1222,8 @@ class ScannerZGMT:
                             "body_high": body_high,
                             "body_low":  body_low,
                             "body_mid":  body_mid,
+                            "candle_high": float(highs[i]),
+                            "candle_low": float(lows[i]),
                             "candle_index": i,
                             "displacement_index": j,
                             "timeframe": tf,
@@ -1215,10 +1239,10 @@ class ScannerZGMT:
                         # Check 1: total bearish move >= 2×ATR(14)
                         window_low  = float(min(lows[i + 1 : j + 1]))
                         total_move  = float(highs[i]) - window_low
-                        if atr14 > 0 and total_move < 2.0 * atr14:
+                        if atr14 > 0 and total_move < atr_mult * atr14:
                             logger.debug(
                                 f"[{pair}] Normal OB(SELL) at {i}: displacement {total_move:.5f} "
-                                f"< 2×ATR14={2*atr14:.5f} — skipped."
+                                f"< {atr_mult}×ATR14={atr_mult*atr14:.5f} — skipped."
                             )
                             break
 
@@ -1237,6 +1261,8 @@ class ScannerZGMT:
                             "body_high": body_high,
                             "body_low":  body_low,
                             "body_mid":  body_mid,
+                            "candle_high": float(highs[i]),
+                            "candle_low": float(lows[i]),
                             "candle_index": i,
                             "displacement_index": j,
                             "timeframe": tf,

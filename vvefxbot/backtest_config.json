@@ -3,16 +3,7 @@
   "_comment_strategy": "Strategy to backtest: MMXM | OTE | ZGMT | MACRO",
   "strategy": "ZGMT",
   "pairs": [
-    "GBPJPYm",
-    "EURJPYm",
-    "USDCADm",
-    "USDCHFm",
-    "USDJPYm",
-    "AUDUSDm",
-    "AUDJPYm",
-    "NZDJPYm",
-    "AUDCHFm",
-    "NZDCHFm"
+    "GBPJPYm"
   ],
   "_comment_timezone": "Set to 3 for EET (MT5 default broker server time offset from UTC)",
   "broker_timezone_offset_hours": 0.0,
@@ -21,56 +12,11 @@
       "strategies": [
         "ZGMT"
       ]
-    },
-    "EURJPYm": {
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "USDCADm": {
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "USDCHFm": {
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "USDJPYm": {
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "AUDUSDm": {
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "AUDJPYm": {
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "NZDJPYm": {
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "AUDCHFm": {
-      "strategies": [
-        "ZGMT"
-      ]
-    },
-    "NZDCHFm": {
-      "strategies": [
-        "ZGMT"
-      ]
     }
   },
   "_comment_dates": "Full backtest range",
-  "date_from": "2026-06-01",
-  "date_to": "2026-07-03",
+  "date_from": "2026-05-01",
+  "date_to": "2026-05-31",
   "_comment_balance": "Initial balance and risk \u2014 risk is overridden in config.json (set high for backtesting)",
   "initial_balance": 10000.0,
   "risk_percent": 100.0,

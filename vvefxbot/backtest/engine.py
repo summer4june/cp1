@@ -46,7 +46,12 @@ class SimulatedTrade:
     """Tracks the lifecycle of one simulated trade during backtesting."""
 
     def __init__(
-        self, trade_id: str, signal_id: str, pair: str, direction: str,
+        self,
+        trade_id: str,
+        signal_id: str,
+        strategy: str,
+        pair: str,
+        direction: str,
         entry: float, sl: float, tp1: float, tp2: float, tp3: float,
         lot: float, bar_index: int, bar_time: datetime,
         pip_size: float = 0.0001,
@@ -63,6 +68,7 @@ class SimulatedTrade:
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
+        self.strategy = strategy
         self.pair = pair
         self.direction = direction
         self.entry = entry
@@ -413,10 +419,11 @@ class BacktestEngine:
             if bar_hour == 22:
                 still_open_after_expiry = []
                 for trade in self._open_trades:
+                    # Expire pending orders at 22:00 UTC of the next day (NY Close)
                     if trade.status == "PENDING" and current_time.date() > trade.open_time.date():
                         trade.status = "CLOSED"
                         trade.result = "CANCELLED"
-                        trade.exit_reason = "expired_2_days"
+                        trade.exit_reason = "expired_next_day_ny_close"
                         trade.close_bar = idx
                         trade.close_time = current_time
                         trade.exit_price = trade.entry
@@ -507,6 +514,18 @@ class BacktestEngine:
                     )
                     continue
                 self._signals_sent_today.add(sig_key)
+
+                # Prevent stacking pending limit orders if one already exists for this strategy/direction
+                already_pending = False
+                if strategy.startswith("ZGMT-B") or strategy.startswith("ZGMT-C"):
+                    for t in self._open_trades:
+                        if t.pair == self.pair and t.strategy == strategy and t.direction == signal["direction"] and t.status == "PENDING":
+                            already_pending = True
+                            break
+                
+                if already_pending:
+                    logger.debug(f"[BT] Signal dedup: {self.pair} {strategy} already has a PENDING order — skipping.")
+                    continue
 
                 self._signals_fired += 1
                 signal_id = signal["signal_id"]
@@ -635,6 +654,7 @@ class BacktestEngine:
                 trade = SimulatedTrade(
                     trade_id=str(uuid.uuid4()),
                     signal_id=signal_id,
+                    strategy=strategy,
                     pair=self.pair,
                     direction=signal["direction"],
                     entry=entry_price,
