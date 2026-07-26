@@ -65,9 +65,11 @@ class SimulatedTrade:
         score: float = 0.0,
         is_above_market: bool = False,
         expiration_time: datetime = None,
+        extra_data: dict = None,
     ):
         self.trade_id = trade_id
         self.signal_id = signal_id
+        self.extra_data = extra_data or {}
         self.strategy = strategy
         self.pair = pair
         self.direction = direction
@@ -165,7 +167,7 @@ class SimulatedTrade:
         tp2_usd = round(tp2_pips * pip_value * self.lot, 2)
         tp3_usd = round(tp3_pips * pip_value * self.lot, 2)
 
-        return {
+        base_dict = {
             "trade_id": self.trade_id,
             "pair": self.pair,
             "direction": self.direction,
@@ -205,6 +207,10 @@ class SimulatedTrade:
             "rr_ratio": self.rr_format,
             "score": round(getattr(self, "score", 0.0), 1),
         }
+        
+        # Merge extra data, giving precedence to base_dict if keys conflict
+        merged = {**self.extra_data, **base_dict}
+        return merged
 
 
 class BacktestEngine:
@@ -504,9 +510,15 @@ class BacktestEngine:
             for signal in signals_list:
                 strategy = signal.get("strategy", "UNKNOWN")
                 
-                # Prevent duplicate signals per (pair, strategy, IST-date) — mirrors live DB logic.
-                # _signals_sent_today is cleared at IST midnight (see daily roll above).
-                sig_key = (self.pair, strategy, _bar_ist_date)
+                # Prevent duplicate signals per (pair, strategy, IST-date).
+                # For MACRO: key by window_name so each distinct macro window
+                # (Macro 1, Macro 3, Silver Bullet 5, Reversal 7...) is a separate opportunity.
+                if strategy == "MACRO":
+                    window_name_key = signal.get("window_name", "")
+                    sig_key = (self.pair, strategy, window_name_key, _bar_ist_date)
+                else:
+                    sig_key = (self.pair, strategy, _bar_ist_date)
+                    
                 if sig_key in self._signals_sent_today:
                     logger.debug(
                         f"[BT] Signal dedup: {self.pair} {strategy} already sent today "
@@ -517,9 +529,13 @@ class BacktestEngine:
 
                 # Prevent stacking pending limit orders if one already exists for this strategy/direction
                 already_pending = False
-                if strategy.startswith("ZGMT-B") or strategy.startswith("ZGMT-C"):
+                if strategy.startswith("ZGMT-B") or strategy.startswith("ZGMT-C") or strategy == "MACRO":
+                    window_key = signal.get("window_name", strategy)
                     for t in self._open_trades:
-                        if t.pair == self.pair and t.strategy == strategy and t.direction == signal["direction"] and t.status == "PENDING":
+                        if (t.pair == self.pair and t.strategy == strategy 
+                                and t.direction == signal["direction"] 
+                                and getattr(t, "window_name", "") == window_key
+                                and t.status == "PENDING"):
                             already_pending = True
                             break
                 
@@ -594,14 +610,19 @@ class BacktestEngine:
                             offset_hours = self.scanner._get_broker_utc_offset_hours(self.pair)
                             target_0gmt = target_0gmt + timedelta(hours=offset_hours)
                         
-                        if target_0gmt.tzinfo is not None:
-                            target_0gmt = target_0gmt.replace(tzinfo=None)  # m1_data is naive UTC
+                        # Normalize target to tz-aware UTC to match m1_data["time"]
+                        # (m1_data timestamps are always tz-aware UTC from both CSV and MT5 loaders)
+                        if target_0gmt.tzinfo is None:
+                            target_0gmt = target_0gmt.replace(tzinfo=timezone.utc)
 
                         day_start_idx = idx
                         fill_time = current_bar["time"]
 
                         for lookback_i in range(idx, max(-1, idx - 25), -1):
                             bar_t = m1_data.iloc[lookback_i]["time"]
+                            # Normalize bar_t to tz-aware for comparison
+                            if bar_t.tzinfo is None:
+                                bar_t = bar_t.replace(tzinfo=timezone.utc)
                             if bar_t == target_0gmt:
                                 day_start_idx = lookback_i
                                 fill_time = bar_t
@@ -674,9 +695,12 @@ class BacktestEngine:
                     is_limit=is_limit_order,
                     rr_format=bt_rr_format,
                     score=signal.get("score", 0.0),
-                    is_above_market=(entry_price > current_bar["close"]),
+                    is_above_market=signal.get("is_above_market", entry_price > current_bar["close"]),
                     expiration_time=expiration_dt,
+                    extra_data=signal,
                 )
+                # Store macro window name for dedup guard
+                trade.window_name = signal.get("window_name", "")
 
                 order_type = "Pending Limit" if is_limit_order else "Market Fill"
                 ob_info = f" | {signal['bias_summary']}" if "bias_summary" in signal else ""
@@ -781,10 +805,15 @@ class BacktestEngine:
                     triggered = True
                 
             if triggered:
-                # Guard against filling limit orders outside of Killzones
-                triggered_kz = self._get_killzone_for_time(bar_time)
-                if not triggered_kz:
-                    triggered = False
+                # Killzone guard: MACRO strategy uses its own macro windows as the entry window.
+                # Standard killzone check only applies to non-MACRO strategies.
+                is_macro = (trade.strategy == "MACRO")
+                if not is_macro:
+                    triggered_kz = self._get_killzone_for_time(bar_time)
+                    if not triggered_kz:
+                        triggered = False
+                else:
+                    triggered_kz = trade.session  # Use the macro window session label
 
             if triggered:
                 trade.status = "OPEN"

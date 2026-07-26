@@ -408,7 +408,8 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
             "entry", "sl_usd", "tp1_usd", "tp2_usd", "tp3_usd", "lot", 
             "open_bar", "open_time", "close_bar", "close_time", "status", 
             "result", "profit_usd", "exit_price", "exit_reason", "max_level_reached", "sl_pips", 
-            "tp1_pips", "tp2_pips", "tp3_pips", "month", "week_no", "margin_used", "score"
+            "tp1_pips", "tp2_pips", "tp3_pips", "month", "week_no", "margin_used", "score",
+            "swing_low", "swing_high", "timeframe_entry", "ob_low", "ob_high"
         ]
         
         for col in export_columns:
@@ -562,7 +563,6 @@ def main():
 
     # ── Generate report ───────────────────────────────────────────────
     generate_report(all_trades, bt_config)
-
 
 if __name__ == "__main__":
     main()
