@@ -75,3 +75,8 @@ bower_components/
 # ========================
 vvefxbot-4818585d21bb.json
 *.json
+vvefxbot/backtest/data/*.csv
+vvefxbot/logs/*.log
+*.db
+*.log
+*.csv

@@ -123,7 +123,8 @@ class ScannerMacro:
         # ── Guard: already traded this specific named window (or its manipulation partner) ──
         # Each manipulation+continuation pair shares the manipulation window's name as the key.
         # e.g. If Macro 1 (Manipulation) fired, block Macro 2 (Continuation) with same key.
-        date_str = now_ist.strftime("%Y-%m-%d")
+        # Shift date by 4 hours to handle macros that cross midnight (e.g., Reversal 9 & 10)
+        logical_date = (now_ist - timedelta(hours=4)).strftime("%Y-%m-%d")
         if window_type == "Continuation":
             # Find the paired manipulation window name
             manip_name = None
@@ -131,9 +132,9 @@ class ScannerMacro:
                 if name == window_name and i > 0:
                     manip_name = self.MACRO_WINDOWS[i-1][4]
                     break
-            check_key = f"{pair}_{date_str}_{manip_name or window_name}"
+            check_key = f"{pair}_{logical_date}_{manip_name or window_name}"
         else:
-            check_key = f"{pair}_{date_str}_{window_name}"
+            check_key = f"{pair}_{logical_date}_{window_name}"
 
         if check_key in self.traded_macros:
             logger.debug(f"[{pair}] MACRO: Already traded window '{window_name}' today — skipping.")
@@ -291,7 +292,7 @@ class ScannerMacro:
 
             # Mark BOTH the manipulation window key AND its continuation as traded,
             # so neither window can fire again for this pair today.
-            d_str = now_ist.strftime("%Y-%m-%d")
+            logical_date = (now_ist - timedelta(hours=4)).strftime("%Y-%m-%d")
             if window_type == "Continuation":
                 # Find paired manipulation name
                 manip_name = window_name
@@ -299,9 +300,9 @@ class ScannerMacro:
                     if name == window_name and idx > 0:
                         manip_name = self.MACRO_WINDOWS[idx-1][4]
                         break
-                self.traded_macros.add(f"{pair}_{d_str}_{manip_name}")
+                self.traded_macros.add(f"{pair}_{logical_date}_{manip_name}")
             else:
-                self.traded_macros.add(f"{pair}_{d_str}_{window_name}")
+                self.traded_macros.add(f"{pair}_{logical_date}_{window_name}")
             
         return signal
 

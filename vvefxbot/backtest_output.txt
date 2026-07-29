@@ -1,0 +1,6 @@
+Fatal Python error: Failed to import encodings module
+Python runtime state: core initialized
+ModuleNotFoundError: No module named 'encodings'
+
+Current thread 0x00007ff847624100 (most recent call first):
+  <no Python frame>

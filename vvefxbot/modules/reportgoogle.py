@@ -28,6 +28,10 @@ _HEADERS = [
     "tp1_pips", "tp2_pips", "tp3_pips", "month", "week_no", "margin_used", "score"
 ]
 
+_LEG_B_HEADERS = _HEADERS + [
+    "swing_low", "swing_high", "timeframe_entry", "ob_low", "ob_high"
+]
+
 class GoogleSheetReporter:
     """Reporter to push trade data to a Google Sheet using gspread."""
 
@@ -43,6 +47,7 @@ class GoogleSheetReporter:
         self.sheet = None
         self.denied_sheet = None
         self.vault_sheet = None
+        self.leg_b_sheet = None
 
     def connect(self) -> bool:
         """
@@ -99,6 +104,18 @@ class GoogleSheetReporter:
             if not first_row_vault or first_row_vault[0] != "Date":
                 self.vault_sheet.insert_row(vault_headers, 1)
                 logger.info("Added header row to Vault Google Sheet tab.")
+
+            # Connect to Leg B sheet in the SAME spreadsheet
+            try:
+                self.leg_b_sheet = spreadsheet.worksheet("Leg_B_Trades")
+            except gspread.exceptions.WorksheetNotFound:
+                logger.info("Leg_B_Trades sheet not found, creating it now.")
+                self.leg_b_sheet = spreadsheet.add_worksheet(title="Leg_B_Trades", rows=1000, cols=40)
+
+            first_row_leg_b = self.leg_b_sheet.row_values(1)
+            if not first_row_leg_b or first_row_leg_b[0] not in ("trade_id", "TradeID"):
+                self.leg_b_sheet.insert_row(_LEG_B_HEADERS, 1)
+                logger.info("Added header row to Leg_B_Trades Google Sheet tab.")
 
             return True
 
@@ -244,14 +261,16 @@ class GoogleSheetReporter:
             signal.get("score", 0.0) if signal else 0.0                     # 35. score
         ]
 
-    def _find_row_by_trade_id(self, trade_id: str) -> int:
+    def _find_row_by_trade_id(self, trade_id: str, sheet=None) -> int:
         """
         Find the 1-indexed row number in the sheet whose trade_id cell (col 1) matches exactly.
         Returns -1 if not found.
         """
+        if sheet is None:
+            sheet = self.sheet
         try:
             # trade_id is the 1st column (index 0, 1-indexed col 1)
-            id_col = self.sheet.col_values(1)
+            id_col = sheet.col_values(1)
             for i, cell_val in enumerate(id_col):
                 if str(cell_val).strip() == trade_id:
                     return i + 1  # 1-indexed
@@ -289,10 +308,8 @@ class GoogleSheetReporter:
             # Always try to find the row first
             row_num = self._find_row_by_trade_id(trade_id)
 
-            if row_num > 0:
+            def get_updates_for_row(r_num):
                 col_map = self._get_column_map()
-                
-                # Fallbacks in case Google Sheet headers were deleted or renamed
                 col_open_time = col_map.get("open_time", "S")
                 col_close_time = col_map.get("close_time", "U")
                 col_status = col_map.get("status", "V")
@@ -302,23 +319,25 @@ class GoogleSheetReporter:
                 col_max_level = col_map.get("max_level_reached", "AA")
 
                 if status == "CLOSED":
-                    updates = [
-                        {"range": f"{col_close_time}{row_num}", "values": [[row_data[20]]]},
-                        {"range": f"{col_status}{row_num}", "values": [[row_data[21]]]},
-                        {"range": f"{col_result}{row_num}", "values": [[row_data[22]]]},
-                        {"range": f"{col_profit_usd}{row_num}", "values": [[row_data[23]]]},
-                        {"range": f"{col_exit_reason}{row_num}", "values": [[row_data[25]]]},
-                        {"range": f"{col_max_level}{row_num}", "values": [[row_data[26]]]},
+                    return [
+                        {"range": f"{col_close_time}{r_num}", "values": [[row_data[20]]]},
+                        {"range": f"{col_status}{r_num}", "values": [[row_data[21]]]},
+                        {"range": f"{col_result}{r_num}", "values": [[row_data[22]]]},
+                        {"range": f"{col_profit_usd}{r_num}", "values": [[row_data[23]]]},
+                        {"range": f"{col_exit_reason}{r_num}", "values": [[row_data[25]]]},
+                        {"range": f"{col_max_level}{r_num}", "values": [[row_data[26]]]},
                     ]
                 else:
-                    updates = [
-                        {"range": f"{col_open_time}{row_num}", "values": [[row_data[18]]]},
-                        {"range": f"{col_status}{row_num}", "values": [[row_data[21]]]},
-                        {"range": f"{col_result}{row_num}", "values": [[row_data[22]]]},
+                    return [
+                        {"range": f"{col_open_time}{r_num}", "values": [[row_data[18]]]},
+                        {"range": f"{col_status}{r_num}", "values": [[row_data[21]]]},
+                        {"range": f"{col_result}{r_num}", "values": [[row_data[22]]]},
                     ]
+
+            if row_num > 0:
+                updates = get_updates_for_row(row_num)
                 self.sheet.batch_update(updates)
                 logger.info(f"Trade {trade_id} {status} — updated row {row_num} dynamically in Google Sheet.")
-                return True
             else:
                 # Row not found, append full row
                 try:
@@ -331,7 +350,35 @@ class GoogleSheetReporter:
                     else:
                         raise e
                 logger.info(f"Trade {trade_id} {status} — appended new row to Google Sheet.")
-                return True
+                
+            # Log to Leg B sheet if applicable
+            entry_leg = trade.get("entry_leg") or (signal.get("entry_leg") if signal else "")
+            if entry_leg == "B" and self.leg_b_sheet:
+                leg_b_row_data = row_data + [
+                    signal.get("swing_low", "") if signal else "",
+                    signal.get("swing_high", "") if signal else "",
+                    signal.get("timeframe_entry", "") if signal else "",
+                    signal.get("ob_low", "") if signal else "",
+                    signal.get("ob_high", "") if signal else ""
+                ]
+                
+                leg_b_row_num = self._find_row_by_trade_id(trade_id, sheet=self.leg_b_sheet)
+                if leg_b_row_num > 0:
+                    updates_b = get_updates_for_row(leg_b_row_num)
+                    self.leg_b_sheet.batch_update(updates_b)
+                    logger.info(f"Trade {trade_id} {status} — updated row {leg_b_row_num} in Leg_B_Trades.")
+                else:
+                    try:
+                        self.leg_b_sheet.append_row(leg_b_row_data, value_input_option='USER_ENTERED')
+                    except Exception as e:
+                        if 'exceeds grid limits' in str(e):
+                            self.leg_b_sheet.add_rows(100)
+                            self.leg_b_sheet.append_row(leg_b_row_data, value_input_option='USER_ENTERED')
+                        else:
+                            raise e
+                    logger.info(f"Trade {trade_id} {status} — appended new row to Leg_B_Trades.")
+
+            return True
 
         except Exception as e:
             logger.error(f"Error logging trade to Google Sheet: {e}")

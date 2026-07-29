@@ -145,10 +145,9 @@ class ScannerZGMT:
         # digits before computing the absolute POSIX timestamp.
         true_utc_end = end_ist - self._IST_OFFSET
         
-        # MT5 requires the expiration timestamp to be expressed in local broker time.
-        broker_offset_hours = self._get_broker_utc_offset_hours(pair)
-        broker_ts = int(true_utc_end.timestamp()) + int(broker_offset_hours * 3600)
-        return broker_ts
+        # MT5 Python (5.0.29+) requires the expiration timestamp to be expressed in UTC.
+        # We simply return the true UTC timestamp.
+        return int(true_utc_end.timestamp())
 
     def _daily_count_key(self, pair: str) -> str:
         return f"{self._today_ist_str()}:{pair}"
@@ -238,14 +237,15 @@ class ScannerZGMT:
         window_highs = []
         window_lows = []
         
-        for _, row in candles.iterrows():
-            cand_time = row["time"]
-            if cand_time.tzinfo is None:
-                cand_time = cand_time.replace(tzinfo=timezone.utc)
-                
-            if start_utc <= cand_time < end_utc:
-                window_highs.append(float(row["high"]))
-                window_lows.append(float(row["low"]))
+        times = candles["time"]
+        if times.dt.tz is None:
+            times = times.dt.tz_localize(timezone.utc)
+            
+        mask = (times >= start_utc) & (times < end_utc)
+        valid_candles = candles[mask]
+        
+        window_highs = valid_candles["high"].values.astype(float).tolist()
+        window_lows = valid_candles["low"].values.astype(float).tolist()
                 
         if not window_highs or not window_lows:
             logger.debug(f"[{pair}] ZGMT: No M15 candles found in window {start_utc} to {end_utc} for T-1 PD bias.")
@@ -291,14 +291,19 @@ class ScannerZGMT:
         if candles is None or candles.empty:
             return False
             
-        for _, row in candles.iterrows():
-            candle_time = row["time"]
-            if candle_time.tzinfo is None:
-                candle_time = candle_time.replace(tzinfo=timezone.utc)
+        times = candles["time"]
+        if times.dt.tz is None:
+            times = times.dt.tz_localize(timezone.utc)
+            
+        mask = (times >= window_start) & (times < window_end)
+        valid_candles = candles[mask]
+        
+        if not valid_candles.empty:
+            highs = valid_candles["high"].values.astype(float)
+            lows = valid_candles["low"].values.astype(float)
+            if ((highs >= range_high) | (lows <= range_low)).any():
+                return True
                 
-            if window_start <= candle_time < window_end:
-                if float(row["high"]) >= range_high or float(row["low"]) <= range_low:
-                    return True
         return False
 
     # ──────────────────────────────────────────────────────────────────
@@ -336,17 +341,23 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT: No H1 candles returned.")
             return None, False
 
-        for _, row in candles.iterrows():
-            candle_time = row["time"]
-            if candle_time.tzinfo is None:
-                candle_time = candle_time.replace(tzinfo=timezone.utc)
-            if (candle_time.year == target_broker_datetime.year and
-                    candle_time.month == target_broker_datetime.month and
-                    candle_time.day == target_broker_datetime.day and
-                    candle_time.hour == target_broker_datetime.hour):
-                zgmt_price = float(row["open"])
-                logger.debug(f"[{pair}] ZGMT: Found 0 GMT open price = {zgmt_price:.5f} at {candle_time} (offset {offset_hours}h)")
-                return zgmt_price, False
+        times = candles["time"]
+        if times.dt.tz is None:
+            times = times.dt.tz_localize(timezone.utc)
+            
+        mask = (
+            (times.dt.year == target_broker_datetime.year) &
+            (times.dt.month == target_broker_datetime.month) &
+            (times.dt.day == target_broker_datetime.day) &
+            (times.dt.hour == target_broker_datetime.hour)
+        )
+        
+        match = candles[mask]
+        if not match.empty:
+            zgmt_price = float(match.iloc[0]["open"])
+            candle_time = match.iloc[0]["time"]
+            logger.debug(f"[{pair}] ZGMT: Found 0 GMT open price = {zgmt_price:.5f} at {candle_time} (offset {offset_hours}h)")
+            return zgmt_price, False
 
         is_structural = now_utc.hour >= 2
         logger.debug(f"[{pair}] ZGMT: 0 GMT H1 candle not found in fetched data. is_structural={is_structural}")
@@ -396,23 +407,22 @@ class ScannerZGMT:
         offset_hours = self._get_broker_utc_offset_hours(pair)
         test_start_broker_time = test_start_time_utc + timedelta(hours=offset_hours)
 
-        for _, row in candles.iterrows():
-            candle_time = row["time"]
-            if candle_time.tzinfo is None:
-                candle_time = candle_time.replace(tzinfo=timezone.utc)
+        times = candles["time"]
+        if times.dt.tz is None:
+            times = times.dt.tz_localize(timezone.utc)
 
-            # Only evaluate candles that opened after the exclusion window
-            if candle_time < test_start_broker_time:
-                continue
+        mask = (times >= test_start_broker_time)
+        valid_candles = candles[mask]
 
-            candle_low = float(row["low"])
-            candle_high = float(row["high"])
-
-            # "Tested" = price actually touched or crossed the 0GMT level.
-            # We do NOT use a proximity threshold because that wrongly invalidates setups
-            # where price passed nearby but never actually reached the level.
-            # A candle "tests" the level only if the 0GMT price sits within [low, high].
-            if candle_low <= zgmt_price <= candle_high:
+        if not valid_candles.empty:
+            lows = valid_candles["low"].values.astype(float)
+            highs = valid_candles["high"].values.astype(float)
+            
+            tested = (lows <= zgmt_price) & (zgmt_price <= highs)
+            if tested.any():
+                idx = tested.argmax()
+                candle_high = highs[idx]
+                candle_low = lows[idx]
                 logger.debug(
                     f"[{pair}] ZGMT Step 2B: Level ALREADY TESTED (price touched). "
                     f"Candle H={candle_high:.5f} L={candle_low:.5f} vs ZGMT={zgmt_price:.5f}"
@@ -739,8 +749,8 @@ class ScannerZGMT:
         if zgmt_cfg.get("strategy_b_enabled", False):
             ob_signal = self._check_htf_ob_exception(pair, bias, session, killzone)
             if ob_signal is not None:
-                ob_signal["setup_type"] = "ZGMT-B"
-                ob_signal["strategy"] = "ZGMT-B"
+                ob_signal["setup_type"] = f"ZGMT-B-{ob_signal['direction']}"
+                ob_signal["strategy"] = f"ZGMT-B-{ob_signal['direction']}"
                 ob_signal["bias_summary"] = ob_signal["bias_summary"].replace("ZGMT-EXCEPTION", "ZGMT-B")
                 logger.info(f"[{pair}] ZGMT-B: HTF OB condition met ({ob_signal['timeframe_entry']} timeframe).")
 
@@ -784,11 +794,11 @@ class ScannerZGMT:
                 "pair": pair,
                 "session": session,
                 "killzone": killzone,
-                "entry_leg": {"ZGMT-A": "A", "ZGMT-B": "B", "ZGMT-C": "C"}.get(strat_id, "A"),
+                "entry_leg": "B" if "ZGMT-B" in strat_id else {"ZGMT-A": "A", "ZGMT-C": "C"}.get(strat_id, "A"),
                 "entry_mode": "FILTER",  # ZGMT-A and ZGMT-C both use Limit (Pending) Orders
                 "timeframe_bias": zgmt_cfg.get("timeframe_bias", "D1"),
                 "timeframe_entry": zgmt_cfg.get("timeframe_entry", "H1"),
-                "direction": "BUY" if bias == "BULLISH" else "SELL",
+                "direction": ob_signal.get("direction", "BUY" if bias == "BULLISH" else "SELL") if ob_signal else ("BUY" if bias == "BULLISH" else "SELL"),
                 "bias_summary": summary,
                 "entry_price": entry,
                 "sl_price": round(sl_adjusted, 5),
@@ -800,7 +810,7 @@ class ScannerZGMT:
                 "tp3_pips": round(new_tp3_pips, 2),
                 "spread_pips": spr,
                 "effective_rr": round(eff_rr, 3),
-                "score": round({"ZGMT-A": 80.0, "ZGMT-B": 95.0, "ZGMT-C": 75.0}.get(strat_id, 70.0) + min(eff_rr * 2.0, 10.0), 1),
+                "score": round(95.0 if "ZGMT-B" in strat_id else {"ZGMT-A": 80.0, "ZGMT-C": 75.0}.get(strat_id, 70.0) + min(eff_rr * 2.0, 10.0), 1),
                 "detected_time": self._utc_now().isoformat(),
                 "strategy": strat_id,
                 "setup_type": strat_id,
@@ -938,15 +948,8 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT-B INVALID: No unmitigated OBs found.")
             return None
 
-        # Filter 1b: direction must match daily bias
-        # BULLISH bias → look for BUY OBs (in Discount)
-        # BEARISH bias → look for SELL OBs (in Premium)
-        expected_ob_dir = "BUY" if bias == "BULLISH" else "SELL"
-        valid_obs = [ob for ob in valid_obs if ob["direction"] == expected_ob_dir]
-        logger.debug(f"[{pair}] _check_htf_ob_exception: {len(valid_obs)} {expected_ob_dir} OBs after direction filter (bias={bias})")
-        if not valid_obs:
-            logger.debug(f"[{pair}] ZGMT-B INVALID: No {expected_ob_dir} OBs matching daily bias={bias}.")
-            return None
+        # Filter 1b: Removed. Leg B bias is determined organically by OBs and Fib zones, not by 0 GMT bias.
+
 
         # Filter 2: price must currently be tapping into the OB zone
         tapping_obs = [
@@ -954,7 +957,7 @@ class ScannerZGMT:
             if (ob["body_low"] - tap_threshold) <= current_price <= (ob["body_high"] + tap_threshold)
         ]
         if not tapping_obs:
-            logger.debug(f"[{pair}] ZGMT-B INVALID: Current price {current_price} is not tapping any valid {expected_ob_dir} OBs.")
+            logger.debug(f"[{pair}] ZGMT-B INVALID: Current price {current_price} is not tapping any valid OBs.")
             return None
         logger.debug(f"[{pair}] _check_htf_ob_exception: {len(tapping_obs)} OBs tapping current price {current_price}")
 
@@ -974,14 +977,14 @@ class ScannerZGMT:
                 dealing_ranges[tf_name] = None
                 continue
             df_tf = df_tf.reset_index(drop=True)
-            dealing_ranges[tf_name] = self._get_dealing_range(df_tf, bias, L, R, pair)
+            dealing_ranges[tf_name] = self._get_dealing_range(df_tf, L, R, pair)
             if dealing_ranges[tf_name]:
                 sl, sh = dealing_ranges[tf_name]
                 logger.debug(
-                    f"[{pair}] ZGMT-B {tf_name} Dealing Range: SwingLow={sl:.5f} SwingHigh={sh:.5f} | Bias={bias}"
+                    f"[{pair}] ZGMT-B {tf_name} Dealing Range: SwingLow={sl:.5f} SwingHigh={sh:.5f}"
                 )
             else:
-                logger.debug(f"[{pair}] ZGMT-B {tf_name}: No valid dealing range found for bias={bias}.")
+                logger.debug(f"[{pair}] ZGMT-B {tf_name}: No valid dealing range found.")
 
         fib_valid_obs = []
         for ob in tapping_obs:
@@ -989,7 +992,14 @@ class ScannerZGMT:
             if dr is None:
                 logger.debug(f"[{pair}] ZGMT-B: Skipping {ob['timeframe']} OB — no dealing range available.")
                 continue
-            if self._is_ob_in_fib_zone(ob, dr, bias, pair):
+                
+            # Filter 3: Dealing Range Membership
+            swing_low, swing_high = dr
+            if ob["body_high"] > swing_high or ob["body_low"] < swing_low:
+                logger.debug(f"[{pair}] ZGMT-B: Skipping {ob['timeframe']} OB — outside dealing range.")
+                continue
+                
+            if self._is_ob_in_fib_zone(ob, dr, pair):
                 fib_valid_obs.append(ob)
 
         logger.debug(f"[{pair}] _check_htf_ob_exception: {len(fib_valid_obs)} OBs survived Fib Filter")
@@ -998,23 +1008,19 @@ class ScannerZGMT:
             return None
 
         # Select best OB based on Priority Scoring (Highest Score Wins)
-        # 1. Distance Score: Closer to current price is better
-        # 2. Zone Score: fib_score_bonus (+10 for key sub-zone, +5 for general zone)
-        # 3. Type Score: Normal (+5), Breaker (+3), Mitigation (+1)
-        # 4. Recency Score: Higher for more recent (larger candle_index)
         for ob in fib_valid_obs:
-            dist = abs(ob["body_mid"] - current_price) / pip_size
-            dist_score = (1.0 / (dist + 1.0)) * 10.0
+            dist_pips = abs(ob["body_mid"] - current_price) / pip_size
+            distance_score = max(0.0, 10.0 - dist_pips)
             
             zone_score = ob.get("fib_score_bonus", 5)
             
-            ob_type = ob.get("type", "NORMAL")
-            type_score = 5 if ob_type == "NORMAL" else (3 if ob_type == "BREAKER" else 1)
+            ob_type = ob.get("ob_type", "NORMAL")
+            type_score = 3 if ob_type == "NORMAL" else (2 if ob_type == "BREAKER" else 1)
             
             # Recency: normalise index relative to total candles (approximation: higher index = more recent)
             recency_score = ob["candle_index"] * 0.01 
             
-            ob["priority_score"] = dist_score + zone_score + type_score + recency_score
+            ob["priority_score"] = (zone_score * 3) + (distance_score * 2) + (type_score * 2) + recency_score
             
         fib_valid_obs.sort(key=lambda x: x.get("priority_score", 0), reverse=True)
         best_ob = fib_valid_obs[0]
@@ -1090,6 +1096,8 @@ class ScannerZGMT:
         effective_rr = (tp_pips - spread_pips) / denom if denom > 0 else 0.0
 
         zone_label = "PREMIUM" if direction == "SELL" else "DISCOUNT"
+        
+        best_dealing_range = dealing_ranges[best_ob["timeframe"]]
 
         return {
             "signal_id": str(uuid.uuid4()),
@@ -1108,6 +1116,8 @@ class ScannerZGMT:
             ),
             "ob_high": round(best_ob["body_high"], 5),
             "ob_low": round(best_ob["body_low"], 5),
+            "swing_low": best_dealing_range[0],
+            "swing_high": best_dealing_range[1],
             "entry_price": round(entry_price, 5),
             "sl_price":    round(sl_price,    5),
             "tp1_price":   round(tp1_price,   5),   # TP1 = 1R (partial close here)
@@ -1128,15 +1138,16 @@ class ScannerZGMT:
 
     # ──────────────────────────────────────────────────────────────────
 
-    def _calc_atr14(self, df: pd.DataFrame, up_to_index: int) -> float:
+    def _calc_atr14(self, df: pd.DataFrame, up_to_index: int, highs=None, lows=None, closes=None) -> float:
         """
         Compute ATR(14) using the 14 candles immediately before `up_to_index`.
         Returns 0.0 if insufficient data.
         """
         start = max(1, up_to_index - 14)
-        highs  = df['high'].values.astype(float)
-        lows   = df['low'].values.astype(float)
-        closes = df['close'].values.astype(float)
+        if highs is None:
+            highs  = df['high'].values.astype(float)
+            lows   = df['low'].values.astype(float)
+            closes = df['close'].values.astype(float)
         trs = []
         for k in range(start, up_to_index):
             tr = max(
@@ -1177,98 +1188,87 @@ class ScannerZGMT:
         D = zgmt_cfg.get("zgmt_ob_displacement_candles", 5)
         atr_mult = zgmt_cfg.get("zgmt_ob_atr_multiplier", 2.0)
 
+        swing_highs_list, swing_lows_list = self._detect_swings(df, L=2, R=2)
+
         for i in range(n - 2):  # need at least 1 displacement candle; j is bounded by min(i+D+1, n)
             body_high = float(max(opens[i], closes[i]))
             body_low  = float(min(opens[i], closes[i]))
             body_mid  = (body_high + body_low) / 2.0
 
             # ATR(14) at the OB candle
-            atr14 = self._calc_atr14(df, i)
+            atr14 = self._calc_atr14(df, i, highs, lows, closes)
 
-            # Collect most recent prior swing high and swing low before index i
-            lookback = min(i, zgmt_cfg.get("zgmt_swing_lookback", 3))
-            prior_highs = [float(highs[k]) for k in range(i - lookback, i)] if lookback > 0 else []
-            prior_lows  = [float(lows[k])  for k in range(i - lookback, i)] if lookback > 0 else []
-            prev_swing_high = max(prior_highs) if prior_highs else None
-            prev_swing_low  = min(prior_lows)  if prior_lows else None
+            prior_sh = [s for s in swing_highs_list if s["index"] < i]
+            prior_sl = [s for s in swing_lows_list if s["index"] < i]
+            prev_swing_high = prior_sh[-1]["price"] if prior_sh else None
+            prev_swing_low  = prior_sl[-1]["price"] if prior_sl else None
+
+            displacement_end = min(i + D + 1, n)
+            window_highs = highs[i+1:displacement_end]
+            window_lows = lows[i+1:displacement_end]
+            if len(window_highs) == 0:
+                continue
+
+            max_high_after = float(max(window_highs))
+            min_low_after = float(min(window_lows))
 
             # ── Bullish Normal OB: bearish candle ────────────────────────
             if closes[i] < opens[i]:
-                for j in range(i + 1, min(i + D + 1, n)):
-                    disp_close = float(closes[j])
-                    if disp_close > body_high:
-                        # Check 1: total bullish move >= 2×ATR(14)
-                        window_high = float(max(highs[i + 1 : j + 1]))
-                        total_move  = window_high - float(lows[i])
-                        if atr14 > 0 and total_move < atr_mult * atr14:
-                            logger.debug(
-                                f"[{pair}] Normal OB(BUY) at {i}: displacement {total_move:.5f} "
-                                f"< {atr_mult}×ATR14={atr_mult*atr14:.5f} — skipped."
-                            )
-                            break  # No point checking further candles in this window
-
-                        # Check 2: displacement close must break a prior swing high
-                        if prev_swing_high is not None and disp_close <= prev_swing_high:
-                            logger.debug(
-                                f"[{pair}] Normal OB(BUY) at {i}: displacement close {disp_close:.5f} "
-                                f"did not break prior swing high {prev_swing_high:.5f} — skipped."
-                            )
-                            break
-
-                        is_mitigated = self._check_mitigated_after(df, j, "BUY", body_low, pair)
-                        obs.append({
-                            "ob_type": "NORMAL",
-                            "direction": "BUY",
-                            "body_high": body_high,
-                            "body_low":  body_low,
-                            "body_mid":  body_mid,
-                            "candle_high": float(highs[i]),
-                            "candle_low": float(lows[i]),
-                            "candle_index": i,
-                            "displacement_index": j,
-                            "timeframe": tf,
-                            "is_mitigated": is_mitigated,
-                        })
-                        break
+                bullish_move = max_high_after - lows[i]
+                if bullish_move >= atr_mult * atr14:
+                    if prev_swing_high is not None and max_high_after > prev_swing_high:
+                        disp_idx = None
+                        for j in range(i + 1, displacement_end):
+                            if float(closes[j]) < float(lows[i]):
+                                break
+                            if float(closes[j]) > body_high and float(highs[j]) > prev_swing_high:
+                                disp_idx = j
+                                break
+                        
+                        if disp_idx is not None:
+                            is_mitigated = self._check_mitigated_after(df, disp_idx, "BUY", body_low, pair)
+                            obs.append({
+                                "ob_type": "NORMAL",
+                                "direction": "BUY",
+                                "body_high": body_high,
+                                "body_low":  body_low,
+                                "body_mid":  body_mid,
+                                "candle_high": float(highs[i]),
+                                "candle_low": float(lows[i]),
+                                "candle_index": i,
+                                "displacement_index": disp_idx,
+                                "timeframe": tf,
+                                "is_mitigated": is_mitigated,
+                            })
 
             # ── Bearish Normal OB: bullish candle ────────────────────────
             elif closes[i] > opens[i]:
-                for j in range(i + 1, min(i + D + 1, n)):
-                    disp_close = float(closes[j])
-                    if disp_close < body_low:
-                        # Check 1: total bearish move >= 2×ATR(14)
-                        window_low  = float(min(lows[i + 1 : j + 1]))
-                        total_move  = float(highs[i]) - window_low
-                        if atr14 > 0 and total_move < atr_mult * atr14:
-                            logger.debug(
-                                f"[{pair}] Normal OB(SELL) at {i}: displacement {total_move:.5f} "
-                                f"< {atr_mult}×ATR14={atr_mult*atr14:.5f} — skipped."
-                            )
-                            break
-
-                        # Check 2: displacement close must break a prior swing low
-                        if prev_swing_low is not None and disp_close >= prev_swing_low:
-                            logger.debug(
-                                f"[{pair}] Normal OB(SELL) at {i}: displacement close {disp_close:.5f} "
-                                f"did not break prior swing low {prev_swing_low:.5f} — skipped."
-                            )
-                            break
-
-                        is_mitigated = self._check_mitigated_after(df, j, "SELL", body_high, pair)
-                        obs.append({
-                            "ob_type": "NORMAL",
-                            "direction": "SELL",
-                            "body_high": body_high,
-                            "body_low":  body_low,
-                            "body_mid":  body_mid,
-                            "candle_high": float(highs[i]),
-                            "candle_low": float(lows[i]),
-                            "candle_index": i,
-                            "displacement_index": j,
-                            "timeframe": tf,
-                            "is_mitigated": is_mitigated,
-                        })
-                        break
+                bearish_move = highs[i] - min_low_after
+                if bearish_move >= atr_mult * atr14:
+                    if prev_swing_low is not None and min_low_after < prev_swing_low:
+                        disp_idx = None
+                        for j in range(i + 1, displacement_end):
+                            if float(closes[j]) > float(highs[i]):
+                                break
+                            if float(closes[j]) < body_low and float(lows[j]) < prev_swing_low:
+                                disp_idx = j
+                                break
+                                
+                        if disp_idx is not None:
+                            is_mitigated = self._check_mitigated_after(df, disp_idx, "SELL", body_high, pair)
+                            obs.append({
+                                "ob_type": "NORMAL",
+                                "direction": "SELL",
+                                "body_high": body_high,
+                                "body_low":  body_low,
+                                "body_mid":  body_mid,
+                                "candle_high": float(highs[i]),
+                                "candle_low": float(lows[i]),
+                                "candle_index": i,
+                                "displacement_index": disp_idx,
+                                "timeframe": tf,
+                                "is_mitigated": is_mitigated,
+                            })
         return obs
 
     # ──────────────────────────────────────────────────────────────────
@@ -1281,52 +1281,89 @@ class ScannerZGMT:
         Bearish: bearish move → retrace above midpoint → bearish continuation.
         """
         obs = []
-        for i in range(5, len(df) - 5):
-            move_start = df.iloc[i - 5]
-            move_end   = df.iloc[i]
-            move_range = float(move_end['close']) - float(move_start['close'])
-
-            if abs(move_range) < float(df.iloc[i]['close']) * 0.001:
-                continue  # Negligibly small move
-
-            midpoint = float(move_start['close']) + move_range * 0.50
-
-            for j in range(i + 1, min(i + 6, len(df))):
-                retrace = df.iloc[j]
-
-                # Bullish mitigation: bullish move, retraced below midpoint
-                if move_range > 0 and float(retrace['low']) < midpoint:
-                    body_high = float(move_start['high'])
-                    body_low  = float(move_start['low'])
-                    body_mid  = (body_high + body_low) / 2
-                    obs.append({
-                        "ob_type": "MITIGATION",
-                        "direction": "BUY",
-                        "body_high": body_high,
-                        "body_low": body_low,
-                        "body_mid": body_mid,
-                        "candle_index": i - 5,
-                        "timeframe": tf,
-                        "is_mitigated": self._check_mitigated_after(df, i - 5, "BUY", body_high, pair),
-                    })
-                    break
-
-                # Bearish mitigation: bearish move, retraced above midpoint
-                elif move_range < 0 and float(retrace['high']) > midpoint:
-                    body_high = float(move_start['high'])
-                    body_low  = float(move_start['low'])
-                    body_mid  = (body_high + body_low) / 2
-                    obs.append({
-                        "ob_type": "MITIGATION",
-                        "direction": "SELL",
-                        "body_high": body_high,
-                        "body_low": body_low,
-                        "body_mid": body_mid,
-                        "candle_index": i - 5,
-                        "timeframe": tf,
-                        "is_mitigated": self._check_mitigated_after(df, i - 5, "SELL", body_low, pair),
-                    })
-                    break
+        highs  = df['high'].values.astype(float)
+        lows   = df['low'].values.astype(float)
+        closes = df['close'].values.astype(float)
+        opens  = df['open'].values.astype(float)
+        n = len(df)
+        zgmt_cfg = self.zgmt_cfg
+        atr_mult = zgmt_cfg.get("zgmt_ob_atr_multiplier", 2.0)
+        
+        for i in range(14, n - 5): # start from 14 for ATR
+            atr14 = self._calc_atr14(df, i, highs, lows, closes)
+            if atr14 == 0: continue
+            
+            for j in range(i + 1, min(i + 6, n - 2)):
+                move_high = float(max(highs[i:j+1]))
+                move_low = float(min(lows[i:j+1]))
+                
+                # Check for Bullish Impulse
+                bullish_move = move_high - lows[i]
+                if bullish_move >= atr_mult * atr14:
+                    midpoint = move_high - (bullish_move / 2.0)
+                    
+                    retrace_idx = None
+                    lowest_retrace_val = float('inf')
+                    for k in range(j + 1, min(j + 10, n)):
+                        if float(highs[k]) > move_high:
+                            break
+                        if float(lows[k]) < lowest_retrace_val:
+                            lowest_retrace_val = float(lows[k])
+                            if lowest_retrace_val <= midpoint:
+                                retrace_idx = k
+                                
+                    if retrace_idx is not None:
+                        mb_idx = retrace_idx
+                        body_high = float(max(opens[mb_idx], closes[mb_idx]))
+                        body_low  = float(min(opens[mb_idx], closes[mb_idx]))
+                        body_mid  = (body_high + body_low) / 2.0
+                        
+                        is_mitigated = self._check_mitigated_after(df, mb_idx, "BUY", body_low, pair)
+                        obs.append({
+                            "ob_type": "MITIGATION",
+                            "direction": "BUY",
+                            "body_high": body_high,
+                            "body_low": body_low,
+                            "body_mid": body_mid,
+                            "candle_index": mb_idx,
+                            "timeframe": tf,
+                            "is_mitigated": is_mitigated,
+                        })
+                        break
+                
+                # Check for Bearish Impulse
+                bearish_move = highs[i] - move_low
+                if bearish_move >= atr_mult * atr14:
+                    midpoint = move_low + (bearish_move / 2.0)
+                    
+                    retrace_idx = None
+                    highest_retrace_val = float('-inf')
+                    for k in range(j + 1, min(j + 10, n)):
+                        if float(lows[k]) < move_low:
+                            break
+                        if float(highs[k]) > highest_retrace_val:
+                            highest_retrace_val = float(highs[k])
+                            if highest_retrace_val >= midpoint:
+                                retrace_idx = k
+                                
+                    if retrace_idx is not None:
+                        mb_idx = retrace_idx
+                        body_high = float(max(opens[mb_idx], closes[mb_idx]))
+                        body_low  = float(min(opens[mb_idx], closes[mb_idx]))
+                        body_mid  = (body_high + body_low) / 2.0
+                        
+                        is_mitigated = self._check_mitigated_after(df, mb_idx, "SELL", body_high, pair)
+                        obs.append({
+                            "ob_type": "MITIGATION",
+                            "direction": "SELL",
+                            "body_high": body_high,
+                            "body_low": body_low,
+                            "body_mid": body_mid,
+                            "candle_index": mb_idx,
+                            "timeframe": tf,
+                            "is_mitigated": is_mitigated,
+                        })
+                        break
         return obs
 
     # ──────────────────────────────────────────────────────────────────
@@ -1472,11 +1509,11 @@ class ScannerZGMT:
         if direction == "BUY":
             # Mitigated if any wick low drops into or below the OB body_low + tolerance
             threshold = level + mitigation_tolerance
-            return bool(any(subsequent['low'] <= threshold))
+            return bool((subsequent['low'] <= threshold).any())
         else:
             # Mitigated if any wick high rises into or above the OB body_high - tolerance
             threshold = level - mitigation_tolerance
-            return bool(any(subsequent['high'] >= threshold))
+            return bool((subsequent['high'] >= threshold).any())
 
     # ──────────────────────────────────────────────────────────────────
     # Proper Swing Detection (per strategy spec)
@@ -1505,6 +1542,7 @@ class ScannerZGMT:
             swing_highs: list of dicts {index, price} sorted ascending by index
             swing_lows:  list of dicts {index, price} sorted ascending by index
         """
+        import numpy as np
         highs = df['high'].values.astype(float)
         lows  = df['low'].values.astype(float)
         n = len(df)
@@ -1514,27 +1552,32 @@ class ScannerZGMT:
 
         raw_highs = []
         raw_lows  = []
-        # Track candles that are BOTH SH and SL so we can discard them (spec Section 1.16)
-        anomaly_indices = set()
-
-        for i in range(L, n - L):   # need L candles on BOTH sides for confirmation
-            # ── Swing High: strict > on ALL L left AND L right neighbours ──
-            is_sh = all(highs[i] > highs[i - k] for k in range(1, L + 1)) and \
-                    all(highs[i] > highs[i + k] for k in range(1, L + 1))
-
-            # ── Swing Low: strict < on ALL L left AND L right neighbours ───
-            is_sl = all(lows[i] < lows[i - k] for k in range(1, L + 1)) and \
-                    all(lows[i] < lows[i + k] for k in range(1, L + 1))
-
+        
+        if n > 2 * L:
+            is_sh = np.ones(n, dtype=bool)
+            is_sl = np.ones(n, dtype=bool)
+            
+            is_sh[:L] = False
+            is_sh[n-L:] = False
+            is_sl[:L] = False
+            is_sl[n-L:] = False
+            
+            for k in range(1, L + 1):
+                is_sh[L:n-L] &= (highs[L:n-L] > highs[L-k:n-L-k]) & (highs[L:n-L] > highs[L+k:n-L+k])
+                is_sl[L:n-L] &= (lows[L:n-L] < lows[L-k:n-L-k]) & (lows[L:n-L] < lows[L+k:n-L+k])
+                
             # Spec 1.16: same-candle SH+SL is anomalous — discard both
-            if is_sh and is_sl:
-                anomaly_indices.add(i)
-                continue
-
-            if is_sh:
-                raw_highs.append({"index": i, "price": highs[i]})
-            if is_sl:
-                raw_lows.append({"index": i, "price": lows[i]})
+            anomaly = is_sh & is_sl
+            is_sh &= ~anomaly
+            is_sl &= ~anomaly
+            
+            sh_indices = np.where(is_sh)[0]
+            sl_indices = np.where(is_sl)[0]
+            
+            for i in sh_indices:
+                raw_highs.append({"index": int(i), "price": float(highs[i])})
+            for i in sl_indices:
+                raw_lows.append({"index": int(i), "price": float(lows[i])})
 
         # ── Index-based minimum spacing filter (spec Section 1.10) ─────────
         def _filter_by_index_spacing(swings: list, keep_highest: bool) -> list:
@@ -1567,8 +1610,11 @@ class ScannerZGMT:
         If price touches the equilibrium AFTER confirmation, the pair is invalid.
         Gap over equilibrium also counts as a touch.
         """
-        sh_price = float(df.iloc[sh_index]['high'])
-        sl_price = float(df.iloc[sl_index]['low'])
+        highs = df['high'].values.astype(float)
+        lows = df['low'].values.astype(float)
+        
+        sh_price = highs[sh_index]
+        sl_price = lows[sl_index]
         equilibrium = (sh_price + sl_price) / 2.0
         
         # Confirmation index is L candles after the latter of the two swings
@@ -1580,8 +1626,8 @@ class ScannerZGMT:
         
         # Check all candles AFTER confirmation
         for k in range(confirmation_index + 1, n):
-            candle_low = float(df.iloc[k]['low'])
-            candle_high = float(df.iloc[k]['high'])
+            candle_low = lows[k]
+            candle_high = highs[k]
             
             # 1. Standard touch check (wick touches equilibrium)
             if (candle_low - touch_tolerance) <= equilibrium <= (candle_high + touch_tolerance):
@@ -1589,8 +1635,8 @@ class ScannerZGMT:
                 
             # 2. Gap check
             if k > confirmation_index + 1:
-                prev_high = float(df.iloc[k - 1]['high'])
-                prev_low = float(df.iloc[k - 1]['low'])
+                prev_high = highs[k - 1]
+                prev_low = lows[k - 1]
                 
                 # Bullish gap over equilibrium
                 if prev_high < equilibrium and candle_low > equilibrium:
@@ -1605,20 +1651,13 @@ class ScannerZGMT:
     def _get_dealing_range(
         self,
         df: pd.DataFrame,
-        bias: str,
         L: int,
         R: int,
         pair: str,
     ) -> tuple[float, float] | None:
         """
-        Build the current dealing range from the latest confirmed OPPOSITE swing pair.
-
-        Bullish bias  → dealing range = most recent swing_low → swing_high
-                        (i.e., swing_low must come BEFORE swing_high in time)
-        Bearish bias  → dealing range = most recent swing_high → swing_low
-                        (i.e., swing_high must come BEFORE swing_low in time)
-
-        Returns (swing_low_price, swing_high_price) or None if no valid pair found.
+        Build the current dealing range from the most recent valid opposite swing pair.
+        The direction of the range is determined organically by the swings, NOT by a fixed bias.
         """
         swing_highs, swing_lows = self._detect_swings(df, L=L, R=R)
 
@@ -1626,48 +1665,42 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] _get_dealing_range: Not enough swings detected (H={len(swing_highs)} L={len(swing_lows)}).")
             return None
 
-        if bias == "BULLISH":
-            # Need most recent swing_high that has a swing_low BEFORE it
-            # Iterate swing highs from most recent backwards
-            for sh in reversed(swing_highs):
-                # Find the most recent swing low that occurs BEFORE this swing high
-                prior_lows = [sl for sl in swing_lows if sl["index"] < sh["index"]]
-                if not prior_lows:
-                    continue
-                sl = prior_lows[-1]  # most recent prior swing low
-                # Sanity: swing low must be lower than swing high
-                if sl["price"] >= sh["price"]:
-                    continue
-                
-                # 50% Rule Validation
-                if not self._validate_swing_pair(df, sh["index"], sl["index"], L, pair):
-                    continue
-                    
-                return (sl["price"], sh["price"])  # (range_low, range_high)
-        else:  # BEARISH
-            # Need most recent swing_low that has a swing_high BEFORE it
-            for sl in reversed(swing_lows):
-                prior_highs = [sh for sh in swing_highs if sh["index"] < sl["index"]]
-                if not prior_highs:
-                    continue
-                sh = prior_highs[-1]  # most recent prior swing high
-                if sh["price"] <= sl["price"]:
-                    continue
-                
-                # 50% Rule Validation
-                if not self._validate_swing_pair(df, sh["index"], sl["index"], L, pair):
-                    continue
-                    
-                return (sl["price"], sh["price"])  # (range_low, range_high)
+        # Combine swings to find the most recent valid pair
+        all_swings = [{"type": "HIGH", **sh} for sh in swing_highs] + \
+                     [{"type": "LOW", **sl} for sl in swing_lows]
+        all_swings.sort(key=lambda x: x["index"], reverse=True)
 
-        logger.debug(f"[{pair}] _get_dealing_range: No valid opposite-swing pair found for bias={bias}.")
+        # Iterate from the most recent swing backwards
+        for i, recent_swing in enumerate(all_swings):
+            # Find the most recent prior swing of the OPPOSITE type
+            prior_swings = [sw for sw in all_swings[i+1:] if sw["type"] != recent_swing["type"]]
+            if not prior_swings:
+                continue
+            
+            prior_swing = prior_swings[0]
+            
+            sh_index = recent_swing["index"] if recent_swing["type"] == "HIGH" else prior_swing["index"]
+            sl_index = recent_swing["index"] if recent_swing["type"] == "LOW" else prior_swing["index"]
+            sh_price = recent_swing["price"] if recent_swing["type"] == "HIGH" else prior_swing["price"]
+            sl_price = recent_swing["price"] if recent_swing["type"] == "LOW" else prior_swing["price"]
+            
+            # Sanity: swing low must be lower than swing high
+            if sl_price >= sh_price:
+                continue
+
+            # 50% Rule Validation
+            if not self._validate_swing_pair(df, sh_index, sl_index, L, pair):
+                continue
+
+            return (sl_price, sh_price)
+
+        logger.debug(f"[{pair}] _get_dealing_range: No valid opposite-swing pair found.")
         return None
 
     def _is_ob_in_fib_zone(
         self,
         ob: dict,
         dealing_range: tuple[float, float],
-        bias: str,
         pair: str,
     ) -> bool:
         """
