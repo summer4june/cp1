@@ -48,6 +48,10 @@ class ScannerOTE:
             logger.debug(f"[{pair}] OTE Scanner is disabled in config.")
             return None
             
+        # Ensure OTE only scans during an active killzone
+        if not killzone:
+            return None
+            
         # 0. Central state protection
         if self.state.is_pair_on_cooldown(pair):
             logger.debug(f"[{pair}] OTE scan skipped — pair is on cooldown.")

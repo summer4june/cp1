@@ -552,15 +552,10 @@ def main():
             session = session_engine.get_active_session()
             killzone = session_engine.get_active_killzone()
 
-            # Only scan during a killzone
-            if not killzone:
-                time.sleep(config.scan_frequency_seconds)
-                continue
-
             pairs = session_engine.get_allowed_pairs(session, killzone)
             if not pairs:
-                time.sleep(config.scan_frequency_seconds)
-                continue
+                # Fallback to all configured pairs if outside standard sessions
+                pairs = config.pairs
 
             # Concurrent pair scan — one exception per pair is isolated
             num_workers = max(1, len(pairs))

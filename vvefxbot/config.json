@@ -1,5 +1,23 @@
 {
   "assets": {
+    "US500m": {
+      "max_spread": 99.0,
+      "strategies": [
+        "MACRO"
+      ]
+    },
+    "USTECm": {
+      "max_spread": 99.0,
+      "strategies": [
+        "MACRO"
+      ]
+    },
+    "US30m": {
+      "max_spread": 99.0,
+      "strategies": [
+        "MACRO"
+      ]
+    },
     "GBPJPYm": {
       "max_spread": 99.0,
       "strategies": [
