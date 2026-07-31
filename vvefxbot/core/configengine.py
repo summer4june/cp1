@@ -157,6 +157,8 @@ class ConfigEngine:
             json_data["zgmt_scanner"]["pairs"] = zgmt_pairs
         if "macro_strategy" in json_data:
             json_data["macro_strategy"]["pairs"] = macro_pairs
+        if "macro_leg_b_strategy" in json_data:
+            json_data["macro_leg_b_strategy"]["pairs"] = macro_pairs
             
         json_data["pairs"] = pairs
         json_data["spread_limits"] = spread_limits
