@@ -13,6 +13,7 @@ class Config:
     ote_scanner: Dict[str, Any]
     zgmt_scanner: Dict[str, Any]
     macro_strategy: Dict[str, Any]
+    macro_leg_b_strategy: Dict[str, Any]
     trade_management: Dict[str, Any]   # partial TP, BE buffer, etc.
     pairs: List[str]
     session_timings: Dict[str, Dict[str, str]]
@@ -85,10 +86,11 @@ class ConfigEngine:
         if "strategy_mode" not in json_data:
             json_data["strategy_mode"] = "MMXM"
         if "enabled_scanners" not in json_data:
-            json_data["enabled_scanners"] = {"mmxm": True, "ote": False, "zgmt": False}
+            json_data["enabled_scanners"] = {"mmxm": True, "ote": False, "zgmt": False, "macro_leg_b": False}
         else:
             # Backward-compatible: add zgmt key if missing
             json_data["enabled_scanners"].setdefault("zgmt", False)
+            json_data["enabled_scanners"].setdefault("macro_leg_b", False)
         if "ote_scanner" not in json_data:
             json_data["ote_scanner"] = {"enabled": False}
         if "zgmt_scanner" not in json_data:
@@ -245,6 +247,7 @@ class ConfigEngine:
             ote_scanner=json_data["ote_scanner"],
             zgmt_scanner=json_data["zgmt_scanner"],
             macro_strategy=json_data.get("macro_strategy", {}),
+            macro_leg_b_strategy=json_data.get("macro_leg_b_strategy", {}),
             trade_management=json_data["trade_management"],
             pairs=json_data["pairs"],
             session_timings=json_data["session_timings"],

@@ -91,7 +91,14 @@
     "mmxm": false,
     "ote": false,
     "zgmt": true,
-    "macro": true
+    "macro": true,
+    "macro_leg_b": true
+  },
+  "macro_leg_b_strategy": {
+    "enabled": true,
+    "pairs": ["US500m", "USTECm", "US30m"],
+    "fib_entry_level": 0.5,
+    "risk_reward": 3.0
   },
   "session_timings": {
     "Asia": {

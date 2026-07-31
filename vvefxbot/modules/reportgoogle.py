@@ -48,6 +48,7 @@ class GoogleSheetReporter:
         self.denied_sheet = None
         self.vault_sheet = None
         self.leg_b_sheet = None
+        self.macro_sheet = None
 
     def connect(self) -> bool:
         """
@@ -116,6 +117,18 @@ class GoogleSheetReporter:
             if not first_row_leg_b or first_row_leg_b[0] not in ("trade_id", "TradeID"):
                 self.leg_b_sheet.insert_row(_LEG_B_HEADERS, 1)
                 logger.info("Added header row to Leg_B_Trades Google Sheet tab.")
+
+            # Connect to Macro sheet in the SAME spreadsheet
+            try:
+                self.macro_sheet = spreadsheet.worksheet("Macro_Trades")
+            except gspread.exceptions.WorksheetNotFound:
+                logger.info("Macro_Trades sheet not found, creating it now.")
+                self.macro_sheet = spreadsheet.add_worksheet(title="Macro_Trades", rows=1000, cols=40)
+
+            first_row_macro = self.macro_sheet.row_values(1)
+            if not first_row_macro or first_row_macro[0] not in ("trade_id", "TradeID"):
+                self.macro_sheet.insert_row(_LEG_B_HEADERS, 1)
+                logger.info("Added header row to Macro_Trades Google Sheet tab.")
 
             return True
 
@@ -351,9 +364,11 @@ class GoogleSheetReporter:
                         raise e
                 logger.info(f"Trade {trade_id} {status} — appended new row to Google Sheet.")
                 
-            # Log to Leg B sheet if applicable
+            # Log to Leg B sheet if applicable (ZGMT)
             entry_leg = trade.get("entry_leg") or (signal.get("entry_leg") if signal else "")
-            if entry_leg == "B" and self.leg_b_sheet:
+            setup_type = trade.get("setup_type") or (signal.get("setup_type") if signal else "")
+            
+            if entry_leg == "B" and "ZGMT" in setup_type and self.leg_b_sheet:
                 leg_b_row_data = row_data + [
                     signal.get("swing_low", "") if signal else "",
                     signal.get("swing_high", "") if signal else "",
@@ -377,6 +392,25 @@ class GoogleSheetReporter:
                         else:
                             raise e
                     logger.info(f"Trade {trade_id} {status} — appended new row to Leg_B_Trades.")
+                    
+            # Log to Macro sheet if applicable
+            if setup_type and "Macro" in setup_type and self.macro_sheet:
+                macro_row_data = row_data + [
+                    signal.get("swing_low", "") if signal else "",
+                    signal.get("swing_high", "") if signal else "",
+                    signal.get("timeframe_entry", "") if signal else "",
+                    signal.get("ob_low", "") if signal else "",
+                    signal.get("ob_high", "") if signal else ""
+                ]
+                
+                macro_row_num = self._find_row_by_trade_id(trade_id, sheet=self.macro_sheet)
+                if macro_row_num > 0:
+                    updates_m = get_updates_for_row(macro_row_num)
+                    self.macro_sheet.batch_update(updates_m)
+                    logger.info(f"Trade {trade_id} {status} — updated row {macro_row_num} in Macro_Trades.")
+                else:
+                    self.macro_sheet.append_row(macro_row_data, value_input_option='USER_ENTERED')
+                    logger.info(f"Trade {trade_id} {status} — appended new row to Macro_Trades.")
 
             return True
 

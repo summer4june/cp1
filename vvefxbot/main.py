@@ -510,6 +510,10 @@ def main():
         from modules.scannermacro import ScannerMacro
         scanners.append(("ScannerMacro", ScannerMacro(config, mt5_connector, state_engine)))
         
+    if enabled.get("macro_leg_b", False):
+        from modules.scannermacrolegb import ScannerMacroLegB
+        scanners.append(("ScannerMacroLegB", ScannerMacroLegB(config, mt5_connector, state_engine)))
+        
     logger.info(f"[Main] Strategy mode: {mode}")
     logger.info(f"[Main] Enabled scanners: {', '.join([s[0] for s in scanners])}")
 
