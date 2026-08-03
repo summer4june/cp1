@@ -931,9 +931,13 @@ class ScannerZGMT:
             if df is None or (hasattr(df, 'empty') and df.empty):
                 continue
             
-            # CRITICAL FIX: Exclude the last candle because it is currently forming.
-            # An Order Block and its Displacement MUST be completely closed candles.
-            df = df.iloc[:-1].reset_index(drop=True)
+            # CRITICAL FIX: Exclude the last TWO candles:
+            #   iloc[-1] = the currently FORMING candle (never a valid OB or displacement)
+            #   iloc[-2] = the most recently CLOSED candle — excluded as an OB candidate
+            #              because it has no confirmed displacement candle after it yet.
+            # The OB must be at least 2 closed candles old so at least 1 fully-closed
+            # displacement candle exists to confirm the OB before Leg B can fire.
+            df = df.iloc[:-2].reset_index(drop=True)
             if df.empty:
                 continue
             
