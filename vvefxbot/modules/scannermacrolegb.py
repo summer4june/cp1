@@ -152,7 +152,7 @@ class ScannerMacroLegB:
         )
 
         return {
-            "id": sig_id,
+            "signal_id": sig_id,
             "pair": pair,
             "direction": direction_str,
             "entry_price": round(entry_price, 5),
@@ -164,6 +164,7 @@ class ScannerMacroLegB:
             "session": "MACRO_LEGB",
             "entry_leg": "B", 
             "setup_type": "Macro_LegB",
+            "strategy": "MACRO_LEG_B",
             "score": 100,
             
             # Leg B fields required by Google Sheets
