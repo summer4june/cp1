@@ -392,7 +392,8 @@ class ScannerMMXM:
             "spread_pips": round(spread, 2),
             "effective_rr": round(effective_rr, 4),
             "score": score,
-            "detected_time": datetime.now(timezone.utc).isoformat()
+            "detected_time": datetime.now(timezone.utc).isoformat(),
+            "strategy": "MMXM"
         }
 
     # ------------------------------------------------------------------
