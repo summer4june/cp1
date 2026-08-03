@@ -291,7 +291,7 @@ def scan_pair(
             "ScannerOTE": "OTE",
             "ScannerZGMT": "ZGMT",
             "ScannerMacro": "MACRO",
-            "ScannerMacroLegB": "MACRO_LEG_B"
+            "ScannerMacroLegB": "MACRO"
         }
 
         pair_strategies = config.assets.get(pair, {}).get("strategies", [])

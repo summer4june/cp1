@@ -560,12 +560,12 @@ def main():
                 from modules.scannermacro import ScannerMacro
                 scanners.append(ScannerMacro(config, connector, _bt_state))
                 
-            if strats.get("MACRO_LEG_B", False):
-                config.enabled_scanners["macro_leg_b"] = True
-                if isinstance(config.macro_strategy, dict):
-                    config.macro_strategy["pairs"] = pairs
-                from modules.scannermacrolegb import ScannerMacroLegB
-                scanners.append(ScannerMacroLegB(config, connector, _bt_state))
+                if config.enabled_scanners.get("macro_leg_b", False):
+                    if isinstance(config.macro_leg_b_strategy, dict):
+                        config.macro_leg_b_strategy["enabled"] = True
+                        config.macro_leg_b_strategy["pairs"] = pairs
+                    from modules.scannermacrolegb import ScannerMacroLegB
+                    scanners.append(ScannerMacroLegB(config, connector, _bt_state))
                 
             if strats.get("ZGMT", False):
                 if isinstance(config.zgmt_scanner, dict):

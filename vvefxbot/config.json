@@ -3,22 +3,19 @@
     "US500m": {
       "max_spread": 99.0,
       "strategies": [
-        "MACRO",
-        "MACRO_LEG_B"
+        "MACRO"
       ]
     },
     "USTECm": {
       "max_spread": 99.0,
       "strategies": [
-        "MACRO",
-        "MACRO_LEG_B"
+        "MACRO"
       ]
     },
     "US30m": {
       "max_spread": 99.0,
       "strategies": [
-        "MACRO",
-        "MACRO_LEG_B"
+        "MACRO"
       ]
     },
     "GBPJPYm": {
