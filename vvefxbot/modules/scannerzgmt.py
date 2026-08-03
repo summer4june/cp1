@@ -1843,10 +1843,11 @@ class ScannerZGMT:
         
         adr_mode = self.zgmt_cfg.get("adr_mode", "HIGH_LOW_RANGE")
         
-        if adr_mode == "HIGH_LOW_RANGE" or adr_mode == "TRUE_AVERAGE":
-            # Both modes should compute true Average Daily Range: mean of daily (high - low)
-            adr = float((completed['high'] - completed['low']).mean())
-        else:
+        if adr_mode == "HIGH_LOW_RANGE":
+            highest_high = float(completed['high'].max())
+            lowest_low = float(completed['low'].min())
+            adr = (highest_high - lowest_low) / adr_days
+        else:  # TRUE_AVERAGE
             adr = float((completed['high'] - completed['low']).mean())
             
         return adr / 2  # SL = ADR ÷ 2
