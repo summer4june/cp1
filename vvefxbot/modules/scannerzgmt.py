@@ -618,6 +618,19 @@ class ScannerZGMT:
         Execute the ZGMT scan for a single pair.
         Returns a signal dict (or list of dicts for SPLIT) on success, None otherwise.
         """
+        # ── Pre-05:30 IST Gate ───────────────────────────────────────
+        # ZGMT strictly depends on the 0 GMT open (05:30 IST).
+        # We should not even attempt to scan before the trading day starts for ZGMT.
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:
+            from backports.zoneinfo import ZoneInfo
+
+        now_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+        if now_ist.hour < 5 or (now_ist.hour == 5 and now_ist.minute < 30):
+            return None
+
         # If a specific list of pairs is defined for ZGMT, filter by it.
         zgmt_cfg = self.config.zgmt_scanner
         allowed_pairs = zgmt_cfg.get("pairs", [])
