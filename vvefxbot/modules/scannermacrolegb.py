@@ -30,6 +30,15 @@ class ScannerMacroLegB:
         self._last_signal_time = {}
         self.traded_days = set()
 
+    def _pip_size(self, pair: str) -> float:
+        p = pair.upper()
+        if "JPY" in p: return 0.01
+        if "XAU" in p or "XAG" in p: return 0.01
+        if any(x in p for x in ["US500", "SPX"]): return 0.1
+        if any(x in p for x in ["US30", "WS30", "GER40", "UK100"]): return 1.0
+        if any(x in p for x in ["USTEC", "US100", "NAS100"]): return 0.1
+        return 0.0001
+
     def scan(self, pair: str, session: str = None, killzone: str = None) -> dict | None:
         if not self.config.enabled_scanners.get("macro_leg_b", False):
             return None
@@ -120,20 +129,23 @@ class ScannerMacroLegB:
             # OB high to low is the zone. We enter at fib of that zone.
             zone_size = signal_obj.ob_high - signal_obj.ob_low
             entry_price = signal_obj.ob_high - (zone_size * fib_level)
-            sl_price = lowest_low - 0.0002 # buffer
+            sl_buffer = self._pip_size(pair) * 2
+            sl_price = lowest_low - sl_buffer
             is_above_market = entry_price < current_price
         else:
             direction_str = "SELL"
             highest_high = signal_obj.sweep_level
             zone_size = signal_obj.ob_high - signal_obj.ob_low
             entry_price = signal_obj.ob_low + (zone_size * fib_level)
-            sl_price = highest_high + 0.0002 # buffer
+            sl_buffer = self._pip_size(pair) * 2
+            sl_price = highest_high + sl_buffer
             is_above_market = entry_price > current_price
 
         # Basic risk checks
         sl_dist = abs(entry_price - sl_price)
-        if sl_dist < 0.0001:
-            sl_dist = 0.0005
+        min_sl = self._pip_size(pair) * 5
+        if sl_dist < min_sl:
+            sl_dist = min_sl
             if direction_str == "BUY": sl_price = entry_price - sl_dist
             else: sl_price = entry_price + sl_dist
 
@@ -144,14 +156,19 @@ class ScannerMacroLegB:
 
         sig_id = str(uuid.uuid4())[:8]
         self._last_signal_time[pair] = now_utc
-        self.traded_days.add(check_key)
+        # Note: traded_days is updated ONLY after signal dict is built to avoid
+        # locking out the pair if something goes wrong downstream
+
+        pip = self._pip_size(pair)
+        sl_pips_val = round(sl_dist / pip, 1) if pip > 0 else 0.0
+        spread_pips = self.mt5.get_current_spread(pair) or 0.0
 
         logger.info(
             f"[{pair}] \ud83d\udc0a HYDRA LEG B SMR SIGNAL: {direction_str} Limit at {entry_price:.5f} | "
             f"Sweep: {signal_obj.session_swept} {signal_obj.sweep_type} | SL: {sl_price:.5f} | TP3: {tp3_price:.5f}"
         )
 
-        return {
+        signal_dict = {
             "signal_id": sig_id,
             "pair": pair,
             "direction": direction_str,
@@ -160,13 +177,16 @@ class ScannerMacroLegB:
             "tp1_price": round(tp1_price, 5),
             "tp2_price": round(tp2_price, 5),
             "tp3_price": round(tp3_price, 5),
+            "sl_pips": sl_pips_val,
+            "spread_pips": spread_pips,
             "is_above_market": is_above_market,
             "session": "MACRO_LEGB",
-            "entry_leg": "B", 
+            "killzone": "MACRO_LEGB",
+            "entry_leg": "B",
             "setup_type": "Macro_LegB",
             "strategy": "MACRO_LEG_B",
             "score": 100,
-            
+            "detected_time": now_utc.isoformat(),
             # Leg B fields required by Google Sheets
             "swing_low": signal_obj.sweep_level if signal_obj.sweep_type == "LOW" else signal_obj.mss_level,
             "swing_high": signal_obj.sweep_level if signal_obj.sweep_type == "HIGH" else signal_obj.mss_level,
@@ -174,3 +194,5 @@ class ScannerMacroLegB:
             "ob_high": signal_obj.ob_high,
             "timeframe_entry": "M5",
         }
+        self.traded_days.add(check_key)
+        return signal_dict

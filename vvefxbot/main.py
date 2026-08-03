@@ -81,7 +81,9 @@ def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, sessi
             london_close = active_timings.get("LondonClose")
             
             if london_close and today != last_eod_date:
-                end_time = london_close["end"]
+                end_time = london_close.get("end")
+                if not end_time:
+                    continue
                 # Assuming LondonClose ends before midnight IST (e.g., 21:30 or 22:30)
                 if now_ist >= end_time:
                     logger.info("LondonClose killzone ended. Triggering EOD Vault Process.")
@@ -101,15 +103,15 @@ def eod_monitor_loop(vault_engine: VaultEngine, state_engine: StateEngine, sessi
                     current_lot_size = vault_engine.get_current_risk_amount(mt5_connector)
                     
                     daily_state = state_engine.get_daily_state(today)
-                    daily_profit = daily_state.get("daily_profit_usd", 0.0)
+                    daily_profit = float(daily_state.get("daily_profit_usd") or 0.0)
                     end_balance = start_balance + daily_profit
                     
-                    daily_trades = daily_state.get("total_trades", 0)
-                    daily_wins = daily_state.get("daily_wins", 0)
+                    daily_trades = int(daily_state.get("total_trades") or 0)
+                    daily_wins = int(daily_state.get("daily_wins") or 0)
                     win_rate = (daily_wins / daily_trades * 100) if daily_trades > 0 else 0.0
                     
                     # If daily profit is negative, calculate drawdown from start balance
-                    daily_drawdown = (abs(daily_profit) / start_balance * 100) if daily_profit < 0 else 0.0
+                    daily_drawdown = (abs(daily_profit) / start_balance * 100) if (daily_profit < 0 and start_balance > 0) else 0.0
                     
                     msg = (
                         "🌙 *End of Day Vault Summary*\n\n"
@@ -150,7 +152,10 @@ def reconcile_open_positions(
     Trades still open get a resume notification so the user knows the bot
     is managing them again, and what TP stage they are at.
     """
-    import MetaTrader5 as mt5
+    try:
+        import MetaTrader5 as mt5
+    except ImportError:
+        mt5 = None
     logger.info("=" * 50)
     logger.info("BOT STARTUP: Reconciling open positions from DB vs MT5...")
 
@@ -163,12 +168,12 @@ def reconcile_open_positions(
     reconciled_closed = 0
 
     for trade in open_trades:
-        trade_id = trade["trade_id"]
+        trade_id = trade.get("trade_id", "")
         pair = trade.get("pair", "?")
         direction = trade.get("direction", "?")
         ticket_id_raw = str(trade.get("ticket_id", ""))
-        tp1_hit = int(trade.get("tp1_hit", 0))
-        tp2_hit = int(trade.get("tp2_hit", 0))
+        tp1_hit = int(trade.get("tp1_hit") or 0)
+        tp2_hit = int(trade.get("tp2_hit") or 0)
         tp3 = float(trade.get("tp3") or 0.0)
 
         tokens = [t.strip() for t in ticket_id_raw.split(",") if t.strip().isdigit()]
@@ -177,7 +182,13 @@ def reconcile_open_positions(
             continue
 
         ticket = int(tokens[0])
+        if mt5 is None:
+            logger.warning("MT5 not available for reconciliation.")
+            break
         positions = mt5.positions_get(ticket=ticket)
+        if positions is None:
+            logger.warning(f"[{pair}] Reconcile: MT5 returned None for ticket {ticket} — possible connection error. Skipping.")
+            continue
         position_alive = bool(positions and len(positions) > 0)
 
         if position_alive:
@@ -294,7 +305,7 @@ def scan_pair(
             "ScannerMacroLegB": "MACRO"
         }
 
-        pair_strategies = config.assets.get(pair, {}).get("strategies", [])
+        pair_strategies = config.assets.get(pair, {}).get("strategies") or []
 
         # Run scanners sequentially
         for scanner_name, scanner in scanners:
@@ -321,7 +332,10 @@ def scan_pair(
                     logger.debug(f"[{pair}] {scanner_name} skipped — {strategy} {direction} signal already sent to Telegram today.")
                     continue
 
-                signal_id = signal["signal_id"]
+                signal_id = signal.get("signal_id")
+                if not signal_id:
+                    logger.warning(f"[{pair}] {scanner_name} returned signal without signal_id — skipping.")
+                    continue
                 spread_pips = signal.get("spread_pips", 0.0)
                 score = signal.get("score", 0.0)
                 
@@ -364,31 +378,37 @@ def scan_pair(
                 # Calculate USD values
                 import MetaTrader5 as mt5
                 order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
-                
-                # SL USD
-                sl_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["sl_price"])
-                sl_usd = abs(sl_usd) if sl_usd else 0.0
+                entry_price = signal.get("entry_price") or 0.0
+                sl_price_s   = signal.get("sl_price") or 0.0
+                tp1_price_s  = signal.get("tp1_price") or 0.0
+                tp2_price    = signal.get("tp2_price") or 0.0
+                tp3_price    = signal.get("tp3_price") or 0.0
 
-                # TP1, TP2, TP3 USD
-                tp1_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], signal["tp1_price"])
-                tp1_usd = abs(tp1_usd) if tp1_usd else 0.0
-                
-                tp2_price = signal.get("tp2_price") or 0.0
+                sl_usd = 0.0
+                if entry_price and sl_price_s:
+                    sl_usd = mt5.order_calc_profit(order_type, pair, lot_size, entry_price, sl_price_s)
+                    sl_usd = abs(sl_usd) if sl_usd else 0.0
+
+                tp1_usd = 0.0
+                if entry_price and tp1_price_s:
+                    tp1_usd = mt5.order_calc_profit(order_type, pair, lot_size, entry_price, tp1_price_s)
+                    tp1_usd = abs(tp1_usd) if tp1_usd else 0.0
+
                 tp2_usd = 0.0
-                if tp2_price > 0:
-                    tp2_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], tp2_price)
+                if entry_price and tp2_price:
+                    tp2_usd = mt5.order_calc_profit(order_type, pair, lot_size, entry_price, tp2_price)
                     tp2_usd = abs(tp2_usd) if tp2_usd else 0.0
-                
+
                 tp3_usd = 0.0
-                tp3_price = signal.get("tp3_price") or 0.0
-                tp3_usd = 0.0
-                if tp3_price > 0:
-                    tp3_usd = mt5.order_calc_profit(order_type, pair, lot_size, signal["entry_price"], tp3_price)
+                if entry_price and tp3_price:
+                    tp3_usd = mt5.order_calc_profit(order_type, pair, lot_size, entry_price, tp3_price)
                     tp3_usd = abs(tp3_usd) if tp3_usd else 0.0
 
                 # Margin USD
-                margin_usd = mt5.order_calc_margin(order_type, pair, lot_size, signal["entry_price"])
-                margin_usd = margin_usd if margin_usd else 0.0
+                margin_usd = 0.0
+                if entry_price:
+                    margin_usd = mt5.order_calc_margin(order_type, pair, lot_size, entry_price)
+                    margin_usd = margin_usd if margin_usd else 0.0
 
                 usd_metrics = {
                     "sl_usd": sl_usd,
@@ -399,15 +419,15 @@ def scan_pair(
                 }
 
                 state_engine.insert_signal(signal)
-                
+
+                signal_dispatched = False
                 if config.require_telegram_approval:
                     sent = telegram_bridge.send_signal(signal, lot_size, usd_metrics)
                     if sent:
                         # Mark signal as CONFIRMED sent to Telegram — prevents re-sending on restart
                         state_engine.mark_signal_sent(signal_id)
                         logger.info(f"[{pair}] A+ signal {signal_id} ({scanner_name}) sent to Telegram. Awaiting approval.")
-                        # We sent a valid signal, stop checking other scanners for this pair this cycle
-                        break
+                        signal_dispatched = True
                     else:
                         logger.error(f"[{pair}] Failed to send signal {signal_id} to Telegram.")
                 else:
@@ -416,7 +436,14 @@ def scan_pair(
                     state_engine.mark_signal_sent(signal_id)
                     if execution_engine:
                         execution_engine.execute_signal(signal_id)
+                    signal_dispatched = True
+
+                if signal_dispatched:
+                    # Stop checking other scanners for this pair this cycle
                     break
+            
+            if signal_dispatched:
+                break
 
     except Exception as e:
         logger.error(f"[{pair}] Exception during pair scan: {e}\n{traceback.format_exc()}")

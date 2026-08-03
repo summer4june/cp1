@@ -281,10 +281,17 @@ class ScannerMacro:
         tp_pips = sl_pips * rr_target
         tp_price = entry_price + (tp_pips * self._pip_size(pair)) if direction_str == "BUY" else entry_price - (tp_pips * self._pip_size(pair))
         
+        # Collect swing and OB levels for reporting
+        swing_high = signal_obj.mss_level if signal_obj.direction == TradeDirection.LONG else signal_obj.manipulation_sweep_level
+        swing_low  = signal_obj.manipulation_sweep_level if signal_obj.direction == TradeDirection.LONG else signal_obj.mss_level
+        ob_high    = entry_price + (self._get_sl_buffer_pips(pair) * self._pip_size(pair))
+        ob_low     = sl_price
+
         signal = self._build_signal(
-            direction_str, pair, entry_price, sl_price, tp_price, 
+            direction_str, pair, entry_price, sl_price, tp_price,
             window_name, window_type, sl_pips, tp_pips, now_utc, end_t_ist, signal_obj.priority,
-            is_above_market=is_above_market
+            is_above_market=is_above_market,
+            swing_high=swing_high, swing_low=swing_low, ob_high=ob_high, ob_low=ob_low
         )
         
         if signal:
@@ -316,7 +323,7 @@ class ScannerMacro:
             return float(self.macro_cfg.get("sl_buffer_pips_nasdaq", 10.0))
         return float(self.macro_cfg.get("sl_buffer_pips_fx", 0.0))
 
-    def _build_signal(self, direction, pair, entry, sl, tp, window_name, window_type, sl_pips, tp_pips, now_utc, end_t_ist, priority, is_above_market=False):
+    def _build_signal(self, direction, pair, entry, sl, tp, window_name, window_type, sl_pips, tp_pips, now_utc, end_t_ist, priority, is_above_market=False, swing_high=None, swing_low=None, ob_high=None, ob_low=None):
         score = 90.0
         
         spread_val = 0.0
@@ -332,7 +339,7 @@ class ScannerMacro:
         
         ticket_id = f"MACRO-{uuid.uuid4().hex[:8].upper()}"
         
-        spr = self.mt5.get_current_spread(pair)
+        spr = self.mt5.get_current_spread(pair) or 0.0
         den = sl_pips + spr
         eff_rr = (tp_pips - spr) / den if den > 0 else 0.0
         
@@ -401,7 +408,12 @@ class ScannerMacro:
             "entry_mode": "FILTER",
             "expiration_time": expiration_utc.isoformat(),
             "is_above_market": is_above_market,
-            "priority": priority
+            "priority": priority,
+            # Swing / OB levels for Google Sheet reporting
+            "swing_high": swing_high,
+            "swing_low": swing_low,
+            "ob_high": ob_high,
+            "ob_low": ob_low,
         }
 
     def _pip_size(self, pair: str) -> float:

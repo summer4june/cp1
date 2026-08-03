@@ -1,7 +1,7 @@
 import os
 import time
 from typing import Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pytz
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -179,14 +179,15 @@ class GoogleSheetReporter:
         tp3_price = trade.get("tp3", 0.0) or (signal.get("tp3_price", 0.0) if signal else 0.0)
 
         # Pip distances
-        point = 0.01 if ("JPY" in pair or "XAU" in pair or "XAG" in pair) else 0.0001
+        pair = pair or ""
+        point = 0.01 if pair and ("JPY" in pair or "XAU" in pair or "XAG" in pair) else 0.0001
         # USD values (using exact metrics from MT5 if available)
-        sl_usd = float(trade.get("sl_usd") or trade.get("risk_amount", 0.0))
+        sl_usd = float(trade.get("sl_usd") or trade.get("risk_amount") or 0.0)
         tp1_usd = float(trade.get("tp1_usd") or sl_usd)
         tp2_usd = float(trade.get("tp2_usd") or sl_usd * 2.0)
         tp3_usd = float(trade.get("tp3_usd") or sl_usd * 3.0)
         
-        sl_pips = float(trade.get("sl_pips") or signal.get("sl_pips", 0.0))
+        sl_pips = float(trade.get("sl_pips") or (signal.get("sl_pips", 0.0) if signal else 0.0))
 
         # Calculate exact pips from prices if available
         pip_size = point
@@ -215,11 +216,11 @@ class GoogleSheetReporter:
 
         result = trade.get("result", "") or ""
         max_level = ""
-        if int(trade.get("tp3_hit", 0)) == 1:
+        if int(trade.get("tp3_hit") or 0) == 1:
             max_level = "tp3"
-        elif int(trade.get("tp2_hit", 0)) == 1:
+        elif int(trade.get("tp2_hit") or 0) == 1:
             max_level = "tp2"
-        elif int(trade.get("tp1_hit", 0)) == 1:
+        elif int(trade.get("tp1_hit") or 0) == 1:
             max_level = "tp1"
 
         # Calculate proper open time
@@ -368,7 +369,7 @@ class GoogleSheetReporter:
             entry_leg = trade.get("entry_leg") or (signal.get("entry_leg") if signal else "")
             setup_type = trade.get("setup_type") or (signal.get("setup_type") if signal else "")
             
-            if entry_leg == "B" and "ZGMT" in setup_type and self.leg_b_sheet:
+            if entry_leg == "B" and setup_type and "ZGMT" in setup_type and self.leg_b_sheet:
                 leg_b_row_data = row_data + [
                     signal.get("swing_low", "") if signal else "",
                     signal.get("swing_high", "") if signal else "",

@@ -172,7 +172,10 @@ class TelegramBridge:
         Returns:
             bool: True if sent successfully.
         """
-        signal_id = signal["signal_id"]
+        signal_id = signal.get("signal_id", "")
+        if not signal_id:
+            logger.error("send_signal: signal missing signal_id — aborting.")
+            return False
         timestamp_ist = (
             datetime.now(_IST).strftime("%Y-%m-%d %H:%M:%S")
         )
@@ -190,14 +193,14 @@ class TelegramBridge:
 
         text = (
             f"Time : `{timestamp_ist}`\n\n"
-            f"Pair: `{signal['pair']}`\n"
+            f"Pair: `{signal.get('pair', 'N/A')}`\n"
             f"Killzone: `{display_kz}`\n"
-            f"Direction: `{signal['direction']}`\n"
+            f"Direction: `{signal.get('direction', 'N/A')}`\n"
             f"Entry Leg: `{signal.get('entry_leg', 'A')}`\n\n"
-            f"Entry: `{signal['entry_price']}`\n"
-            f"SL: `{signal['sl_price']}`\n"
-            f"TP1: `{signal['tp1_price']}`\n"
-            f"TP2: `{signal['tp2_price']}`\n"
+            f"Entry: `{signal.get('entry_price', 'N/A')}`\n"
+            f"SL: `{signal.get('sl_price', 'N/A')}`\n"
+            f"TP1: `{signal.get('tp1_price', 'N/A')}`\n"
+            f"TP2: `{signal.get('tp2_price', 'N/A')}`\n"
             f"TP3: `{tp3_price_str}`\n\n"
             f"SL USD: `${sl_usd:.2f}`\n"
             f"TP1 USD : `${tp1_usd:.2f}`\n"
