@@ -272,8 +272,9 @@ def _pip_size_for_pair(pair: str) -> float:
 
 def generate_report(all_trades: list, bt_config: dict) -> None:
     """Print summary and save CSV for all trades across all pairs."""
-    date_from = bt_config["date_from"]
-    date_to   = bt_config["date_to"]
+    ds_cfg = bt_config.get("data_source", {})
+    date_from = ds_cfg.get("date_from", "Unknown")
+    date_to   = ds_cfg.get("date_to", "Unknown")
     strategy_label = bt_config.get("strategy", "MMXM").upper()
 
     if not all_trades:
@@ -283,7 +284,7 @@ def generate_report(all_trades: list, bt_config: dict) -> None:
     df = pd.DataFrame(all_trades)
 
     # ── Continuous week_no override ──────────────────────────────────────
-    start_date = pd.to_datetime(bt_config["date_from"], utc=True)
+    start_date = pd.to_datetime(date_from, utc=True)
     open_times = pd.to_datetime(df["open_time"], utc=True)
     df["week_no"] = ((open_times - start_date).dt.days // 7) + 1
 
