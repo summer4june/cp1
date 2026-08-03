@@ -1242,7 +1242,7 @@ class ScannerZGMT:
                                 break
                         
                         if disp_idx is not None:
-                            is_mitigated = self._check_mitigated_after(df, disp_idx, "BUY", body_low, pair)
+                            is_mitigated = self._check_mitigated_after(df, disp_idx, "BUY", body_high, pair)
                             obs.append({
                                 "ob_type": "NORMAL",
                                 "direction": "BUY",
@@ -1271,7 +1271,7 @@ class ScannerZGMT:
                                 break
                                 
                         if disp_idx is not None:
-                            is_mitigated = self._check_mitigated_after(df, disp_idx, "SELL", body_high, pair)
+                            is_mitigated = self._check_mitigated_after(df, disp_idx, "SELL", body_low, pair)
                             obs.append({
                                 "ob_type": "NORMAL",
                                 "direction": "SELL",
@@ -1334,7 +1334,7 @@ class ScannerZGMT:
                         body_low  = float(min(opens[mb_idx], closes[mb_idx]))
                         body_mid  = (body_high + body_low) / 2.0
                         
-                        is_mitigated = self._check_mitigated_after(df, mb_idx, "BUY", body_low, pair)
+                        is_mitigated = self._check_mitigated_after(df, mb_idx, "BUY", body_high, pair)
                         obs.append({
                             "ob_type": "MITIGATION",
                             "direction": "BUY",
@@ -1368,7 +1368,7 @@ class ScannerZGMT:
                         body_low  = float(min(opens[mb_idx], closes[mb_idx]))
                         body_mid  = (body_high + body_low) / 2.0
                         
-                        is_mitigated = self._check_mitigated_after(df, mb_idx, "SELL", body_high, pair)
+                        is_mitigated = self._check_mitigated_after(df, mb_idx, "SELL", body_low, pair)
                         obs.append({
                             "ob_type": "MITIGATION",
                             "direction": "SELL",
@@ -1457,7 +1457,7 @@ class ScannerZGMT:
                     "timeframe": tf,
                     # Mitigated only if a LATER candle wick enters the body zone
                     # (check from break_idx+1 so the break candle itself doesn't count)
-                    "is_mitigated": self._check_mitigated_after(df, break_idx, "BUY", ob["body_low"], pair),
+                    "is_mitigated": self._check_mitigated_after(df, break_idx, "BUY", ob["body_high"], pair),
                 })
 
             elif ob["direction"] == "BUY":
@@ -1496,7 +1496,7 @@ class ScannerZGMT:
                     "candle_index": break_idx,
                     "displacement_index": break_idx,
                     "timeframe": tf,
-                    "is_mitigated": self._check_mitigated_after(df, break_idx, "SELL", ob["body_high"], pair),
+                    "is_mitigated": self._check_mitigated_after(df, break_idx, "SELL", ob["body_low"], pair),
                 })
 
         return breakers
@@ -1511,8 +1511,8 @@ class ScannerZGMT:
         AFTER start_after_index (i.e., start_after_index+1 onwards).
 
         Uses WICK touch per strategy spec:
-          BUY  OB mitigated if any later wick low  reaches OB body_low  (level).
-          SELL OB mitigated if any later wick high reaches OB body_high (level).
+          BUY  OB mitigated if any later wick low  reaches OB proximal edge (level).
+          SELL OB mitigated if any later wick high reaches OB proximal edge (level).
           
         Uses a tolerance of 1 pip (0.0001) for mitigation.
         """
