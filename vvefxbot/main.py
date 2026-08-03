@@ -308,6 +308,7 @@ def scan_pair(
         pair_strategies = config.assets.get(pair, {}).get("strategies") or []
 
         # Run scanners sequentially
+        signal_dispatched = False
         for scanner_name, scanner in scanners:
             # Skip if this strategy is not enabled for this specific pair
             mapped_strategy = strategy_map.get(scanner_name)
