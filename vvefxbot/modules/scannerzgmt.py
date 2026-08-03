@@ -336,7 +336,7 @@ class ScannerZGMT:
 
         # We no longer hard-block for 3 minutes; if the candle is available, we use it immediately.
 
-        candles = self.mt5.get_candles(pair, "H1", count=30)
+        candles = self.mt5.get_candles(pair, "H1", count=100)
         if candles is None or candles.empty:
             logger.debug(f"[{pair}] ZGMT: No H1 candles returned.")
             return None, False
@@ -359,7 +359,10 @@ class ScannerZGMT:
             logger.debug(f"[{pair}] ZGMT: Found 0 GMT open price = {zgmt_price:.5f} at {candle_time} (offset {offset_hours}h)")
             return zgmt_price, False
 
-        is_structural = now_utc.hour >= 2
+        # Only mark as a structural missing candle if it's well past 00:00 UTC today
+        # (e.g. between 02:00 UTC and 12:00 UTC). If it's the previous evening (e.g. 21:00 UTC),
+        # we don't want to structurally kill the next day just because a past candle fell out of fetch window.
+        is_structural = 2 <= now_utc.hour < 12
         logger.debug(f"[{pair}] ZGMT: 0 GMT H1 candle not found in fetched data. is_structural={is_structural}")
         return None, is_structural
 
