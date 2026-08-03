@@ -99,10 +99,10 @@ class SMREngine:
     def _find_consecutive_opposite_obs(self, setup_direction: str) -> Optional[dict]:
         """
         Finds the most recent pair of 2 CONSECUTIVE opposite candles before the current extreme.
-        For BEARISH setup: find 2 consecutive BEARISH candles.
-        For BULLISH setup: find 2 consecutive BULLISH candles.
+        For BEARISH setup (sell): find 2 consecutive BULLISH (up) candles before the drop.
+        For BULLISH setup (buy): find 2 consecutive BEARISH (down) candles before the pump.
         """
-        target_type = "BEARISH" if setup_direction == "BEARISH" else "BULLISH"
+        target_type = "BULLISH" if setup_direction == "BEARISH" else "BEARISH"
         
         def is_target_candle(candle):
             if target_type == "BEARISH":
