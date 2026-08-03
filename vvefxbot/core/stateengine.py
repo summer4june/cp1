@@ -58,7 +58,8 @@ class StateEngine:
                     spread_pips REAL, effective_rr REAL, score REAL,
                     detected_time TEXT, strategy TEXT, entry_mode TEXT, entry_leg TEXT,
                     setup_type TEXT, fixed_lot_size REAL, skip_rr_check INTEGER, position_fraction REAL,
-                    telegram_alert_sent INTEGER DEFAULT 0
+                    telegram_alert_sent INTEGER DEFAULT 0, ob_high REAL, ob_low REAL,
+                    swing_high REAL, swing_low REAL
                 )
                 """)
 
@@ -87,6 +88,14 @@ class StateEngine:
                     cursor.execute("ALTER TABLE signals_detected ADD COLUMN killzone TEXT")
                 if cols and "telegram_alert_sent" not in cols:
                     cursor.execute("ALTER TABLE signals_detected ADD COLUMN telegram_alert_sent INTEGER DEFAULT 0")
+                if cols and "ob_high" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN ob_high REAL")
+                if cols and "ob_low" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN ob_low REAL")
+                if cols and "swing_high" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN swing_high REAL")
+                if cols and "swing_low" not in cols:
+                    cursor.execute("ALTER TABLE signals_detected ADD COLUMN swing_low REAL")
 
                 # 2. trades_executed — full schema including tp3, tp2_hit, current_sl
                 cursor.execute("""
@@ -186,6 +195,7 @@ class StateEngine:
         "tp3_price", "sl_pips", "tp_pips", "tp3_pips", "spread_pips", "effective_rr",
         "score", "detected_time", "strategy", "entry_mode", "entry_leg", "setup_type",
         "fixed_lot_size", "skip_rr_check", "position_fraction", "telegram_alert_sent",
+        "ob_high", "ob_low", "swing_high", "swing_low"
     }
 
     def _sanitize_signal(self, signal: Dict[str, Any]) -> Dict[str, Any]:
