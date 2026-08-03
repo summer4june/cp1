@@ -1838,16 +1838,19 @@ class ScannerZGMT:
             logger.warning(f"[{pair}] ZGMT-EXCEPTION: Insufficient valid D1 trading days for ADR.")
             return None
 
-        # The last row is the current forming candle. We want `adr_days` COMPLETED candles before it.
-        completed = d1_filtered.iloc[-adr_days - 1 : -1]
+        # For TRUE_AVERAGE, we strictly want fully completed days so a partial forming day doesn't artificially lower the average.
+        completed_for_mean = d1_filtered.iloc[-adr_days - 1 : -1]
+        
+        # For HIGH_LOW_RANGE, we want to include the current forming day to ensure massive intra-day drops/pumps are captured in the SL.
+        completed_for_range = d1_filtered.iloc[-adr_days:]
         
         adr_mode = self.zgmt_cfg.get("adr_mode", "HIGH_LOW_RANGE")
         
         if adr_mode == "HIGH_LOW_RANGE":
-            highest_high = float(completed['high'].max())
-            lowest_low = float(completed['low'].min())
+            highest_high = float(completed_for_range['high'].max())
+            lowest_low = float(completed_for_range['low'].min())
             adr = (highest_high - lowest_low) / adr_days
         else:  # TRUE_AVERAGE
-            adr = float((completed['high'] - completed['low']).mean())
+            adr = float((completed_for_mean['high'] - completed_for_mean['low']).mean())
             
         return adr / 2  # SL = ADR ÷ 2
