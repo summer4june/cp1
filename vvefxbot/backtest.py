@@ -533,25 +533,49 @@ def main():
 
             connector = BacktestConnector(config, data, pair, offset_hours=offset_hours)
 
-            # ── Instantiate the chosen scanner ───────────────────────────
+            # ── Instantiate the chosen scanners ───────────────────────────
             from core.stateengine import StateEngine as _SE
             _bt_state = _SE(":memory:")
 
-            # Init scanner based on config
-            if strategy_name == "MACRO":
+            scanners = []
+            strats = bt_config.get("strategies", {})
+            
+            # Fallback for old configs
+            if not strats and "strategy" in bt_config:
+                strats = {bt_config["strategy"]: True}
+                
+            if strats.get("MMXM", False):
+                config.enabled_scanners["mmxm"] = True
+                from modules.scannermmxm import ScannerMMXM
+                scanners.append(ScannerMMXM(config, connector, _bt_state))
+                
+            if strats.get("OTE", False):
+                config.enabled_scanners["ote"] = True
+                from modules.scannerote import ScannerOTE
+                scanners.append(ScannerOTE(config, connector, _bt_state))
+                
+            if strats.get("MACRO", False):
                 if isinstance(config.macro_strategy, dict):
                     config.macro_strategy["enabled"] = True
                     config.macro_strategy["pairs"] = pairs
                 from modules.scannermacro import ScannerMacro
-                scanner = ScannerMacro(config, connector, _bt_state)
-            else:
+                scanners.append(ScannerMacro(config, connector, _bt_state))
+                
+            if strats.get("MACRO_LEG_B", False):
+                config.enabled_scanners["macro_leg_b"] = True
+                if isinstance(config.macro_strategy, dict):
+                    config.macro_strategy["pairs"] = pairs
+                from modules.scannermacrolegb import ScannerMacroLegB
+                scanners.append(ScannerMacroLegB(config, connector, _bt_state))
+                
+            if strats.get("ZGMT", False):
                 if isinstance(config.zgmt_scanner, dict):
                     config.zgmt_scanner["enabled"] = True
                     config.zgmt_scanner["pairs"] = pairs
                 from modules.scannerzgmt import ScannerZGMT
-                scanner = ScannerZGMT(config, connector, _bt_state)
+                scanners.append(ScannerZGMT(config, connector, _bt_state))
             
-            engine = BacktestEngine(config, connector, pair, scanner=scanner)
+            engine = BacktestEngine(config, connector, pair, scanners=scanners)
             trades = engine.run()
             all_trades.extend(trades)
             logger.info(f"{pair}: {len(trades)} trades simulated.")

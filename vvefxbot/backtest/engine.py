@@ -232,11 +232,13 @@ class BacktestEngine:
         connector: BacktestConnector,
         pair: str,
         scanner=None,
+        scanners=None,
         pip_value: float = 10.0,
     ):
         self.config = config
         self.connector = connector
         self.pair = pair
+        self.scanners = scanners if scanners is not None else ([scanner] if scanner else [])
 
         # ── Pip value: USD profit per pip per standard lot (100k units) ──────
         # XAUUSD: 1 pip = 0.01 USD/oz, lot = 100 oz → $1.00/pip
@@ -368,7 +370,7 @@ class BacktestEngine:
         bars_since_signal = 999
 
         # ZGMT optimization setup: parse window bounds once outside the loop
-        is_zgmt = (self.scanner.__class__.__name__ == "ScannerZGMT")
+        zgmt_active = any(s.__class__.__name__ == "ScannerZGMT" for s in self.scanners)
         w_start = None
         w_end = None
 
@@ -378,7 +380,7 @@ class BacktestEngine:
         bt_partial_tp_fraction = float(tm_cfg.get("partial_tp_fraction", 0.5))
         bt_be_buffer_pips = float(tm_cfg.get("breakeven_buffer_pips", 30))
 
-        if is_zgmt:
+        if zgmt_active:
             zgmt_cfg = getattr(self.config, "zgmt_scanner", {})
             window_start_str = zgmt_cfg.get("zgmt_window_start_ist", "05:30")
             window_end_str = zgmt_cfg.get("zgmt_window_end_ist", "08:00")
@@ -457,26 +459,20 @@ class BacktestEngine:
 
             bars_since_signal += 1
 
-            # ── ZGMT specific optimization: only scan within the ZGMT signal window ──
-            if is_zgmt:
-                # Convert current_time (UTC) to IST (UTC + 5:30)
+            # ── Run scanners ────────────────────────────────────────────
+            signals_list = []
+            
+            # Pre-compute IST time for ZGMT optimization if needed
+            current_ist_time = None
+            if zgmt_active:
                 if current_time.tzinfo is None:
                     current_time_utc = current_time.replace(tzinfo=timezone.utc)
                 else:
                     current_time_utc = current_time.astimezone(timezone.utc)
-                
-                # ZGMT works in IST
                 current_time_ist = current_time_utc + timedelta(hours=5, minutes=30)
                 current_ist_time = current_time_ist.time()
-                
-                # Inclusive end (<=): scan the bar that lands exactly at window_end too.
-                # This matches ScannerZGMT's own live-time guard which also uses <=.
-                if not (w_start <= current_ist_time <= w_end):
-                    continue
 
             # ── Derive session & killzone from replay BAR time (not live clock) ──
-            # session_engine.get_active_session() uses datetime.now() which is always
-            # the real-world clock time — wrong for backtesting. Compute from bar.
             session = self._get_session_for_time(current_time)
             killzone_raw = self._get_killzone_for_time(current_time)
             
@@ -488,9 +484,6 @@ class BacktestEngine:
             }
             killzone = kz_map.get(killzone_raw, killzone_raw) if killzone_raw else None
 
-            if not is_zgmt and not (self.scanner.__class__.__name__ == "ScannerMacro") and not killzone:
-                continue
-
             # ── Skip if max open trades reached ───────────────────────
             active_open_trades = [t for t in self._open_trades if t.status == "OPEN"]
             if len(active_open_trades) >= self.config.max_open_trades:
@@ -500,12 +493,31 @@ class BacktestEngine:
             if bars_since_signal < 15:
                 continue
 
-            # ── Run scanner ────────────────────────────────────────────
-            signals_raw = self.scanner.scan(self.pair, session or "London", killzone)
-            if not signals_raw:
-                continue
+            for scanner in self.scanners:
+                scanner_name = scanner.__class__.__name__
+                is_zgmt = (scanner_name == "ScannerZGMT")
+                is_macro = (scanner_name == "ScannerMacro")
+                is_macro_leg_b = (scanner_name == "ScannerMacroLegB")
+                
+                # ZGMT specific optimization: only scan within the ZGMT signal window
+                if is_zgmt and w_start and w_end and current_ist_time:
+                    if not (w_start <= current_ist_time <= w_end):
+                        continue
 
-            signals_list = signals_raw if isinstance(signals_raw, list) else [signals_raw]
+                if not is_zgmt and not is_macro and not is_macro_leg_b and not killzone:
+                    continue
+
+                signals_raw = scanner.scan(self.pair, session or "London", killzone)
+                if not signals_raw:
+                    continue
+
+                if isinstance(signals_raw, list):
+                    signals_list.extend(signals_raw)
+                else:
+                    signals_list.append(signals_raw)
+
+            if not signals_list:
+                continue
 
             for signal in signals_list:
                 strategy = signal.get("strategy", "UNKNOWN")
@@ -606,8 +618,8 @@ class BacktestEngine:
                             current_time_utc = current_time.astimezone(timezone.utc)
 
                         target_0gmt = current_time_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-                        if hasattr(self.scanner, "_get_broker_utc_offset_hours"):
-                            offset_hours = self.scanner._get_broker_utc_offset_hours(self.pair)
+                        if hasattr(scanner, "_get_broker_utc_offset_hours"):
+                            offset_hours = scanner._get_broker_utc_offset_hours(self.pair)
                             target_0gmt = target_0gmt + timedelta(hours=offset_hours)
                         
                         # Normalize target to tz-aware UTC to match m1_data["time"]
