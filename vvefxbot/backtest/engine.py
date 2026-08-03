@@ -545,7 +545,7 @@ class BacktestEngine:
                     window_key = signal.get("window_name", strategy)
                     for t in self._open_trades:
                         if (t.pair == self.pair and t.strategy == strategy 
-                                and t.direction == signal["direction"] 
+                                and t.direction == signal.get("direction", "") 
                                 and getattr(t, "window_name", "") == window_key
                                 and t.status == "PENDING"):
                             already_pending = True
@@ -649,10 +649,20 @@ class BacktestEngine:
                     day_start_idx = idx
                     fill_time = current_bar["time"]
 
-                # Compute SL/TP from the fill price using pip distances
-                sl_pips = signal["sl_pips"]
-                tp_pips = signal["tp_pips"]
+                # Compute SL/TP pips from signal (with fallback from price levels if missing)
+                _sig_entry = signal.get("entry_price") or entry_price
+                _sig_sl    = signal.get("sl_price") or 0.0
+                sl_pips = signal.get("sl_pips")
+                if not sl_pips and _sig_entry and _sig_sl:
+                    sl_pips = abs(_sig_entry - _sig_sl) / pip_size
+                sl_pips = sl_pips or 10.0  # absolute fallback
+
+                tp_pips = signal.get("tp_pips")
+                if not tp_pips:
+                    tp_pips = sl_pips * float(self.config.macro_strategy.get("risk_reward", 3.0) \
+                        if hasattr(self.config, "macro_strategy") else 3.0)
                 tp3_pips = signal.get("tp3_pips", sl_pips * 3)
+
                 pip_size = self.pip_size
                 sl_diff = sl_pips * pip_size
                 tp_diff = tp_pips * pip_size

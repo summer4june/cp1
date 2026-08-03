@@ -161,6 +161,8 @@ class ScannerMacroLegB:
 
         pip = self._pip_size(pair)
         sl_pips_val = round(sl_dist / pip, 1) if pip > 0 else 0.0
+        tp3_dist = sl_dist * rr_target
+        tp_pips_val = round(tp3_dist / pip, 1) if pip > 0 else 0.0
         spread_pips = self.mt5.get_current_spread(pair) or 0.0
 
         logger.info(
@@ -178,6 +180,8 @@ class ScannerMacroLegB:
             "tp2_price": round(tp2_price, 5),
             "tp3_price": round(tp3_price, 5),
             "sl_pips": sl_pips_val,
+            "tp_pips": tp_pips_val,
+            "tp3_pips": tp_pips_val,
             "spread_pips": spread_pips,
             "is_above_market": is_above_market,
             "session": "MACRO_LEGB",
