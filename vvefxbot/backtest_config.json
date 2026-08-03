@@ -6,8 +6,16 @@
         "date_from": "2026-06-01",
         "date_to": "2026-06-30"
     },
-    "pairs": ["GBPJPYm"],
-    "scanner": "ScannerZGMT",
+
+    "assets": {
+        "GBPJPYm": {
+            "strategies": ["ZGMT"]
+        }
+    },
+
+    "initial_balance": 1000.0,
+    "risk_percent": 100.0,
+
     "vault_config": {
         "start_balance": 1000.0,
         "trading_balance": 1000.0,
@@ -16,39 +24,5 @@
         "vault_percentage": 0.50,
         "min_trading_balance": 800.0,
         "max_daily_drawdown_pct": 0.20
-    },
-    "scanners": {
-        "zgmt_scanner": {
-            "pairs": ["GBPJPYm"],
-            "allow_buy": true,
-            "allow_sell": true,
-            "cooldown_minutes": 60,
-            "zgmt_window_start_ist": "05:30",
-            "zgmt_window_end_ist": "08:00",
-            "zgmt_test_exclude_first_mins": 15,
-            "require_pd_array_check": true,
-            "pd_array_timeframe": "D1",
-            "pd_array_candles": 60,
-            "pd_array_tap_threshold_pips": 5,
-            "strategy_a_enabled": false,
-            "strategy_b_enabled": true,
-            "strategy_c_enabled": false,
-            "zgmt_ob_candles_4h": 120,
-            "zgmt_ob_candles_1h": 480,
-            "zgmt_ob_tap_threshold_pips": 5,
-            "zgmt_ob_displacement_candles": 5,
-            "zgmt_ob_atr_multiplier": 2.0,
-            "zgmt_swing_l_4h": 2,
-            "zgmt_swing_r_4h": 2,
-            "zgmt_swing_l_1h": 2,
-            "zgmt_swing_r_1h": 2,
-            "fixed_lot_size": 0.0,
-            "skip_rr_check": true,
-            "zgmt_sl_tp": {
-                "sl_pips_fx": 25,
-                "sl_pips_metal": 95,
-                "tp_rr_fixed": 2
-            }
-        }
     }
 }

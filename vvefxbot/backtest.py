@@ -442,25 +442,17 @@ def main():
     with open(args.config) as f:
         bt_config = json.load(f)
 
-    strategy_name = bt_config.get("strategy", "ZGMT").upper()
-    logger.info(f"Backtesting strategy: {strategy_name} (Exclusive)")
-
-    date_from = datetime.fromisoformat(bt_config["date_from"]).replace(tzinfo=timezone.utc)
-    date_to   = datetime.fromisoformat(bt_config["date_to"]).replace(tzinfo=timezone.utc)
-
-    # Load broker timezone offset
-    offset_hours = float(bt_config.get("broker_timezone_offset_hours", 0.0))
-    if offset_hours != 0.0:
-        logger.info(f"Applying broker server timezone offset of {offset_hours} hours to shift data to UTC.")
-
     assets = bt_config.get("assets", {})
-    if assets:
-        pairs = [pair for pair, info in assets.items() if strategy_name in info.get("strategies", [])]
-        if not pairs:
-            logger.warning(f"No pairs found in assets for strategy {strategy_name}. Please check backtest_config.json.")
-    else:
-        pairs = bt_config.get("pairs", [])
-        
+    if not assets:
+        # Fallback to older format or live config
+        if "pairs" in bt_config:
+            assets = {p: {"strategies": ["ZGMT"]} for p in bt_config["pairs"]}
+        else:
+            print("❌ No 'assets' found in backtest_config.json.")
+            sys.exit(1)
+            
+    pairs = list(assets.keys())
+
     if not pairs:
         logger.error("No pairs to backtest. Exiting.")
         sys.exit(1)
@@ -479,6 +471,14 @@ def main():
     ds_cfg  = bt_config.get("data_source", {})
     ds_mode = ds_cfg.get("mode", "mt5").lower()
     csv_dir = ds_cfg.get("csv_dir", "backtest/data")
+    
+    date_from = datetime.fromisoformat(ds_cfg["date_from"]).replace(tzinfo=timezone.utc)
+    date_to   = datetime.fromisoformat(ds_cfg["date_to"]).replace(tzinfo=timezone.utc)
+
+    # Load broker timezone offset
+    offset_hours = float(ds_cfg.get("offset_hours", 0.0))
+    if offset_hours != 0.0:
+        logger.info(f"Applying broker server timezone offset of {offset_hours} hours to shift data to UTC.")
 
     mt5_connected = False
 
@@ -538,11 +538,10 @@ def main():
             _bt_state = _SE(":memory:")
 
             scanners = []
-            strats = bt_config.get("strategies", {})
             
-            # Fallback for old configs
-            if not strats and "strategy" in bt_config:
-                strats = {bt_config["strategy"]: True}
+            # Get strategies for this specific pair from assets dict
+            pair_strategies = assets.get(pair, {}).get("strategies", ["ZGMT"])
+            strats = {s.upper(): True for s in pair_strategies}
                 
             if strats.get("MMXM", False):
                 config.enabled_scanners["mmxm"] = True
