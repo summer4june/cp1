@@ -192,29 +192,29 @@ class ScannerZGMT:
         Returns (start_utc, end_utc) as UTC-aware datetimes.
         """
         current_utc = self._utc_now()
-        ny_tz = ZoneInfo("America/New_York")
-        now_ny = current_utc.astimezone(ny_tz)
+        now_ist = current_utc + self._IST_OFFSET
         
-        # 1. Find the most recent 17:00 (5 PM) NY time
-        recent_close = now_ny.replace(hour=17, minute=0, second=0, microsecond=0)
+        # 1. Find the most recent 02:30 AM IST
+        recent_close = now_ist.replace(hour=2, minute=30, second=0, microsecond=0)
         
-        # If it is currently before 17:00 in NY, the most recent close was yesterday
-        if now_ny < recent_close:
+        # If it is currently before 02:30 AM IST, the most recent close was yesterday
+        if now_ist < recent_close:
             recent_close -= timedelta(days=1)
             
         # The end of T-1 is the recent_close
         t_start = recent_close
         
         # 2. Skip the weekend gap
-        # Forex closes Friday 17:00 NY and opens Sunday 17:00 NY.
-        if t_start.weekday() == 6: # Sunday 17:00
-            t_start -= timedelta(days=2) # Shift back to Friday 17:00
-        elif t_start.weekday() == 5: # Saturday 17:00 (market closed, but just in case)
-            t_start -= timedelta(days=1) # Shift back to Friday 17:00
+        # Forex closes Saturday 02:30 AM IST and opens Monday 02:30 AM IST.
+        if t_start.weekday() == 0: # Monday 02:30 IST (which is market open)
+            t_start -= timedelta(days=2) # Shift back to Saturday 02:30 IST (Friday's close)
+        elif t_start.weekday() == 6: # Sunday 02:30 IST
+            t_start -= timedelta(days=1) # Shift back to Saturday 02:30 IST
             
         t_minus_1_start = t_start - timedelta(days=1)
         
-        return t_minus_1_start.astimezone(timezone.utc), t_start.astimezone(timezone.utc)
+        return (t_minus_1_start - self._IST_OFFSET).replace(tzinfo=timezone.utc), \
+               (t_start - self._IST_OFFSET).replace(tzinfo=timezone.utc)
 
     def _get_daily_bias(self, pair: str, zgmt_cfg: dict, zgmt_price: float) -> tuple[str | None, bool, float, float]:
         """
