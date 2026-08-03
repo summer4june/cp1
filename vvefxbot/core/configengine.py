@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 class Config:
     """Dataclass to hold all configuration settings for the trading bot."""
     # From config.json
+    assets: Dict[str, Any]
     strategy_mode: str
     enabled_scanners: Dict[str, bool]
     ote_scanner: Dict[str, Any]
@@ -244,6 +245,7 @@ class ConfigEngine:
 
         # Construct and return Config dataclass
         return Config(
+            assets=assets,
             strategy_mode=json_data["strategy_mode"],
             enabled_scanners=json_data["enabled_scanners"],
             ote_scanner=json_data["ote_scanner"],

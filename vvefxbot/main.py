@@ -285,8 +285,24 @@ def scan_pair(
             logger.debug(f"[{pair}] Avoid window active, skipping scan.")
             return
 
+        # We need to map scanner name to strategy name for config lookup
+        strategy_map = {
+            "ScannerMMXM": "MMXM",
+            "ScannerOTE": "OTE",
+            "ScannerZGMT": "ZGMT",
+            "ScannerMacro": "MACRO",
+            "ScannerMacroLegB": "MACRO_LEG_B"
+        }
+
+        pair_strategies = config.assets.get(pair, {}).get("strategies", [])
+
         # Run scanners sequentially
         for scanner_name, scanner in scanners:
+            # Skip if this strategy is not enabled for this specific pair
+            mapped_strategy = strategy_map.get(scanner_name)
+            if mapped_strategy and mapped_strategy not in pair_strategies:
+                continue
+
             result = scanner.scan(pair, session, killzone)
             if not result:
                 continue
