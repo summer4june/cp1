@@ -98,6 +98,7 @@ class ScannerMacro:
         return dt_time(0, 0)
 
     def scan(self, pair: str, session: str = None, killzone: str = None) -> dict | None:
+        logger.debug(f"[{pair}] MACRO: scan() called. Enabled={self.macro_cfg.get('enabled')} Pairs={self.macro_cfg.get('pairs')}")
         if not self.macro_cfg.get("enabled", False):
             return None
 
