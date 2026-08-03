@@ -930,7 +930,13 @@ class ScannerZGMT:
         for df, tf in [(h4_candles, "H4"), (h1_candles, "H1")]:
             if df is None or (hasattr(df, 'empty') and df.empty):
                 continue
-            df = df.reset_index(drop=True)
+            
+            # CRITICAL FIX: Exclude the last candle because it is currently forming.
+            # An Order Block and its Displacement MUST be completely closed candles.
+            df = df.iloc[:-1].reset_index(drop=True)
+            if df.empty:
+                continue
+            
             
             last_candle_time = df.iloc[-1]['time']
             cache_key = f"{pair}_{tf}_{last_candle_time}"
@@ -992,7 +998,12 @@ class ScannerZGMT:
             if df_tf is None or (hasattr(df_tf, 'empty') and df_tf.empty):
                 dealing_ranges[tf_name] = None
                 continue
-            df_tf = df_tf.reset_index(drop=True)
+            # Drop unclosed candle
+            df_tf = df_tf.iloc[:-1].reset_index(drop=True)
+            if df_tf.empty:
+                dealing_ranges[tf_name] = None
+                continue
+                
             dealing_ranges[tf_name] = self._get_dealing_range(df_tf, L, R, pair)
             if dealing_ranges[tf_name]:
                 sl, sh = dealing_ranges[tf_name]
@@ -1128,10 +1139,10 @@ class ScannerZGMT:
             "bias_summary": (
                 f"ZGMT-EXCEPTION | {best_ob['ob_type']} OB | "
                 f"{best_ob['timeframe']} | Zone: {zone_label} | "
-                f"OB H/L: {round(best_ob['body_high'], 5)} / {round(best_ob['body_low'], 5)}"
+                f"OB H/L: {round(best_ob.get('candle_high', best_ob['body_high']), 5)} / {round(best_ob.get('candle_low', best_ob['body_low']), 5)}"
             ),
-            "ob_high": round(best_ob["body_high"], 5),
-            "ob_low": round(best_ob["body_low"], 5),
+            "ob_high": round(best_ob.get("candle_high", best_ob["body_high"]), 5),
+            "ob_low": round(best_ob.get("candle_low", best_ob["body_low"]), 5),
             "swing_low": best_dealing_range[0],
             "swing_high": best_dealing_range[1],
             "entry_price": round(entry_price, 5),
