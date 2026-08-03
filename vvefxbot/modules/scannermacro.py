@@ -115,6 +115,7 @@ class ScannerMacro:
             return None
             
         window_name, window_type, end_t_ist, window_start_t = active_macro
+        logger.debug(f"[{pair}] MACRO: Scan started | Window={window_name} ({window_type})")
         
         session_name = "NewYork Open"
         if "Reversal" in window_name:
